@@ -25,10 +25,11 @@ They don't need to be perfect, complete, or even very good when you submit them.
 ## The Process
 
 1. Fork this repository and create a new branch for your new RFC.
-2. Copy `template.md` into the `rfcs` folder and rename it to `my_feature.md`, where `my_feature` is a unique identifier for your feature. 
-3. [Create a pull request](https://docs.github.com/en/github/collaborating-with-issues-and-pull-requests/creating-a-pull-request) in this repo, with a one-sentence description of what the RFC is about.
-4. Help us discuss and refine the RFC. Bevy contributors and @cart (Bevy's project lead) will leave comments and suggestions. Ideally at some point relative consensus will be reached. Your RFC is "accepted" if your pull request is merged. If your RFC is accepted, move on to step 6. A closed RFC indicates that the design cannot be accepted in its current form.
-5. Bevy contributors are now free to implement (or resume implementing) the RFC in a PR in the [main Bevy repo](https://github.com/bevyengine/bevy). You are _not_ required to provide an implementation for your RFC, nor are you _entitled_ to be the one that implements the RFC.
+2. Copy `template.md` into the `rfcs` folder and rename it to `my_feature.md`, where `my_feature` is a unique identifier for your feature.
+3. Fill out the RFC template with your vision for `my_feature`.
+4. [Create a pull request](https://docs.github.com/en/github/collaborating-with-issues-and-pull-requests/creating-a-pull-request) in this repo, with a one-sentence description of what the RFC is about.
+5. Help us discuss and refine the RFC. Bevy contributors and @cart (Bevy's project lead) will leave comments and suggestions. Ideally at some point relative consensus will be reached. Your RFC is "accepted" if your pull request is merged. If your RFC is accepted, move on to step 6. A closed RFC indicates that the design cannot be accepted in its current form.
+6. Bevy contributors are now free to implement (or resume implementing) the RFC in a PR in the [main Bevy repo](https://github.com/bevyengine/bevy). You are _not_ required to provide an implementation for your RFC, nor are you _entitled_ to be the one that implements the RFC.
 
 ## Collaborating
 
