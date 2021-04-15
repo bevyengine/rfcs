@@ -63,26 +63,14 @@ This is clearer with an example:
 // TODO: complete me
 ```
 
-### System resolution
+### Strategies for system resolution
 
-When attempting to control UI behavior through our ECS, we are forced to confront the challenge of **system resolution** head-on.
-This, in a nutshell, is the notion that we want our relevant collection of systems to be "at rest" before advancing on to the next part of our data pipeline.
+When implementing your own systems that control the UI, you need to be mindful that all UI logic is concluded (**at rest**, in contrast to **in motion**)
+before advancing to other parts of the game logic or rendering.
 
-While this problem is not *unique* to UI (complex event-based gameplay logic can encounter it too),
-it is particularly prevalent in UI due to the large number of heterogenous parts communicating in unpredictable ways.
+Failing to do so can result in strange bugs, unpleasant input delays and flickering UIs (see the corresponding section on system resolution below).
 
-At first, one may be determined to resolve this through careful system ordering.
-Simply trace out the pathways your data could flow, and make sure those systems resolve before their dependencies.
-While this may get unwieldy in complex UIs, you can solve the problem without any complex data structures.
-
-But cyclic dependencies, which are reasonably common in any complex enough system, foil our plans.
-Suppose we have one widget which when interacted with talks to a second widget.
-The second widget then (perhaps through some complex chain of events) modifies the first widget again before eventually the chain terminates.
-No matter the order of our systems, we cannot fully resolve this in a single pass of each system.
-
-TODO: why not just render things in motion?
-
-TODO: present solution.
+TODO: describe solution.
 
 ## Reference-level explanation
 
@@ -117,6 +105,34 @@ TODO: complete me.
 ### Widget behavior
 
 TODO: complete me.
+
+### System resolution
+
+When attempting to control UI behavior through our ECS, we are forced to confront the challenge of **system resolution** head-on.
+This, in a nutshell, is the notion that we want our relevant collection of systems to be "at rest" before advancing on to the next part of our data pipeline.
+
+While this problem is not *unique* to UI (complex event-based gameplay logic can encounter it too),
+it is particularly prevalent in UI due to the large number of heterogenous parts communicating in unpredictable ways.
+
+At first, one may be determined to resolve this through careful system ordering.
+Simply trace out the pathways your data could flow, and make sure those systems resolve before their dependencies.
+While this may get unwieldy in complex UIs, you can solve the problem without any complex data structures.
+
+But cyclic dependencies, which are reasonably common in any complex enough system, foil our plans.
+Suppose we have one widget which when interacted with talks to a second widget.
+The second widget then (perhaps through some complex chain of events) modifies the first widget again before eventually the chain terminates.
+No matter the order of our systems, we cannot fully resolve this in a single pass of each system.
+
+Presented with such a conundrum, we might throw up our hands and ask "Why not just move on, and render things in motion? What's the worst that could happen?"
+Unfortunately, a wide range of unpleasant things:
+
+1. Invalid state. TODO: expand.
+2. Responsiveness issues. TODO: expand.
+3. Flickering graphical representations. TODO: expand.
+
+Accepting that these are dire enough that we should avoid them, what does a good solution look like, and what are our options to get there?
+
+TODO: discuss potential solutions
 
 ## Unresolved questions
 
