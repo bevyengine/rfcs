@@ -94,15 +94,18 @@ The section should return to the examples given in the previous section, and exp
 
 ## Rationale and alternatives
 
-### Why ECS-powered UI?
+### Why do we want to be able to control UI behavior with systems?
 
-TODO: complete me.
+UI widgets should be entities with various components (see #1 and **Motivation**).
+With that established, we need to be able to easily extract data from the ECS, and operate on it in complex, user-extensible ways.
+In Bevy, this implies the use of systems.
+
+When implementing UI behavior in the ECS, the system resolution and widget wiring problems are far and away the most complex challenges to be solved.
+Unfortunately, they are from unique to the UI problem domain, even if they rarely appear in trivial demo games.
+We need good, ergonomic solutions to them (whether these are features or design patterns) in any case.
+UI is a great proving ground for these solutions due to its high complexity, tight constraints and shared requirements across many projects.
 
 ### Widget wiring
-
-TODO: complete me.
-
-### Widget behavior
 
 TODO: complete me.
 
@@ -137,7 +140,8 @@ TODO: discuss potential solutions
 ## Unresolved questions
 
 1. What does input handling look like? How do we ensure it's robust to multiple input paradigms?
-2. How do we ensure that signals are fully propagated before advancing?
+2. What exact API and semantics do we want for the components-as-event-channels pattern?
+3. How do we solve the system resolution problem?
 
 ## Future possibilities
 
