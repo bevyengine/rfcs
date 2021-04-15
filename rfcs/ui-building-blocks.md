@@ -164,14 +164,14 @@ pub fn propagate_styles<S: StyleParam>(mut widget_query: Query<(&S::Base, &mut S
   (With<Widget, Without<Style>, Changed<Styles>>)>,
   style_query: Query<Option<&S::Base>, With<Style>>){
  
- for (widget_param, styles) in widget_query.iter_mut(){
+ for (s_base, s_final, styles) in widget_query.iter_mut(){
     let mut style_params = Vec<Option<&S::Base>>;
 
     for style in style.iter(){
       style_params.push(style_query.get_component::<S>());
     }
 
-   *widget_param = apply_styles(widget_param, style_params);
+   *s_final = apply_styles(s_base, style_params);
  }
 }
 
@@ -184,7 +184,7 @@ pub fn propagate_style_changes<S: StyleParam>(mut widget_query: Query<(&S::Base,
   style_query: Query<Option<&S::Base>, (With<Style>, Changed<S::Base>>)){
  
  // Implementation note: we can narrow our queries by splitting this work into two systems, despite shared logic
- for (widget_param, styles) in widget_query.iter_mut(){
+ for (s_base, s_final, styles) in widget_query.iter_mut(){
     let mut style_params = Vec<Option<&S::Base>>;
 
     for style in style.iter(){
@@ -193,7 +193,7 @@ pub fn propagate_style_changes<S: StyleParam>(mut widget_query: Query<(&S::Base,
       }
     }
 
-   *widget_param = apply_styles(widget_param, style_params);
+   *s_final = apply_styles(s_base, style_params);
  }
 }
 
