@@ -33,6 +33,12 @@ while the value returned by `.get()` controls the final behavior of the widget.
 Every style parameter has both a `MyStyle<Base>` and a `MyStyle<Final>` variant, stored together on each entity.
 When creating a new style parameter, you must ensure that it implements `StyleParam`, typically achieved with `#[derive(StyleParam)]`.
 
+Styles can be modified directly, by modifying the `Styles` component of the widgets you wish to modify.
+When spawning entities, you may find it convenient to work with the relevant `EntityCommands` methods instead
+to reduce the number of function parameters your systems need.
+Pass in the type of your resource(s) that implements the `StyleResource` trait as type parameters, and the next time commands are processed,
+the entity stored in that resource will be added to (or removed from) the `Styles` component of your widget entity.
+
 When working on complex games or applications, you're likely to want to group your styles into **themes**,
 automatically applying them to large groups of widgets at once.
 In Bevy, themes are applied by adding a generic system that corresponds to that theme to your app's schedule.
@@ -47,15 +53,15 @@ This can work well for quickly toggling between various themes, like you might s
 ### Example: Building a Simple Widget
 
 ```rust
-commands.spawn_bundle(ButtonBundle::default());
+commands.spawn_bundle(ButtonBundle::default()).add_style::<BoldStyle>();
 ```
 
 ### Example: Building a Compound Widget
 
 ```rust
-commands.spawn_bundle(ButtonBundle::default())
+commands.spawn_bundle(ButtonBundle::default()).add_style::<BoldStyle>()
   .with_children(|parent| {
-    parent.spawn_bundle(TextBundle::default())
+    parent.spawn_bundle(TextBundle::default()).replace_style::<BoldStyle, SubtleStyle>()
   });
 ```
 
