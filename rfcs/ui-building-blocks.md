@@ -305,7 +305,8 @@ impl MyTrait for FooFinal { /* just call into FooInnerStyle */ }
 
 ### Why put your UI in the ECS?
 
-UI is not terribly performance sensitive, and often involves complex hierarchies that can be a nuisance to fit into an ECS paradigm.
+UI is not terribly performance sensitive, tends to be deeply fragmented,
+and often involves complex hierarchies that can be a nuisance to fit into an ECS paradigm.
 So why put it there?
 
 1. UI is a complex, but reasonably well-understood problem domain.
