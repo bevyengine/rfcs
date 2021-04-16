@@ -61,6 +61,10 @@ This is clearer with an example:
 // TODO: complete me
 ```
 
+When building UI logic that requires chains of events triggering one after another, you should be careful to ensure that upstream systems are processed earlier in the game-loop than their downstream systems.
+Failing to do so properly may result in invalid state, input lag or visual flickering.
+Standard system ordering tools (e.g. `.before()` and `.after()`) work well for this.
+
 ## Reference-level explanation
 
 TODO: complete me.
