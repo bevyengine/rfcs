@@ -50,15 +50,69 @@ fn handle_radio_button_input(){
 Widgets can be wired to each other and the game state in two common ways:
 
 1. Directly reading the state of our widget's components.
-2. Using the **components-as-event-channel** pattern to listen to events emitted by specific widget components.
-By storing `Events` in our components, we can mimic the idea of "event channels",
-allowing users to quickly differentiate between various events of the same type based on where they came from.
+2. Using events emitted by interacting with the widgets. 
 
 Read the component's state when you care about its current state, use event channels when you want to detect events being fired off.
-This is clearer with an example:
+
+As you move beyond trivial UIs, you may need to disambiguate between multiple widgets of the same type.
+To do so, isolate the correct widget's state using marker components.
+
+As your widgets grow further, you may want to scale this pattern dynamically, rather than relying on specific marker components.
+To do so, your consuming systems should point to other widgets directly, by storing references to their `Entity` identifier.
+
+Let's take a look at each of these patterns with some examples:
 
 ```rust
-// TODO: complete me
+// In this example, we're wiring up our logic directly to the state of our singleton widget
+fn set_background_color(color_selector_query: Query<&ColorSelector>, bg_color: ResMut<ClearColor>){
+  let color = color_selector_query.single().unwrap();
+  *bg_color = color;
+}
+
+// This is a trivial example of how you might listen to an event emitted by a widget's interactions
+fn hello_button(button_events: EventReader<ButtonEvent>){
+  for _ in button_events.iter(){
+    info!("Hello!");
+  }
+}
+
+// Sometimes, the correct behavior may be to simply mirror UI state into a resource
+// Then access that for downstream systems
+fn dark_mode_toggle(query: Query<&Toggle, With<LighDarkWidget>>, mut state: ResMut<State<LightDarkMode>>){
+  // This example extends the light-dark mode example in PR #1: UI styling
+  let toggle = query.single().unwrap();
+
+  state.active() = match toggle{
+    true => LightDarkMode::Dark,
+    false => LightDarkMode::Light
+  }
+}
+
+// Here, we're disambiguating between multiple widgets with a Selector by using a marker component
+fn build_unit(
+  mut commands: Commands,
+  build_events: EventRader<BuildEvent>, 
+  selector_query: Query<&Selector, With<BuildSelector>>){
+    
+    let unit_type = selector_query.single().unwrap().unit_type;
+    for event in build_events.iter(){
+      commands.spawn()
+        .insert_bundle(UnitBundle::new(unit_type))
+        .insert(Transform{event.transform});
+    }
+}
+
+// In this example, we have many similar UI elements
+// and we're looking to control the state of the corresponding UI entity
+// Note that we're using a game data -> UI data flow here
+fn update_healthbars(unit_query: Query<(&CurrentHealth, &MaxHealth, &Transform, &HealthBarEntity), Without<Widget>>, 
+  mut healthbar_query: Query<(&mut FillingBar, &mut Transform), With<Widget>>){
+    for (current, max, transform, hb_entity) in unit_query.iter(){
+      let mut (hb_bar, hb_transform) = healthbar_query.get(hb_entity).unwrap();
+      *hb_bar = health_to_bar(current, max);
+      *hb_transform = offset_health_bar(transform);
+    }
+}
 ```
 
 When building UI logic that requires chains of events triggering one after another, you should be careful to ensure that upstream systems are processed earlier in the game-loop than their downstream systems.
@@ -105,7 +159,7 @@ TODO: complete me.
 ## Unresolved questions
 
 1. What does input handling look like? How do we ensure it's robust to multiple input paradigms?
-2. What exact API and semantics do we want for the components-as-event-channels pattern?
+2. Are there compelling use cases for the components-as-event-channels pattern?
 3. Do circular system dependencies actually exist in real UI use-cases?
 
 ## Future possibilities
