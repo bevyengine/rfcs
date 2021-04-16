@@ -168,7 +168,7 @@ pub fn propagate_styles<S: StyleParam>(mut widget_query: Query<(&S::Base, &mut S
     let mut style_params = Vec<Option<&S::Base>>;
 
     for style in style.iter(){
-      style_params.push(style_query.get_component::<S>());
+      style_params.insert(style_query.get_component::<S>());
     }
 
    *s_final = apply_styles(s_base, style_params);
@@ -189,7 +189,7 @@ pub fn propagate_style_changes<S: StyleParam>(mut widget_query: Query<(&S::Base,
 
     for style in style.iter(){
       if style_query.get(style).is_some(){
-        style_params.push(style_query.get_component::<S::Base>());
+        style_params.insert(style_query.get_component::<S::Base>());
       }
     }
 
