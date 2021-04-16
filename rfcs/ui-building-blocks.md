@@ -2,18 +2,18 @@
 
 ## Summary
 
-This RFC establishes a common vocabulary, and basic data structures for UI.
+This RFC establishes a common vocabulary and basic data structures for UI.
 It is combined with a design pattern to manipulate UI styles ergonomically using Bevy's ECS, to tangibly demonstrate the feasibility of the approach.
 
 ## Motivation
 
 UI is the next big challenge for Bevy, with a complex set of data structures that need to be stored and manipulated.
-In particular, the ability to style elements (by setting) in a reusable fashion is central to a polished, easy-to UI, but there's no immediately obvious approach to handling them.
+In particular, the ability to style elements in a reusable fashion is central to a polished, easy-to UI, but there's no immediately obvious approach to handling this.
 What makes a "style" in Bevy? How do we represent the individual style parameters? How are widgets represented? How are styles composed? How are they applied?
 
 None of these questions are terribly challenging to implement on their own, but taking the first-seen path is particularly dangerous here, due to the risk of proliferation of non-local configuration and similar-but-not-identical style parameters, as seen in CSS.
 
-We need to settle on a common standard, in order to enable interop between and establish basic building blocks that more complex UI decisions can build off of.
+We need to settle on a common standard, in order to enable interop between UI crates and establish the basic building blocks that more complex UI decisions can build off of.
 
 ## Guide-level explanation
 
