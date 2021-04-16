@@ -415,6 +415,6 @@ allowing end users to query for style parameter components directly to receive t
 
    1. Widget composition.
    2. Layout.
-   3. Wiring: call-backs, message passing.
+   3. Wiring: call-backs, message passing (see #11).
 
 This RFC defines the underlying UI data structures, so should be settled first.
