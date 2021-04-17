@@ -30,21 +30,17 @@ Turning this into code, we get a `RadioButton` component and a couple of support
 
 ```rust
 struct RadioButton {
-  // These can't be pub fields, and instead must rely on accessor methods 
-  // to ensure internal invariants hold
-  options: Vec<Label> // TODO: do we need to define what exactly a label would look like here?
-  state: Label,
+    // These can't be pub fields, and instead must rely on accessor methods
+    // to ensure internal invariants hold
+    options: Vec<Label>, // TODO: do we need to define what exactly a label would look like here?
+    state: Label,
 }
 
 // TODO: complete me
-fn render_radio_buttons(){
-
-}
+fn render_radio_buttons() {}
 
 // TODO: complete me
-fn handle_radio_button_input(){
-
-}
+fn handle_radio_button_input() {}
 ```
 
 Widgets can be wired to each other and the game state in two common ways:
@@ -64,53 +60,59 @@ Let's take a look at each of these patterns with some examples:
 
 ```rust
 // In this example, we're wiring up our logic directly to the state of our singleton widget
-fn set_background_color(color_selector_query: Query<&ColorSelector>, bg_color: ResMut<ClearColor>){
-  let color = color_selector_query.single().unwrap();
-  *bg_color = color;
+fn set_background_color(color_selector_query: Query<&ColorSelector>, bg_color: ResMut<ClearColor>) {
+    let color = color_selector_query.single().unwrap();
+    *bg_color = color;
 }
 
 // This is a trivial example of how you might listen to an event emitted by a widget's interactions
-fn hello_button(button_events: EventReader<ButtonEvent>){
-  for _ in button_events.iter(){
-    info!("Hello!");
-  }
+fn hello_button(button_events: EventReader<ButtonEvent>) {
+    for _ in button_events.iter() {
+        info!("Hello!");
+    }
 }
 
 // Sometimes, the correct behavior may be to simply mirror UI state into a resource
 // Then access that for downstream systems
-fn dark_mode_toggle(query: Query<&Toggle, With<LighDarkWidget>>, mut state: ResMut<State<LightDarkMode>>){
-  // This example extends the light-dark mode example in PR #1: UI styling
-  let toggle = query.single().unwrap();
+fn dark_mode_toggle(
+    query: Query<&Toggle, With<LighDarkWidget>>,
+    mut state: ResMut<State<LightDarkMode>>,
+) {
+    // This example extends the light-dark mode example in PR #1: UI styling
+    let toggle = query.single().unwrap();
 
-  state.active() = match toggle{
-    true => LightDarkMode::Dark,
-    false => LightDarkMode::Light
-  }
+    state.active() = match toggle {
+        true => LightDarkMode::Dark,
+        false => LightDarkMode::Light,
+    }
 }
 
 // Here, we're disambiguating between multiple widgets with a Selector by using a marker component
 fn build_unit(
-  mut commands: Commands,
-  build_events: EventRader<BuildEvent>, 
-  selector_query: Query<&Selector, With<BuildSelector>>){
-    
+    mut commands: Commands,
+    build_events: EventRader<BuildEvent>,
+    selector_query: Query<&Selector, With<BuildSelector>>,
+) {
     let unit_type = selector_query.single().unwrap().unit_type;
-    for event in build_events.iter(){
-      commands.spawn()
-        .insert_bundle(UnitBundle::new(unit_type))
-        .insert(Transform{event.transform});
+    for event in build_events.iter() {
+        commands
+            .spawn()
+            .insert_bundle(UnitBundle::new(unit_type))
+            .insert(event.transform.clone());
     }
 }
 
 // In this example, we have many similar UI elements
 // and we're looking to control the state of the corresponding UI entity
 // Note that we're using a game data -> UI data flow here
-fn update_healthbars(unit_query: Query<(&CurrentHealth, &MaxHealth, &Transform, &HealthBarEntity), Without<Widget>>, 
-  mut healthbar_query: Query<(&mut FillingBar, &mut Transform), With<Widget>>){
-    for (current, max, transform, hb_entity) in unit_query.iter(){
-      let mut (hb_bar, hb_transform) = healthbar_query.get(hb_entity).unwrap();
-      *hb_bar = health_to_bar(current, max);
-      *hb_transform = offset_health_bar(transform);
+fn update_healthbars(
+    unit_query: Query<(&CurrentHealth, &MaxHealth, &Transform, &HealthBarEntity), Without<Widget>>,
+    mut healthbar_query: Query<(&mut FillingBar, &mut Transform), With<Widget>>,
+) {
+    for (current, max, transform, hb_entity) in unit_query.iter() {
+        let (mut hb_bar, mut hb_transform) = healthbar_query.get(hb_entity).unwrap();
+        *hb_bar = health_to_bar(current, max);
+        *hb_transform = offset_health_bar(transform);
     }
 }
 ```
