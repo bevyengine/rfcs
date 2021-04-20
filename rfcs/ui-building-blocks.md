@@ -318,6 +318,32 @@ By making our UI out of vanilla ECS, we can ensure that interoperability and ext
 Keeping the UI in the ECS ensures we can take advantage of its features and improvements,
 enabling a data-driven workflow for UI designers and artists.
 
+### Why not just integrate another UI solution?
+
+Many other game engines and similar GUI tools simply integrate directly into an existing UI framework, commonly the web stack of CSS / HTML / JS.
+This has obvious advantages, namely:
+
+1. It is already built: we could hypothetically save a lot of development effort rather than reimplementing all of the various algorithms and widgets.
+2. It's already proven: such an approach is already used in other engines and AAA games.
+3. Many developers already know how to use the tools, and great learning materials exist.
+
+However, it also comes with serious disadvantages:
+
+1. When designing UIs for games, it is often *very* unclear where gameplay ends and UI begins. Using an external UI library would force a hard separation between the two, resulting in users attempting to do UI-like tasks in the ECS anyways but with minimal support or guidance.
+2. Translating data in and out of the ECS is very common. While a model-view separation may be a useful architecture for maintainability, this translation process is necessarily fairly challenging, resulting in an extended API surface area to learn and maintain and creating boilerplate whenever the boundary is crossed.
+3. Ensuring interoperability is a serious development cost, both upfront and on an ongoing basis.
+4. It greatly increases our dependencies, increasing the churn we must deal with, risking cross-platform compatibility, worsening compile times and possibly increasing binary sizes.
+5. We are beholden to the whims of the larger UI framework we are depending on, and cannot adapt it to fit our needs without forking.
+6. The most commonly known UI framework (the web stack) has serious issues with its spec due to backwards compatibility demands and messy inheritance.
+7. Adding a separate UI solution increases the burden of learning a new tool for all users who are *not* familiar with it already. These users are typically more novice than those coming from an established development career, and can be easily overwhelmed by trying to navigate a complex integration.
+
+Overall, we feel that the disadvantages of doing so outweigh the advantages, even in the short-term.
+Of course, we will be learning and borrowing from existing frameworks aggressively, on both a conceptual and implementation level.
+Like with the rest of Bevy's development, if you feel there are important conceptual lessons we've missed, please join the conversation!
+
+Finally, there's nothing inherent about `bevy_ui` due to Bevy's modular design.
+Integration with other UI frameworks (like the popular nascent [`bevy_egui`](https://crates.io/crates/bevy_egui) crate) is fully possible from an external perspective; we should ensure that this remains feasible for others who wish to use a different stack.
+
 ### Approaches to styling
 
 Pick up a UI framework, and you'll find a new approach to styling.
