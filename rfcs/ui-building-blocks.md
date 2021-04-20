@@ -289,6 +289,14 @@ pub fn toggle_light_dark<M: Component>(
 
 ## Drawbacks
 
+Conceptual concerns:
+
+1. Tightly integrating UI and game state make it harder to split out alternative declarative versions of the UI.
+This is valuable for handling alternative resolutions, input devices and languages.
+We need to carefully design for this from the start, and ensure that as much of this can be handled automatically as possible.
+
+Implementation concerns:
+
 1. Applying stored themes relies on hand-crafted `Commands` magic due to timing issues, rather than being implementable in transparent vanilla Bevy.
 2. Every style parameter component needs its own `propagate_style` and `maintain_style` systems.
 3. The type-system macro magic around `#[style_param]` is complex and mildly cursed.
