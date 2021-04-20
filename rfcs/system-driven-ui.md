@@ -136,9 +136,9 @@ The section should return to the examples given in the previous section, and exp
 ## Drawbacks
 
 1. An ECS-first UI is unexplored territory; we may encounter serious unknown-unknowns.
-2. Debugging inter-widget communication may be complex. This is true in virtually all cases though.
+2. Debugging inter-widget communication may be complex. This is true regardless of paradigm though.
 3. Solving the "event propagation" problem within the ECS will force us to build out new abstractions or improve existing ones.
-4. This pattern creates many, many systems, most of which will do nothing in most passes. This constraints
+4. While change detection + query caching severely reduces the performance cost of our classical "polling" (as opposed to "event-driven") UI approach, we create many, many systems, most of which will do nothing in most passes. We must be careful not to heavily regress the base cost of running systems as a result.
 5. A good implementation of the signal-connection relies on relations.
 
 ## Rationale and alternatives
