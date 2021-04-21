@@ -17,6 +17,20 @@ We need to settle on a common standard, in order to enable interop between UI cr
 
 ## Guide-level explanation
 
+At heart, user interfaces (UI) in Bevy are "just another part of the game".
+It's built out of the same core primitives that you'll see when building your game logic: entities, components, systems, scenes, events and so on.
+That however doesn't mean it's a complete free-for-all: `bevy_ui` defines several built-in components, systems and design patterns
+to make working with UI ergonomic, maintainable and interoperable without making it any harder to extend or hook into.
+
+Commonly, UI is defined by three core components, each controlling a certain type of behavior:
+
+1. `ScreenSpace`, which dictates that an entity's transform should be drawn relative to the player's screen, rather than the world.
+2. `Layout`, which when present controls exactly how Bevy's built-in layout systems will control the details of its positioning relative to other `Layout` entities.
+3. `Widget`, a general purpose marker component that designates an entity as "part of the UI".
+
+Each of these can be added separately, although every entity that makes up a classical UI will have all three.
+For example, if you wanted to have a world-space UI as commonly seen in XR applications, you'd remove the `ScreenSpace` marker component while keeping the others.
+
 User interfaces in Bevy are made out of **widgets**, which are modified by the **styles** that are applied to them, and the aesthetic and functional behavior of is ultimately implemented through **UI systems**.
 
 A **widget** is a distinct part of the UI that needs its own data: be that its position, local state or any style parameters.
@@ -334,6 +348,7 @@ This has obvious advantages, namely:
 1. It is already built: we could hypothetically save a lot of development effort rather than reimplementing all of the various algorithms and widgets.
 2. It's already proven: such an approach is already used in other engines and AAA games.
 3. Many developers already know how to use the tools, and great learning materials exist.
+4. If we closely followed an existing spec we could allow the use of other design tools to create UIs for Bevy with a data-driven workflow.
 
 However, it also comes with serious disadvantages:
 
