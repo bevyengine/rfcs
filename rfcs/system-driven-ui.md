@@ -150,14 +150,28 @@ UI widgets should be entities with various components (see #1 and **Motivation**
 With that established, we need to be able to easily extract data from the ECS, and operate on it in complex, user-extensible ways.
 In Bevy, this implies the use of systems.
 
-When implementing UI behavior in the ECS, the system resolution and widget wiring problems are far and away the most complex challenges to be solved.
-Unfortunately, they are from unique to the UI problem domain, even if they rarely appear in trivial demo games.
-We need good, ergonomic solutions to them (whether these are features or design patterns) in any case.
-UI is a great proving ground for these solutions due to its high complexity, tight constraints and shared requirements across many projects.
+By automatically handling widget-logic in modular systems, we:
 
-### Widget wiring
+1. Make sure it's easy to extend and customize widgets without losing functionality.
+2. Enable a data-driven workflow: adding the correct components to your widgets will cause it to automatically work.
+3. Have great performance when operating over large numbers of similar widgets at once.
+4. Avoid complex widget hierarchies by using composition over inheritance.
 
-TODO: complete me.
+### Why is using a polling model okay?
+
+TODO: flesh out.
+
+Less indirection.
+
+Low overhead.
+
+Automatic parallelization.
+
+Change detection.
+
+### Why not use callbacks?
+
+TODO: write.
 
 ## Unresolved questions
 
