@@ -183,7 +183,7 @@ fn apply_styles<S:StyleParam>(mut widget_param: &mut S, style_params: Vec<Option
 ///
 /// End users should register this system in your app using `app.add_style::<S>()
 pub fn propagate_styles<S: StyleParam>(mut widget_query: Query<(&S::Base, &mut S::Final, &Styles), 
-  (With<Widget, Without<Style>, Changed<Styles>>)>,
+  (Without<Style>, Changed<Styles>)>,
   style_query: Query<Option<&S::Base>, With<Style>>){
  
  for (s_base, s_final, styles) in widget_query.iter_mut(){
@@ -202,8 +202,8 @@ pub fn propagate_styles<S: StyleParam>(mut widget_query: Query<(&S::Base, &mut S
 ///
 /// End users should register this system in your app using `app.add_style::<S>()
 pub fn propagate_style_changes<S: StyleParam>(mut widget_query: Query<(&S::Base, &mut S::Final, &Styles), 
-  (With<Widget, Without<Style>>)>,
-  style_query: Query<Option<&S::Base>, (With<Style>, Changed<S::Base>>)){
+  Without<Style>)>,
+  style_query: Query<Option<&S::Base>, (With<Style>, Changed<S::Base>)>{
  
  // Implementation note: we can narrow our queries by splitting this work into two systems, despite shared logic
  for (s_base, s_final, styles) in widget_query.iter_mut(){
@@ -218,8 +218,6 @@ pub fn propagate_style_changes<S: StyleParam>(mut widget_query: Query<(&S::Base,
    *s_final = apply_styles(s_base, style_params);
  }
 }
-
-
 ```
 
 Style propagation systems run every loop;
@@ -463,10 +461,10 @@ This is not as trivial as it might appear: `Styles` very much wants an ordered l
 The base version of the style parameter data will be a relation with a target of a unique dummy entity, whose identity is stored in a resource.
 Then, the final version of the data is a vanilla component (a relation with no target) of the same type,
 allowing end users to query for style parameter components directly to receive the current value after all styles have been applied.
-5. Finally, in order to fully move forward on the second rendition of `bevy_ui`, we also need to solve the following other UI focus areas:
+5. Nothing in the styling system limits its use to widgets alone. This opens up opportunities to use the same code and design patterns to game logic, meshes and so on. It hasn't been discussed above due to scope, but it's a powerful tool for end users.
+6. Finally, in order to fully move forward on the second rendition of `bevy_ui`, we also need to solve the following other UI focus areas:
 
-   1. Widget composition.
-   2. Layout.
-   3. Wiring: call-backs, message passing (see #11).
+   1. Layout.
+   2. Wiring: call-backs, message passing (see #11).
 
 This RFC defines the underlying UI data structures, so should be settled first.
