@@ -25,11 +25,13 @@ to make working with UI ergonomic, maintainable and interoperable without making
 Commonly, UI is defined by three core components, each controlling a certain type of behavior:
 
 1. `ScreenSpace`, which dictates that an entity's transform should be drawn relative to the player's screen, rather than the world.
-2. `Layout`, which when present controls exactly how Bevy's built-in layout systems will control the details of its positioning relative to other `Layout` entities.
+Entities with the `ScreenSpace` component are drawn by the UI camera; all others are drawn with ordinary cameras.
+2. `Layout`, which tells Bevy's built-in layout systems to control its positioning relative to other `Layout` entities.
+The values of this component's fields determine exactly how this is done.
 3. `Widget`, a general purpose marker component that designates an entity as "part of the UI".
 
 Each of these can be added separately, although every entity that makes up a classical UI will have all three.
-For example, if you wanted to have a world-space UI as commonly seen in XR applications, you'd remove the `ScreenSpace` marker component while keeping the others.
+For example, if you wanted to have a world-space UI as commonly seen in XR applications, you'd remove the `ScreenSpace` marker component while keeping `Layout` and `Widget`.
 
 User interfaces in Bevy are made out of **widgets**, which are modified by the **styles** that are applied to them, and the aesthetic and functional behavior of is ultimately implemented through **UI systems**.
 
