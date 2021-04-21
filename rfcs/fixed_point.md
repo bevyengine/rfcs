@@ -2,7 +2,7 @@
 
 ## Summary
 
-There should be the ability in bevy to switch all of the transforms and basic shapes and whatnot to use fixed point. Ideally, it would allow for the user to pick what fixed point version they want to use (22 by 10, 52 by 14, etc), but a standard fixed point number type is fine too.
+There should be the ability in bevy to have the option to switch all of the transforms and basic shapes and whatnot to use fixed point. Ideally, it would allow for the user to pick what fixed point version they want to use (22 by 10, 52 by 14, etc), but a standard fixed point number type is fine too.
 
 ## Motivation
 
@@ -44,4 +44,7 @@ I have done a [sample project](https://github.com/ValorZard/FixedPhysics.rs) tes
 - How exactly would we go about adding the option to have fixed point to everything? Would it be a build feature, or a crate?
 - Could we integrate this into a possible bevy_physics crate when that comes around?
 
+## Future Plans
 
+* What fixed point should result in is essentially something like Godot's KinematicBody. Most games that use fixed point system (fighting games, RTS) don't really require a complex physics system , or just rebuild their own physics anyways. What fixed point really cares about is collision. Sometime like Godot's KinematicBody, which provides a collider and the ability to code your own physics, is perfect for this type of implementation.
+* One of the main reasons for pushing this is the ability to implement something like [fighting game rollback netcode](https://ki.infil.net/w02-netcode.html) into Bevy at some point.
