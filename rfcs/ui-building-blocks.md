@@ -344,6 +344,7 @@ However, it also comes with serious disadvantages:
 5. We are beholden to the whims of the larger UI framework we are depending on, and cannot adapt it to fit our needs without forking.
 6. The most commonly known UI framework (the web stack) has serious issues with its spec due to backwards compatibility demands and messy inheritance.
 7. Adding a separate UI solution increases the burden of learning a new tool for all users who are *not* familiar with it already. These users are typically more novice than those coming from an established development career, and can be easily overwhelmed by trying to navigate a complex integration.
+8. Not using an external UI framework (and in particular not using HTML + CSS) is a serious differentiator and competitive advantage for Bevy. The web stack is a polarizing topic, but users who prefer it have many other fine options. We should target the underserved niche, much as we do by writing Bevy in Rust, rather than C++.
 
 Overall, we feel that the disadvantages of doing so outweigh the advantages, even in the short-term.
 Of course, we will be learning and borrowing from existing frameworks aggressively, on both a conceptual and implementation level.
