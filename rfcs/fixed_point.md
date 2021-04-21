@@ -37,7 +37,7 @@ Fixed point would fundamentally just require replacing all of the transforms and
 
 ## \[Optional\] Prior art
 
-I have done a (sample project)[https://github.com/ValorZard/FixedPhysics.rs] testing out existing fixed point systems in rust and they seem to work fine.
+I have done a [sample project](https://github.com/ValorZard/FixedPhysics.rs) testing out existing fixed point systems in rust and they seem to work fine.
 
 ## Unresolved questions
 
