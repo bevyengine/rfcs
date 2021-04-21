@@ -15,8 +15,33 @@ By controlling the behavior of our widgets with components and systems, we can s
 
 ## Guide-level explanation
 
+The **UI data flow** in Bevy has four conceptual stages:
+
+1. Dispatching raw input events to specific widgets.
+2. Handling raw input events by converting into widget-specific events.
+3. Responding to widget-specific events with widget logic.
+4. Reading UI state.
+
 Widgets, as previously discussed in [UI Building Blocks and Styles](https://github.com/bevyengine/rfcs/pull/1) are simply entities with various components on them.
-Rather than merely controlling the cosmetic style of our widgets, we can attach **functional components** to our widgets as well.
+As discussed there, Bevy does not draw a hard-line between "UI" and "not UI"; these concepts and patterns are also useful for handling input to game entities.
+
+### Dispatching input to widgets
+
+TODO: expand.
+
+Every widget that you can interact with has the `Interactable` marker component,
+which allows for input events (such as mouse, keyboard, joystick or touch events) to be dispatched to the right widget in order to trigger behavior.
+When a widget is selected, it has the `Selected` marker component.
+You can control the order in which widgets are selected (e.g. by tabbing through the options) by modifying the `SelectionOrder` resource.
+Modify the `SelectionGrouping` resource in order to control which widgets can be selected together.
+
+### Handling inputs
+
+TODO: write.
+
+### Widget logic
+
+TODO: complete.
 
 Just like when we're using the ECS to control our game's logic, these components both store data and control behavior, by determining which systems apply to each particular `Widget` entity.
 Suppose we want to create a radio-button widget.
@@ -24,29 +49,41 @@ Rather than trying to create an object with a `RadioButtonWidget` type, like we 
 we create an entity with all of the components required to accomplish the desired behavior.
 Think of components as behaving in an analogous fashion to traits, with the radio button behavior having trait bounds for each of the required components.
 
-Breaking it down into the constituents, we want our radio button to BEHAVIORS.
+Breaking it down into the constituents, we want our radio button to:
 
-Turning this into code, we get a `RadioButton` component and a couple of supporting systems.
+1. Store internal state in an accessible way.
+2. Respond to input.
+3. Be rendered into several radio buttons.
+
+Turning this into code, we get a `RadioButtons` component and a couple of supporting systems.
 
 ```rust
-struct RadioButton {
+struct RadioButtons {
     // These can't be pub fields, and instead must rely on accessor methods
-    // to ensure internal invariants hold
-    options: Vec<Label>, // TODO: do we need to define what exactly a label would look like here?
-    state: Label,
+    // to ensure internal invariants (like only state is one of options) hold
+    options: Vec<Text>,
+    state: Text,
 }
 
 // TODO: complete me
-fn render_radio_buttons() {}
+fn handle_radio_button_input(radio_queries: ) {}
+
 
 // TODO: complete me
-fn handle_radio_button_input() {}
+fn render_radio_buttons(query: Query<&RadioButton, &mut Sprite, >) {
+
+}
+
 ```
+
+### Reading UI state
+
+TODO: refresh.
 
 Widgets can be wired to each other and the game state in two common ways:
 
 1. Directly reading the state of our widget's components.
-2. Using events emitted by interacting with the widgets. 
+2. Using events emitted by interacting with the widgets.
 
 Read the component's state when you care about its current state, use event channels when you want to detect events being fired off.
 
@@ -123,15 +160,81 @@ Standard system ordering tools (e.g. `.before()` and `.after()`) work well for t
 
 ## Reference-level explanation
 
-TODO: complete me.
+### Dispatching input to widgets
 
-This is the technical portion of the RFC. Explain the design in sufficient detail that:
+TODO: complete and clean up. Needs architecture help still :/
 
-- Its interaction with other features is clear.
-- It is reasonably clear how the feature would be implemented.
-- Corner cases are dissected by example.
+In order to unify various input methods, handle overlapping widgets, and avoid duplicating work, we need a central approach to UI dispatching.
+UI events have two core fields:
 
-The section should return to the examples given in the previous section, and explain more fully how the detailed proposal makes those examples work.
+1. What is being interacted with?
+   1. Screen-space coordinates.
+    Used for mouse, touch and joystick selectors.
+    Note that world-space UI elements may be dispatched to in this way as well, requiring recomputation whenever they move or the camera changes.
+   2. Selected UI elements.
+    Commonly used for keyboard control.
+2. What signal is being sent?
+
+During dispatching, we must unify these signals across the various input streams, and convert them into logic that our widgets can understand,
+stored as events on a component of the widget itself.
+Finally, our widgets can take their new unified event stream and process it independently in their own systems.
+
+```rust
+pub struct InteractableMap {
+    // Contains some data structure that allows us to efficiently map screen space coordinates to a UI widget
+    // This is probably done with a pixel-resolution array
+}
+
+impl InteractableMap(){
+    pub fn get_from_coordinates(&self, position: &GlobalTransform) -> Entity {
+        // Uses this data structure to map between screen space to a UI widget
+    }
+
+    // Analagous function for keyboard / gamepad buttons
+
+    // 
+}
+
+// The Bounds component doesn't exist yet; it should be a tight polygon around the object in a 2D plane, using screen-space coordinates
+// Screen-space bounds would be constant; world-space bounds need to be updated when the UI changes
+fn build_interactable_map(
+    // PERF: this should be done using change detection and iterative rebuilding from Bounds instead
+    world_space_query: Query<(&Bounds), (Without<ScreenSpace>, With<Interactable>)>,
+    screen_space_query: Query<(&Bounds), (With<ScreenSpace>, With<Interactable>)>, map: ResMut<InteractableMap>){
+    
+    // Sort bounds by distance to camera, with further bounds being applied first
+    // New bounds overwrite old bounds because they're "on top"
+
+    // Apply the world-space bounds first
+
+    // Screen-space bounds overwrite any world-space bounds
+}
+
+// We need one of these systems for each input event type we want to support
+// This uses NYI trait queries; other more elegant designs are welcome
+fn handle_coordinate_input<E>(query: Query<(&mut impl EventHandler<E>, impl WidgetEvents) With<Interactable>>, input_events: EventReader<E>,
+    map: Res<InteractableMap>){
+
+    for input_event in input_events.iter(){
+
+    }
+
+    for event_handler, mut widget_input_events in query.iter_mut(){
+        // This method is customized to each widget / widget type and converts input events into a common widget-logic format
+        let new_events = event_handler.handle();
+
+        // These events are later processed in widget-specific systems
+        widget_input_events.push(new_events);
+    }
+}
+
+```
+
+### Customizing interaction behavior
+
+Control iteration order.
+Binding to hotkeys.
+Multi-select.
 
 ## Drawbacks
 
@@ -140,7 +243,7 @@ The section should return to the examples given in the previous section, and exp
 3. Solving the "event propagation" problem within the ECS will force us to build out new abstractions or improve existing ones.
 4. While change detection + query caching severely reduces the performance cost of our classical "polling" (as opposed to "event-driven") UI approach, we create many, many systems, most of which will do nothing in most passes. We must be careful not to heavily regress the base cost of running systems as a result.
 5. A good implementation of the signal-connection relies on relations.
-6. Using Bevy-events as part of this pattern will interact poorly with pausing due to lost events until https://github.com/bevyengine/bevy/pull/1776 or a similar approach is merged.
+6. Using Bevy-events as part of this pattern will interact poorly with pausing due to lost events until [bevy #1776](https://github.com/bevyengine/bevy/pull/1776) or a similar approach is merged.
 
 ## Rationale and alternatives
 
@@ -175,11 +278,11 @@ TODO: write.
 
 ## Unresolved questions
 
-1. What does input handling look like? How do we ensure it's robust to multiple input paradigms?
-2. Are there compelling use cases for the components-as-event-channels pattern?
+1. What are the details for input dispatching?
+2. Can we unify our input event streams more elegantly?
 3. Do circular system dependencies actually exist in real UI use-cases?
 
 ## Future possibilities
 
 1. Archetype invariants #5 will be very useful to reduce bugs while building functional widgets, to ensure that all of the required systems will run correctly on them.
-2. The widget wiring solution is much better handled with relations.
+2. Relations will significantly improve the ergonomics of many of these patterns where we point to / store specific widget entities.
