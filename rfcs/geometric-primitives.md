@@ -19,8 +19,9 @@ pub struct Circle {
 }
 ```
 
-Geometric primitives have fully defined shape, size, position, and orientation.  Position and orientation are handled by the existing `Transform` systems.
+Geometric primitives have fully defined shape, size, position, and orientation.  Position and orientation are **not** handled by `Transform` systems.
 
+TODO:
 Explain the proposal as if it was already included in the engine and you were teaching it to another Bevy user. That generally means:
 
 - Introducing new named concepts.
