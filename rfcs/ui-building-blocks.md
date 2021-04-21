@@ -29,6 +29,8 @@ Entities with the `ScreenSpace` component are drawn by the UI camera; all others
 2. `Layout`, which tells Bevy's built-in layout systems to control its positioning relative to other `Layout` entities.
 The values of this component's fields determine exactly how this is done.
 3. `Widget`, a general purpose marker component that designates an entity as "part of the UI".
+All entities that make up the UI should have this marker, whether it's visual (like a button) or abstract (like a layout box).
+This has no innate behavior; instead it serves as an easy hook for user code and an identifier for the editor.
 
 Each of these can be added separately, although every entity that makes up a classical UI will have all three.
 For example, if you wanted to have a world-space UI as commonly seen in XR applications, you'd remove the `ScreenSpace` marker component while keeping `Layout` and `Widget`.
