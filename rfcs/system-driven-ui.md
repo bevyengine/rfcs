@@ -15,17 +15,14 @@ By controlling the behavior of our widgets with components and systems, we can s
 
 ## Guide-level explanation
 
-The **UI data flow** in Bevy has four conceptual stages:
+The **UI data flow** in Bevy has three conceptual stages:
 
-1. **Dispatching** raw input events to specific widgets.
-2. **Handling** raw input events by converting into widget-specific events.
-3. **Responding** to widget-specific events with widget logic.
-4. **Reading** UI state.
+1. **Dispatching** raw input events into entity-specific events stored on each widget.
+2. **Responding** to entity-specific events to perform widget logic.
+3. **Reading** UI state once it has been changed.
 
-Widgets, as previously discussed in [UI Building Blocks and Styles](https://github.com/bevyengine/rfcs/pull/1) are simply entities with various components on them.
+As previously discussed in [UI Building Blocks and Styles](https://github.com/bevyengine/rfcs/pull/1) widgets are simply entities with various components on them.
 As discussed there, Bevy does not draw a hard-line between "UI" and "not UI"; these concepts and patterns are also useful for handling input to game entities.
-
-### Dispatching input to widgets
 
 Pretty as they may be, user interfaces are ultimately designed to, well, interface with users.
 In Bevy, that means they must listen for **input events**, created by your mouse, keyboard, joystick, touch or hand-rolled hum-to-move input pipeline.
@@ -54,14 +51,23 @@ While refreshingly simple and perfectly modular, this approach runs into some ch
 4. Each system listens to the whole input stream of events. When you have 100 different systems, and they each discard 99% of all candidate input events, this creates unnecessary performance drag.
 
 This is where Bevy's **central input dispatch** comes in.
+Here's the high-level overview:
 
-TODO: explain.
+1. Every entity that responds to input through the central input dispatch has the `Interactable` component.
+These may be classic UI widgets, pure gameplay objects, or something in between.
+2. Each `Interactable` entity also has some number of `InputHandler<E>` components which map from some raw input events to **entity-specific events** (`E`) that they store in that component.
+3. Because we can map from several input streams to a single unified entity-specific event, we can unify multiple input methods without code duplication.
+4. By changing the fields of the `InputHandler` components, we can quickly rebind our user interfaces or design them in a data-driven fashion.
+5. A central `dispatch_input` system collects all of our input streams, parses the events according to the rules of our input handlers, then stores the transformed events in the appropriate entity-specific event components.
+6. These entity-specific events are then handled as usual on a per-entity basis in later systems, where their actual effects occur.
 
-### Handling inputs
+### Listening for inputs with InputHandler components
+
+TODO: explain details.
+
+### Responding to entity-specific events
 
 TODO: write.
-
-
 
 ### Widget logic
 
