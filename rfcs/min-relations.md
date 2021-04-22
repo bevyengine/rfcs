@@ -2,11 +2,26 @@
 
 ## Summary
 
-One paragraph explanation of the feature.
+Relations connect entities to each other, storing data in these edges. This RFC covers the minimal version of this feature, allowing for basic entity grouping and simple game logic extensions.
 
 ## Motivation
 
-Why are we doing this? What use cases does it support?
+Entities often need to be aware of each other in complex ways: an attack that targets another unit, groups of entities that are controlled en-masse, or complex parent-child hierarchies that need to move together.
+
+We *could* simply store an `Entity` in a component, then use `query.get(my_entity)` to access the relevant data.
+But this quickly starts to balloon in complexity.
+
+- How do we ensure that these components are cleaned up when the entity they're pointing to is?
+- How do we handle pointing to multiple entities in similar ways?
+- How do we look for all entities that point to a particular entity of interest?
+- How do we despawn an entity and all of its children (with many types of child-like entities)?
+- How do we quickly access data on the entity that we're attached to?
+- How do we traverse this graph of entities?
+- How do we ensure that our graph is acylic?
+
+We *could* force our users to solve these problems, over and over again in each individual game.
+
+This powerful and common pattern deserves a proper abstraction that we can make ergonomic, performant and *fearless*.
 
 ## Guide-level explanation
 
