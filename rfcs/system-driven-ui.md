@@ -190,81 +190,27 @@ Standard system ordering tools (e.g. `.before()` and `.after()`) work well for t
 
 ## Reference-level explanation
 
-### Dispatching input to widgets
+### InputHandler semantics
 
-TODO: complete and clean up. Needs architecture help still :/
+TODO: work out quirks
 
-In order to unify various input methods, handle overlapping widgets, and avoid duplicating work, we need a central approach to UI dispatching.
-UI events have two core fields:
+### Z-order event dispatch
 
-1. What is being interacted with?
-   1. Screen-space coordinates.
-    Used for mouse, touch and joystick selectors.
-    Note that world-space UI elements may be dispatched to in this way as well, requiring recomputation whenever they move or the camera changes.
-   2. Selected UI elements.
-    Commonly used for keyboard control.
-2. What signal is being sent?
+TODO: critique existing solution and explain what needs to change.
 
-During dispatching, we must unify these signals across the various input streams, and convert them into logic that our widgets can understand,
-stored as events on a component of the widget itself.
-Finally, our widgets can take their new unified event stream and process it independently in their own systems.
+We already have a partial solution for this in our [`ui_focus_system`](https://github.com/bevyengine/bevy/blob/cf221f9659127427c99d621b76c8085c4860e2ef/crates/bevy_ui/src/focus.rs).
 
-```rust
-pub struct InteractableMap {
-    // Contains some data structure that allows us to efficiently map screen space coordinates to a UI widget
-    // This is probably done with a pixel-resolution array
-}
+### Widget selection
 
-impl InteractableMap(){
-    pub fn get_from_coordinates(&self, position: &GlobalTransform) -> Entity {
-        // Uses this data structure to map between screen space to a UI widget
-    }
+TODO: examine prior art and write.
 
-    // Analagous function for keyboard / gamepad buttons
+Tab selection.
 
-    // 
-}
+Joypad selection.
 
-// The Bounds component doesn't exist yet; it should be a tight polygon around the object in a 2D plane, using screen-space coordinates
-// Screen-space bounds would be constant; world-space bounds need to be updated when the UI changes
-fn build_interactable_map(
-    // PERF: this should be done using change detection and iterative rebuilding from Bounds instead
-    world_space_query: Query<(&Bounds), (Without<ScreenSpace>, With<Interactable>)>,
-    screen_space_query: Query<(&Bounds), (With<ScreenSpace>, With<Interactable>)>, map: ResMut<InteractableMap>){
-    
-    // Sort bounds by distance to camera, with further bounds being applied first
-    // New bounds overwrite old bounds because they're "on top"
+Widget hierarchies.
 
-    // Apply the world-space bounds first
-
-    // Screen-space bounds overwrite any world-space bounds
-}
-
-// We need one of these systems for each input event type we want to support
-// This uses NYI trait queries; other more elegant designs are welcome
-fn handle_coordinate_input<E>(query: Query<(&mut impl EventHandler<E>, impl WidgetEvents) With<Interactable>>, input_events: EventReader<E>,
-    map: Res<InteractableMap>){
-
-    for input_event in input_events.iter(){
-
-    }
-
-    for event_handler, mut widget_input_events in query.iter_mut(){
-        // This method is customized to each widget / widget type and converts input events into a common widget-logic format
-        let new_events = event_handler.handle();
-
-        // These events are later processed in widget-specific systems
-        widget_input_events.push(new_events);
-    }
-}
-
-```
-
-### Customizing interaction behavior
-
-Control iteration order.
-Binding to hotkeys.
-Multi-select.
+Multiple selected widgets.
 
 ## Drawbacks
 
