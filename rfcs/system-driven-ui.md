@@ -17,27 +17,51 @@ By controlling the behavior of our widgets with components and systems, we can s
 
 The **UI data flow** in Bevy has four conceptual stages:
 
-1. Dispatching raw input events to specific widgets.
-2. Handling raw input events by converting into widget-specific events.
-3. Responding to widget-specific events with widget logic.
-4. Reading UI state.
+1. **Dispatching** raw input events to specific widgets.
+2. **Handling** raw input events by converting into widget-specific events.
+3. **Responding** to widget-specific events with widget logic.
+4. **Reading** UI state.
 
 Widgets, as previously discussed in [UI Building Blocks and Styles](https://github.com/bevyengine/rfcs/pull/1) are simply entities with various components on them.
 As discussed there, Bevy does not draw a hard-line between "UI" and "not UI"; these concepts and patterns are also useful for handling input to game entities.
 
 ### Dispatching input to widgets
 
-TODO: expand.
+Pretty as they may be, user interfaces are ultimately designed to, well, interface with users.
+In Bevy, that means they must listen for **input events**, created by your mouse, keyboard, joystick, touch or hand-rolled hum-to-move input pipeline.
+But once we receive an input event, what are we to make of it?
 
-Every widget that you can interact with has the `Interactable` marker component,
-which allows for input events (such as mouse, keyboard, joystick or touch events) to be dispatched to the right widget in order to trigger behavior.
-When a widget is selected, it has the `Selected` marker component.
-You can control the order in which widgets are selected (e.g. by tabbing through the options) by modifying the `SelectionOrder` resource.
-Modify the `SelectionGrouping` resource in order to control which widgets can be selected together.
+For simple prototypes, it makes sense to take a simple approach: just listen to the event stream you care about directly.
+
+```rust
+fn jump(query: Query<&mut Velocity, With<Player>>, keyboard_input: Res<Input<KeyCode>>) {
+    if keyboard_input.just_pressed(KeyCode::Space) {
+        let mut vel = query.single_mut().unwrap();
+        vel += Velocity::new(0.0, 1.0);
+    }
+}
+```
+
+This feels natural when building out simple gameplay systems, but if you were so inclined, you could extend this out to classical "widget UI", read the mouse's position and then fire off a button event if the mouse was over a button at the time it was clicked.
+
+While refreshingly simple and perfectly modular, this approach runs into some challenges as you attempt to scale it out to more complex games:
+
+1. Your input logic is scattered across your code-base, making writing a rebinding interface very hard.
+2. Supporting multiple input methods (e.g. mouse and hotkeys or gamepad and keyboard) becomes very complex. Do you duplicate these systems? Do you read in two input streams?
+3. Handling input events that rely on information from other entities and systems is very frustrating.
+   1. Consider overlapping clickable UI widgets; you can't rely on a button's position alone to tell you whether it's correct to execute as that section may be covered.
+   2. In game play systems, actors can typically only do one thing at once, or combinations result in different non-additive behavior.
+4. Each system listens to the whole input stream of events. When you have 100 different systems, and they each discard 99% of all candidate input events, this creates unnecessary performance drag.
+
+This is where Bevy's **central input dispatch** comes in.
+
+TODO: explain.
 
 ### Handling inputs
 
 TODO: write.
+
+
 
 ### Widget logic
 
