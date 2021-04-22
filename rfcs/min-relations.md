@@ -57,17 +57,11 @@ Rewriting our parent-child code in terms of relations is important, but will int
 - What is the impact of not doing this?
 - Why is this important to implement as a feature of Bevy itself, rather than an ecosystem crate?
 
-## \[Optional\] Prior art
+## Prior art
 
-Discuss prior art, both the good and the bad, in relation to this proposal.
-This can include:
-
-- Does this feature exist in other libraries and what experiences have their community had?
-- Papers: Are there any published papers or great posts that discuss this?
-
-This section is intended to encourage you as an author to think about the lessons from other tools and provide readers of your RFC with a fuller picture.
-
-Note that while precedent set by other engines is some motivation, it does not on its own motivate an RFC.
+[Flecs](https://github.com/SanderMertens/flecs), an advanced C++ ECS framework, has a very similar implementation, which they call "relationships".
+These are subtly different, and use an elaborate query domain-specific language.
+You read more about them in the [corresponding PR](https://github.com/SanderMertens/flecs/pull/358).
 
 ## Unresolved questions
 
@@ -75,7 +69,7 @@ Note that while precedent set by other engines is some motivation, it does not o
 - What parts of the design do you expect to resolve through the implementation of this feature before the feature PR is merged?
 - What related issues do you consider out of scope for this RFC that could be addressed in the future independently of the solution that comes out of this RFC?
 
-## \[Optional\] Future possibilities
+## Future possibilities
 
 1. GRAPH
 2. Kinded entities
