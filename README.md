@@ -4,11 +4,15 @@ Thank you for contributing to Bevy! If you've been asked to make an RFC, it's be
 
 ## What is an RFC?
 
-RFCs (request for comments) provide a way for Bevy contributors to propose features in a structured way. Creating a new RFC starts a collaborative process where the Bevy community (and @cart, the Bevy project lead) can review your design and suggest changes. If an RFC is accepted, this indicates that it is in line with our vision for Bevy's future. Bevy contributors can implement accepted RFCs comforted by the knowledge that the design has already been "approved".
+RFCs (request for comments) provide a way for Bevy contributors to propose designs for specific features in a [structured way](template.md). Creating a new RFC starts a collaborative process where the Bevy community (and [@cart](https://github.com/cart), the Bevy project lead) can review your design and suggest changes. If an RFC is accepted, this indicates that it is in line with our vision for Bevy's future. Bevy contributors can implement accepted RFCs comforted by the knowledge that the design has already been "approved".
 
-The majority of Bevy changes (bug fixes, small tweaks, and iterative improvements) _should not_ go through the RFC process. Just use the normal [contributing process](https://bevyengine.org/learn/book/contributing/code/) in the [main Bevy repo](https://github.com/bevyengine/bevy).
-
-RFCs are for large features, breaking into new design areas, major breaking changes, or significant changes to Bevy App development.
+* RFCs are for large features, breaking into new design areas, major breaking changes, or significant changes to Bevy App development.
+* The majority of Bevy changes (bug fixes, small tweaks, and iterative improvements) _should not_ go through the RFC process. Just use the normal [contributing process](https://bevyengine.org/learn/book/contributing/code/) in the [main Bevy repo](https://github.com/bevyengine/bevy).
+* RFCs are _not_ feature requests. They are for developers who already have a specific design in mind (including technical details) and want feedback on it. If you want to request a feature, please [create an issue in the main Bevy repo](https://github.com/bevyengine/bevy/issues/new?assignees=&labels=enhancement%2C+needs-triage&template=feature_request.md&title=).
+* RFCs should be scoped. Try to avoid creating RFCs for huge design spaces that spans many features. Try to pick a specific feature slice and describe it in as much detail as possible. Feel free to create multiple RFCs if you need multiple features.
+* RFCs should avoid ambiguity. Two developers implementing the same RFC should come up with nearly identical implementations.
+* RFCs should be standalone and "implementable". Merged RFCs should only depend on other merged RFCs and existing Bevy features. It is ok to create multiple dependent RFCs, but they should either be merged at the same time or have a clear merge order that ensures the "implementable" rule is respected.
+* Avoid creating RFCs before you have a design in mind. If you want to explore design spaces with the Bevy community, consider finding or creating a [Github Discussion in the main Bevy repo](https://github.com/bevyengine/bevy/discussions). If at any point during the discussion you discover a design you believe in enough to bring to completion, create an RFC. You don't need to have _all_ of the details sorted out ahead of time (RFCs are a collaborative process), but an initial draft RFC should have enough detail to significantly narrow the scope of the design.
 
 If you are uncertain if you should create an RFC for your change, don't hesitate to ask us in the `#dev-general` channel in the official [Bevy Discord](https://discord.com/invite/bevy).
 
