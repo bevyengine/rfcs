@@ -165,7 +165,7 @@ We can do so by iterating over all entities with that relation, and then filteri
 ```rust
 fn all_children(
     player_query: Query<Entity, With<Player>>,
-    child_query: Query<&Name, (With<Relation<ChildOf>, Without<Player>)>>,
+    child_query: Query<&Name, With<Relation<ChildOf>>>,
 ) {
     let player_entity = player_query.single.unwrap();
     
