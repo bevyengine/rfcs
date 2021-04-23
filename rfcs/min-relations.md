@@ -80,21 +80,21 @@ Just like with ordinary components, you can request them in your queries:
 ```rust
 // Relations can be queried for immutably
 fn friendship_is_magic(mut query: Query<(&mut Magic, &Relation<FriendsWith>), With<Pony>>) {
-	// Each entity can have their own friends
+    // Each entity can have their own friends
     for (mut magic, friends) in query.iter_mut(){
-		// Relations return an iterator when unpacked
-		magic.power += friends.count();
-	}
+        // Relations return an iterator when unpacked
+        magic.power += friends.count();
+    }
 }
 
 // Or you can request mutable access to modify the relation's data
 fn interest(query: Query<&mut Relation<Owes>>){
-	for debts in query.iter(){
-		for (owed_to, amount_owed) in debts {
-			println!("we owe {} some money", owed_to);
+    for debts in query.iter(){
+        for (owed_to, amount_owed) in debts {
+            println!("we owe {} some money", owed_to);
             amount_owed *= 1.05; 
-		}
-	}
+        }
+    }
 }
 
 // You can query for entities that target a specific entity
@@ -102,36 +102,38 @@ fn friend_of_dorothy(
     mut query: Query<Entity, With<Relation<FriendsWith>>>, 
     dorothy: Res<Dorothy>,
 ) {
-	// Setting relation filters requires that the query is mutable
-	query.set_relation_filters(
+    // Setting relation filters requires that the query is mutable
+    query.set_relation_filters(
         RelationFilters::new()
             .add_target_filter::<FriendsWith, _>(dorothy.entity)
     );
 
-	for source_entity in query.iter(){
-		println!("{} is friends with Dorothy!", source_entity);
-	}
+    for source_entity in query.iter(){
+        println!("{} is friends with Dorothy!", source_entity);
+    }
 
     // RelationFilters are reset at the end of the system, make sure to set them every time your system runs!
-	// You can also reset this manually by applying a new `RelationFilters` to the query
-	// They override existing relation filters, rather than adding to them
+    // You can also reset this manually by applying a new `RelationFilters` to the query
+    // They override existing relation filters, rather than adding to them
 }
 
 // Or even look for some combination of targets!
 fn caught_in_the_middle(mut query: Query<&mut Stress, With<Relation<FriendsWith>>>,
-	dorothy: Res<Dorothy>,
-	elphaba: Res<Elphaba>){
-	
-	// You can directly chain this as set_relation_filters returns &mut Query
-	query.set_relation_filters(
-		// Note that we can set relation filters even if the relation is in a query filter
+    dorothy: Res<Dorothy>,
+    elphaba: Res<Elphaba>){
+    
+    // You can directly chain this as set_relation_filters returns &mut Query
+    query.set_relation_filters(
+        // Note that we can set relation filters even if the relation is in a query filter
         RelationFilters::new()
+            // Note: add_target_filter is additive- i.e. entities this query
+            // matches must be friends with *both* dorothy AND elphaba
             .add_target_filter::<FriendsWith, _>(dorothy.entity)
-			.add_target_filter::<FriendsWith, _>(elphaba.entity)
+            .add_target_filter::<FriendsWith, _>(elphaba.entity)
     ).for_each(|mut stress| {
-		println!("{} is friends with Dorothy!", source_entity);
-		stress.val = 1000; 
-	})
+        println!("{} is friends with Dorothy and Elphaba!", source_entity);
+        stress.val = 1000; 
+    })
 }
 
 /// If we want to combine targets in an "or" fashion, we need a slightly different syntax
@@ -141,16 +143,16 @@ TODO: write example
 fn not_alone(
     commands: mut Commands, 
     query: Query<Entity, Without<Relation<FriendsWith>>>,
-	puppy: Res<Puppy>
+    puppy: Res<Puppy>
 ) {
-	for lonely_entity in query.iter(){
-		commands.insert_relation(FriendsWith, puppy.entity);
-	}
+    for lonely_entity in query.iter(){
+        commands.insert_relation(FriendsWith, puppy.entity);
+    }
 }
 
 // So does change detection with Added and Changed!
 fn new_friends(query: Query<&mut Excitement, Added<Relation<FriendsWith>>>){
-	query.for_each(|mut excitement|{excitement.value += 10});
+    query.for_each(|mut excitement|{excitement.value += 10});
 }
 
 ```
@@ -165,14 +167,14 @@ fn all_children(
     player_query: Query<Entity, With<Player>>,
     child_query: Query<&Name, (With<Relation<ChildOf>, Without<Player>)>>,
 ) {
-	let player_entity = player_query.single.unwrap();
-	
+    let player_entity = player_query.single.unwrap();
+    
     child_query.set_relation_filters(
         RelationFilters::new()
             .add_target_filter::<ChildOf, _>(player_entity)
     );
 
-	for name in child_query.iter() {
+    for name in child_query.iter() {
         println!("{} is one of my children.", name) 			
     }
 }
@@ -186,17 +188,17 @@ fn debts_come_due(
     mut debtor_query: Query<(&mut Money, Relation<Owes>), Without<Shark>>, 
     mut lender_query: Query<&mut Money, With<Shark>>,
 ) {
-	for (mut debtor_money, debt) in debtor_query.iter(){
-		for (lender, amount_owed) in debt {
-			let mut lender_money = lender_query.get(lender).unwrap();
-			if debtor_money.dollars >= amount_owed.dollars {
-				debtor_money.dollars -= amount_owed.dollars;
-				lender_money.dollar += amount_owed.dollar;
-			} else {
-				panic!("Nice kneecaps you got there...");
-			}
-		}
-	}
+    for (mut debtor_money, debt) in debtor_query.iter(){
+        for (lender, amount_owed) in debt {
+            let mut lender_money = lender_query.get(lender).unwrap();
+            if debtor_money.dollars >= amount_owed.dollars {
+                debtor_money.dollars -= amount_owed.dollars;
+                lender_money.dollar += amount_owed.dollar;
+            } else {
+                panic!("Nice kneecaps you got there...");
+            }
+        }
+    }
 }
 ```
 
