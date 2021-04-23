@@ -12,9 +12,16 @@ The current double buffering approach is error prone when used in systems with r
 
 https://github.com/bevyengine/bevy/pull/1776
 
-## Guide-level explanation
+## API Changes
 
-*TBD, may not require api changes*
+No longer need to worry about _when_ an event is read. As long as the system / EventReader parameter was setup before the event was created, the event is guaranteed to live until that system / EventReader has looked at it.
+
+The current draft implementation has manual readers accessed like this:
+```rust
+let app_exit_event_reader = app_exit_events.get_reader("app_runner");
+```
+The string input functions as a tag so that manual_reader access can be tracked.
+Other than this, it is basically the same.
 
 ## Reference-level explanation
 
@@ -29,6 +36,8 @@ Events will need a way to tell which part of the buffer has been read by all rel
 ## Rationale and alternatives
 
 This would involve minimal / no api changes, and would allow us to avoid any lost events. If the user forgets to run Events::update, the current method of making sure events are not lost can lead to unbounded memory usage.
+
+It might be better to just leave manual event readers unchanged and have their reads not be tracked. If this is the case, the manager should avoid removing events until the end of the frame (or until the end of the next frame), even if they have been read by all subscribers.
 
 ## Unresolved questions
 
