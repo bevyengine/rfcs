@@ -63,15 +63,15 @@ commands.entity(alice).remove_relation(FriendsWith, boxy) // not uwu :(
 // You can use direct World access!
 world.entity_mut(alice).insert_relation(FriendsWith, boxy); // uwu:3
 
-// Relations are directed
-commands.entity(boxy).insert_relation(FriendsWith, alice); // one way friendship sad oh wait you reinserted your one nvm rip my joke :(
+// Relations are directed; a relation in one direction does not imply the same in the other direction
+commands.entity(boxy).insert_relation(FriendsWith, alice); // one way friendship sad :(
 
 // You can mix different relation kinds on the same entity!
-world.commands.entity(alice).insert_relation(Owes(9999), boxy); // :)))))
+commands.entity(alice).insert_relation(Owes(9999), boxy); // :)))))
 
 // You can add mulitple relations of the same kind to a single source entity!
 let cart  = world.spawn().id();
-world.commands.entity(alice).insert_relation(FriendsWith, cart); // Hi!
+commands.entity(alice).insert_relation(FriendsWith, cart); // Hi!
 ```
 
 Once your relations are in place, you'll want to access them in some form.
@@ -87,7 +87,7 @@ fn friendship_is_magic(mut query: Query<(&mut Magic, &Relation<FriendsWith>), Wi
 	}
 }
 
-// Or you can request mutable access to modify their data
+// Or you can request mutable access to modify the relation's data
 fn interest(query: Query<&mut Relation<Owes>>){
 	for debts in query.iter(){
 		for (owed_to, amount_owed) in debts {
@@ -124,10 +124,12 @@ fn caught_in_the_middle(mut query: Query<&mut Stress, With<Relation<FriendsWith>
 	
 	// You can directly chain this as set_relation_filters returns &mut Query
 	query.set_relation_filters(
+		// Note that we can set relation filters even if the relation is in a query filter
         RelationFilters::new()
             .add_target_filter::<FriendsWith, _>(dorothy.entity)
 			.add_target_filter::<FriendsWith, _>(elphaba.entity)
     ).for_each(|mut stress| {
+		println!("{} is friends with Dorothy!", source_entity);
 		stress.val = 1000; 
 	})
 }
