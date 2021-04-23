@@ -185,18 +185,15 @@ Finally, you can use the `Entity` returned by your relations to fetch data from 
 ```rust
 // We need to use a marker component to avoid having multiple mutable references
 fn debts_come_due(
-    mut debtor_query: Query<(&mut Money, Relation<Owes>), Without<Shark>>, 
-    mut lender_query: Query<&mut Money, With<Shark>>,
+    mut debt_query: Query<(Entity, Relation<Owes>)>, 
+    mut money_query: Query<&mut Money>,
 ) {
-    for (mut debtor_money, debt) in debtor_query.iter(){
+    for (debtor, debt) in debt.query() {
         for (lender, amount_owed) in debt {
-            let mut lender_money = lender_query.get(lender).unwrap();
-            if debtor_money.dollars >= amount_owed.dollars {
-                debtor_money.dollars -= amount_owed.dollars;
-                lender_money.dollar += amount_owed.dollar;
-            } else {
-                panic!("Nice kneecaps you got there...");
-            }
+            *money_query.get(debtor).unwrap()
+                .checked_sub(amount_owed)
+                .expect("Nice kneecaps you got there...");
+            *money_query.get(lender).unwrap() += amount_owed;
         }
     }
 }
