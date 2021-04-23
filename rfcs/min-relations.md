@@ -186,7 +186,7 @@ fn debts_come_due(
 ) {
 	for (mut debtor_money, debt) in debtor_query.iter(){
 		for (lender, amount_owed) in debt {
-			let mut lender_money = lender_query.get().unwrap();
+			let mut lender_money = lender_query.get(lender).unwrap();
 			if debtor_money.dollars >= amount_owed.dollars {
 				debtor_money.dollars -= amount_owed.dollars;
 				lender_money.dollar += amount_owed.dollar;
