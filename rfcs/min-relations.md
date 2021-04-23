@@ -255,6 +255,7 @@ Relation enhancements:
 7. Streaming iters to allow for queries like: `Query<&mut Money, Relation<Owes, &mut Money>>` and potentially use invariants on graph shape to allow for skipping soundness checks for the aliasing `&mut Money`'s
 8. Assorted Performance optimizations.
 9. Relation orders to enable things like `Styles`.
+10. Generalized `despawn_recursive`.
 
 Relation applications in the engine:
 
