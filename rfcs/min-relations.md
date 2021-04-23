@@ -153,6 +153,8 @@ fn new_friends(query: Query<&mut Excitement, Added<Relation<FriendsWith>>>){
 
 ```
 
+TODO: mention relation cleanup on despawn.
+
 Sometimes, we may instead want to look for "entities that are targets of some relation".
 We can do so by iterating over all entities with that relation, and then filtering by target.
 
