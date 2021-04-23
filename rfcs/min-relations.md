@@ -7,7 +7,10 @@
 
 ## Summary
 
-Relations connect entities to each other, storing data in these edges. This RFC covers the minimal version of this feature, allowing for basic entity grouping and simple game logic extensions.
+Relations allow users to create logical connection between entities. Each source entity can have multiple kinds of relations, each with their own data, and multiple relations of the same kind pointing to a different target entity.
+Queries are expanded to allow efficient filtering of entities by the relations they have or the targets of these relations.
+
+This RFC covers the minimal version of this feature, allowing for basic dynamic entity grouping and simple game logic extensions.
 
 ## Motivation
 
