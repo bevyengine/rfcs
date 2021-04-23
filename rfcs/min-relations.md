@@ -244,15 +244,23 @@ macro_rules Relation {
 
 ## Future possibilities
 
-1. Data on the target entity.
-2. GRAPH
-3. Kinded entities
-4. Use with UI.
-5. Frustum culling.
-6. Replace parent-child.
-7. Automatically symmetric relations.
-8. `Noitaler`
-9. Non-self-referential relations using archetype invariants. `Query<&mut Money, Relation<Owes, &mut Money>>`
+Relation enhancements:
+
+1. Sugar for accessing data on the target entity in a single query. `Relation<T: Component, Q: WorldQuery>`
+2. Graph traversals.
+3. Arbitrary target types instead of just `Entity` combined with `KindedEntity` proposal to ensure your targets are valid.
+4. Automatically symmetric relations.
+5. `Noitaler`*
+6. Graph shape guarantees using archetype invariants.
+7. Streaming iters to allow for queries like: `Query<&mut Money, Relation<Owes, &mut Money>>` and potentially use invariants on graph shape to allow for skipping soundness checks for the aliasing `&mut Money`'s
+8. Assorted Performance optimizations.
+9. Relation orders to enable things like `Styles`.
+
+Relation applications in the engine:
+
+1. Replace existing parent-child.
+2. Applications for UI: styling, widget wiring etc.
+3. Frustum culling.
 
 AUTHOR'S NOTE: Much like `yeet`, `Noitaler` is the bikeshed-avoidance name for the inverse of `Relation`, and will never be used.
 EDITOR's NOTE: `Noitaler` may very much be used :3
