@@ -7,7 +7,7 @@ TBD
 TBD
 
 ## "Clock" Synchronization
-Ideally, clients predict ahead by just enough to have their inputs reach the server right before they're needed. For some reason, lots of people arrive at the idea that clients should estimate the clock time on the server (with some SNTP handshake) and use that to schedule the next simulation step.
+Ideally, clients predict ahead by just enough to have their inputs reach the server right before they're needed. For some reason, people frequently arrive at the idea that clients should estimate the clock time on the server (with some SNTP handshake) and use that to schedule the next simulation step.
 
 That's overcomplicating it. What we really care about is: How much time passes between when the server receives my input and when that input is consumed? If the server simply tells clients how long their inputs are waiting in its buffer, the clients can use that information to converge on the correct lead.
 
@@ -52,7 +52,7 @@ if received_newer_server_update:
 
 
 time_dilation = remap(error + accumulated_correction, -max_error, max_error, -0.1, 0.1)
-accumulated_correction += time_dilation * time.delta_seconds()
+accumulated_correction += time_dilation * delta_time
 
 interp_time += (1.0 + time_dilation) * delta_time
 interp_time = max(interp_time, predicted_time - max_lag_comp)
@@ -61,9 +61,9 @@ interp_time = max(interp_time, predicted_time - max_lag_comp)
 The key idea here is that simplifying the client-server relationship makes the problem easier. You *could* have the server apply inputs whenever they arrive, rolling back if necessary, but that would only complicate things. If the server never accepts late inputs and never changes its pace, no one needs to coordinate.
 
 ## Lag Compensation
-Lag compensation mainly deals with colliders. To avoid weird outcomes, lag compensation must run after all motion and physics systems.
+Lag compensation mainly deals with colliders. To avoid weird outcomes, lag compensation needs to run after all motion and physics systems.
 
-Once again, people get weird ideas about having the server estimate what interpolated state the client was looking at based on their RTT. Once again, that guesswork is unnecessary.
+Again, people get weird ideas about having the server estimate what interpolated state the client was looking at based on their RTT. Again,  that kind of guesswork is unnecessary.
 
 Clients can just tell the server what they were looking at by bundling the interpolated tick numbers and the blend value inside the input payloads.
 
@@ -78,16 +78,16 @@ interpolation blend value
 With this information, the server can reconstruct *exactly* what each client saw. 
 
 Lag compensation goes like this:
-1. Queue projectile spawns, tagged with the shooter interpolation data.
+1. Queue projectile spawns, tagged with their shooter's interpolation data.
 2. Restore all colliders to the earliest interpolated moment.
-3. Replay forward back to the current tick, spawning the projectiles at the appropriate time and registering hits.
+3. Replay forward to the current tick, spawning the projectiles at the appropriate times and registering hits.
 
-After that's done, any surviving projectiles will exist in the correct time. The process is the same for raycasts weapons.
+After that's done, any surviving projectiles will exist in the correct time. The process is the same for raycast weapons.
 
-Overwatch allows defensive abilities to mitigate lag-compensated shots. This is simple to do. If a player activates any defensive bonus, just apply it to all their buffered hitboxes.
+*Overwatch* allows defensive abilities to mitigate lag-compensated shots. This is simple to do. If a player activates any defensive bonus, just apply it to all their buffered hitboxes.
 [Link](https://youtu.be/W3aieHjyNvw?t=2492) 
 
-Overwatch also reduces the number of intersection tests by calculating the movement envelope of each entity, the "sum" of its bounding volumes over the full lag compensation window, and only rewinding characters whose movement envelopes intersect projectiles.
+*Overwatch* also reduces the number of intersection tests by calculating the movement envelope of each entity, the "sum" of its bounding volumes over the full lag compensation window, and only rewinding characters whose movement envelopes intersect projectiles.
 [Link](https://youtu.be/W3aieHjyNvw?t=2226)
 
 For clients with very high ping, their interpolated time will lag too far behind their predicted time. Generally, you won't want to favor the shooter past a certain limit (e.g. 250ms), so those clients will have to extrapolate the difference. Not extrapolating is also valid, but then lagging clients would abruptly have to start leading their targets.
@@ -103,11 +103,11 @@ Is an exponential decay enough for smooth error correction or are there better a
 ## Prediction <-> Interpolation
 TBD
 
-Clients can't directly modify the authoritative state, but they should be able to predict whatever they want locally. How though? The obvious implementation is to literally fork the latest authoritative state. If this copy ends up being too expensive, we probably use copy-on-write.
+Clients can't directly modify the authoritative state, but they should be able to predict whatever they want locally. One obvious implementation is to literally fork the latest authoritative state. If copying the full state ends up being too expensive, we can probably use a copy-on-write layer.
 
-Clients should predict the entities driven by their input, the entities they spawn (until confirmed), and any entities mutated as a result the first two. I think that should cover it. Predicting *everything* would be a compile-time choice.
+Clients should predict the entities driven by their input, the entities they spawn (until confirmed), and any entities mutated as a result of the first two. I think that should cover it. Predicting *everything* would be a compile-time choice.
 
-So we can predict with component granularity,  the question is: How do we shift things between predicted and interpolated? Current idea is have things be interpolated by default (reset upon receiving a server update) and then using specialized change detection `DerefMut` magic to produce `Predicted<T>`.
+So we can predict with component granularity, but how do we shift things between prediction and interpolation? My current idea is for everything to default to interpolation (reset upon receiving a server update) and then use specialized change detection `DerefMut` magic to produce `Predicted<T>`.
 
 All systems that handle "predictable" interactions (pushing a button, putting an item in your inventory) should run *before* physics. Everything should run before rendering.
 
@@ -115,14 +115,14 @@ Cameras need a little special treatment. Inputs to the view rotation need to be 
 
 Should UI be allowed to reference predicted state or only verified state?
 
-Events are tricky. We'll need some events that only trigger on authoritative changes and others that trigger on predicted changes with follow-up events on confirmed or cancelled later.
+Events are tricky. We'll need some events that only trigger on authoritative changes and others that trigger on predicted changes with follow-up confirmed or cancelled events.
 
 We'll need something like the latter to handle sounds and particle effects. Those shouldn't be duplicated during rollbacks and should be faded out if mispredicted.
 
 ## Predicting Entity Creation
 This requires some special consideration.
 
-The naive solution is to have clients spawn dummy entities. When an update that confirms the result arrives, clients can simply destroy the dummy and spawn the true entity. This is a frankly poor solution because it prevents clients from smoothly blending these entities from predicted time into interpolated time. It won't look right.
+The naive solution is to have clients spawn dummy entities. When an update that confirms the result arrives, clients can simply destroy the dummy and spawn the true entity. IMO this is a poor solution because it prevents clients from smoothly blending these entities from predicted time into interpolated time. It won't look right.
 
 A better solution is for the server to assign each networked entity a global ID that the spawning client can predict and map to its local instance.
 
@@ -130,7 +130,7 @@ A better solution is for the server to assign each networked entity a global ID 
 
 - Alternatively, PRNGs could be used to generate shared keys for pairing global and local IDs. Rather than predict the global ID, the client would predict the shared key. Server updates that confirm the predicted entity would include both its global ID and the shared key, which the client can then use to pair the IDs. This method adds complexity but bypasses the previous method's implicit entity limit.
 
-- An extreme potential solution would be to somehow bake global IDs directly into the memory allocation. If memory layouts are mirrored, relative pointers become global IDs, which don't need to be explicitly written into packets. This would save 4-8 bytes per entity before compression.
+- A more extreme solution would be to somehow bake global IDs directly into the memory allocation. If memory layouts are mirrored, relative pointers become global IDs, which don't need to be explicitly written into packets. This would save 4-8 bytes per entity before compression.
 
 ## Unconditional Rollbacks
 Every article on "rollback netcode" and "client-side prediction and server reconciliation" encourages having clients compare their predicted state to the authoritative state and reconciling *if* they mispredicted. But how do you actually detect a mispredict?
@@ -148,6 +148,6 @@ Let's consider a simpler default:
 
 Now, you might be thinking, "Isn't that wasteful?"
 
-*If* gives a false sense of security. If I make a game and claim it can rollback 250ms, that basically should mean *any* 250ms. With no stuttering. If clients *always* rollback and re-sim, it'll be easier to profile and optimize for that. As a bonus, clients can immediately toss old predicted states.
+*If* gives a false sense of security. If I make a game and claim it can rollback 250ms, that basically should mean *any* 250ms, with no stuttering. If clients *always* rollback and re-sim, it'll be easier to profile and optimize for that. As a bonus, clients can immediately toss old predicted states.
 
 Constant rollbacks may sound expensive, but there were games with rollback running on the original Playstation 20+ years ago.

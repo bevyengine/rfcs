@@ -6,13 +6,13 @@ This RFC describes an implementation of engine features for developing networked
 
 ## Motivation
 
-Networking is unequivocally the most lacking feature in all general-purpose game engines thus far. "Networking" is actually a pretty loaded term. This RFC focuses on **replication**, the part of networking that deals with simulation behavior and the only one that directly involves the ECS.
+Networking is unequivocally the most lacking feature in all general-purpose game engines thus far. "Networking" is actually a pretty loaded term. This RFC focuses on *replication*, the part of networking that deals with simulation behavior and the only one that directly involves the ECS.
 
 Most engines provide "low level" connectivity—virtual connections, optionally reliable UDP channels, rooms—and stop there. Those are not very useful without "high level" replication features—prediction, reconciliation, lag compensation, area of interest management, etc.
 
 > The goal of replication is to ensure that all of the players in the game have a consistent model of the game state. Replication is the absolute minimum problem which all networked games have to solve in order to be functional, and all other problems in networked games ultimately follow from it. - [Mikola Lysenko](https://0fps.net/2014/02/10/replication-in-networked-games-overview-part-1/)
 
-Bevy has an opportunity to become one of the first open game engines to offer a plug-and-play networking API. Among Godot, Unity, and Unreal, only Unreal provides any of these built-in (and dogfooded in Fortnite).
+Bevy has an opportunity to become one of the first open game engines to offer a truly plug-and-play networking API. Among Godot, Unity, and Unreal, only Unreal provides something like that built-in (the Replication Graph plugin they dogfooded in Fortnite).
 
 IMO the absence of built-in replication systems leads many to conclude that every multiplayer game must need its own unique solution. This is not true. While the exact replication "strategy" depends of the game, all of them—lockstep, rollback, client-side prediction with server reconciliation—pull from the same bag of tricks. Their differences can be captured with simple configuration options. Really, only *massive* multiplayer games require custom solutions.
 
@@ -127,9 +127,9 @@ fn main() {
 
 ### Macros
 - Adds `[repr(C)]`
-- Float quantization and compression
-- Conditional compilation of client and server logic
 - Identifying components for snapshot generation
+- Implement float quantization and compression
+- Conditional compilation of client and server logic
 
 ### Saving and Restoring Game State
 Requirements
@@ -195,7 +195,7 @@ People who want to make multiplayer games want to focus on designing their game 
 
 - What is the impact of not doing this?
 
-Without committing to support these features early, Bevy risks ending up like Unity, whose built-in features were too non-deterministic for the first kind of replication and whose only working solutions for the second are paid third-party plugins that couldn't integrate deeply enough to be transparent (at least not without duplicating parts of the engine).
+It'll only grow more difficult to add these features as time goes on. Take Unity for example. Its built-in features are too non-deterministic and its only working solutions for state transfer are paid third-party assets. Thus far, said assets cannot integrate deeply enough to be transparent (at least not without custom memory management and duplicating parts of the engine).
 
 - Why is this important to implement as a feature of Bevy itself, rather than an ecosystem crate?
 
@@ -218,7 +218,7 @@ I strongly doubt that fast, efficient, and transparent replication features can 
 
 - Beyond replication, Bevy need only provide one good default for protocol and IO for the sake of completeness. I recommend dividing responsibilities as shown below to make it easy for developers to swap them with the [many](https://partner.steamgames.com/doc/features/multiplayer) [robust](https://developer.microsoft.com/en-us/games/solutions/multiplayer/) [platform](https://dev.epicgames.com/docs/services/en-US/Overview/index.html) [SDKs](https://docs.aws.amazon.com/gamelift/latest/developerguide/gamelift-intro.html).
 
-    **replication**
+    **replication** (this RFC)
     - save and restore
     - prediction
     - serialization and compression
