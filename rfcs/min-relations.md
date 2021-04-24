@@ -153,9 +153,6 @@ fn new_friends(query: Query<&mut Excitement, Added<Relation<FriendsWith>>>){
 
 ```
 
-Relations between entities are automatically cleaned up when either the source or target entity is removed.
-Just like components, you can view which relations were removed in the last frame through the `RemovedRelation<T>` system parameter, which also returns their data.
-
 You can use the `Entity` returned by your relations to fetch data from the target's components by combining it with `query::get()` or `query::get_component<C>()`.
 
 ```rust
@@ -174,9 +171,53 @@ fn debts_come_due(
 }
 ```
 
+### Nuances of relations
+
+Relations between entities are automatically cleaned up when either the source or target entity is removed.
+Just like components, you can view which relations were removed in the last frame through the `RemovedRelation<T>` system parameter, which also returns their data.
+
+Each relation kind + target combination is treated like a unique type for the purposes of archetypes.
+This makes can be relevant to the performance of your game; accelerating target entity filtering but creating overhead if you have a very large number of distinct targets.
+As a result, changing the source or target of a relation can only be done while the app has exclusive access to the world, via `Commands` or in exclusive systems.
+Here's an example of how you might do so:
+
+```rust
+fn love_potion(
+    commands: mut Commands,
+    query: Query<Entity, (With<Relation<&Loves>>, With<Cute>)>,
+    player_query: Query<Entity, With<Player>>){
+    
+    let player = player.single().unwrap();
+
+    for victim in query.iter(){
+        // change_target() and change_source() preserve the relation's data
+        // Only one relation of a given kind can exist between a source and a target;
+        // these command applies to any relations that match,
+        // and overwrite any conflicting relations
+        commands.entity(victim).change_target::<Loves>(player); // This is unethical!!
+    }
+}
+
+fn adoption(
+    commands: mut Commands,
+    // As with components, you can query for relations that may or may not exist
+    query: Query<(Entity, &NewOwner, Option<Relation<Owns>>), With<Kitten>>,
+) {
+   for (kitten, new_owner, previous_ownership) in query.iter(){
+       // Changing the target or the source will fail silently if no appropriate relation exists
+       match previous_ownership {
+           // The first parameter is the data, the second is the old target
+           Some(_,_) => commands.entity(kitten).change_source::<Owns>(new_owner); // uwu :3
+           None => commands.entity(kitten).insert_relation(Owns::default(), new_owner); // uwu!!
+       }
+   } 
+}
+```
+
 ### Advanced relation filters
 
 ### Grouping entities
+
 
 ### Entity hierarchies
 
