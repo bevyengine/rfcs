@@ -169,7 +169,7 @@ fn debts_come_due(
 ### Nuances of relations
 
 Relations between entities are automatically cleaned up when either the source or target entity is removed.
-Just like components, you can view which relations were removed in the last frame through the `RemovedRelation<T>` system parameter, which also returns their data.
+Just like components, you can view which relations were removed in the last frame through the `RemovedRelations<T>` system parameter, which also returns their data.
 
 Each relation kind + target combination is treated like a unique type for the purposes of archetypes.
 This makes can be relevant to the performance of your game; accelerating target entity filtering but creating overhead if you have a very large number of distinct targets.
