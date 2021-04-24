@@ -155,7 +155,9 @@ fn not_alone(
 
 // So does change detection with Added and Changed!
 fn new_friends(query: Query<&mut Excitement, Added<Relation<FriendsWith>>>){
-    query.for_each(|mut excitement|{excitement.value += 10});
+    query.for_each(|(mut excitement, new_friends)| {
+    	excitement.value += 10 * new_friends.count();
+	});
 }
 
 ```
