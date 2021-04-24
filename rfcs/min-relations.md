@@ -430,7 +430,9 @@ Here's a look at the complexities involved in doing so in [EnTT](https://skypjac
    3. `CoRelation`
    4. `TargetOf`
 3. Do we want a macro to make complex calls easier?
-4. Do we want to be able to filter queries by their source as well?
+4. Bikeshed: what argument order do we want for `change_target` and `move_relation`? Currently:
+   1. `commands.entity(source).change_target(old_target, new_target)`
+   2. `commands.entity(old_source).change_target(new_source, target)`
 
 ```rust
 macro_rules Relation {
