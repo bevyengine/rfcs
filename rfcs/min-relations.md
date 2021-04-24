@@ -211,7 +211,7 @@ fn adoption(
        match previous_ownership {
            // We can change sources by controlling which entity owns the relation
            // move_relation is directly analagous to move_component
-           Some(_, old_owner) => commands.entity(kitten).move_relation::<Owns>(old_owner, new_owner); // uwu :3
+           Some(_, old_owner) => commands.entity(old_owner).move_relation::<Owns>(new_owner, kitten); // uwu :3
            None => commands.entity(new_owner).insert_relation(Owns::default(), kitten); // uwu!!
        }
    } 
@@ -220,32 +220,28 @@ fn adoption(
 // `change_target` and `move_relation` preserve the relation's data
 // This system removes all springs attached to mass 1, and adds them to mass 2 instead
 fn reattach_springs(mut commands: Commands,
-                   selected_mass1: Query<Entity, With<FirstSelected>>,
-                   selected_mass2: Query<Entity, With<SecondSelected>>,
+                   selected_mass1: Res<FirstSelected>,
+                   selected_mass2: Res<SecondSelected>,
                    query: Query<(Entity, Relation<Spring>)>
                   ) {
     
-    let s1 = selelected_mass1.single().unwrap();
-    let s2 = selelected_mass2.single().unwrap();
+    let m1 = selelected_mass1.entity;
+    let m2 = selelected_mass2.entity;
 
-    // Relation filtering for the target is faster because it works on archetypes, 
-    // but you can still filter by hand
-    for (source_mass, spring) in query.iter_mut(){
-        
-        // The _ is the spring's data
+    for (source_mass, spring) in query.iter_mut(){        
         for (target_mass, _) in spring {
-            // This makes it safe to use an else if below
             assert!(source_mass != target_mass, 
                 "Springs should not connect a mass to itself!");
 
-            // Spring relations are symettric; 
-            // we have two identical relations in opposite direction that we must preserve
-            if source_mass == s1 {
-                // Changing the source
-                commands.entity(target_mass).move_relation::<Spring>(s1, s2);
-            } else if target_mass == s1 {
-                // Changing the target
-                commands.entity(source_mass).change_target::<Spring>(s1, s2);
+            // Spring relations are symmetric; each spring is defined by
+            // two identical relations that point opposite direction.
+            // We need to preserve both during this operation
+            if m1 == source_mass {
+                // If mass 1 is the source, we must change the source to mass 2
+                commands.entity(m1).move_relation::<Spring>(m2, target_mass);
+            } else if target_mass == m1 {
+                // If mass 1 is the target, we must change the target to mass 2
+                commands.entity(source_mass).change_target::<Spring>(m1, m2);
             }
         }
     }
