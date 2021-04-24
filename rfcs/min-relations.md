@@ -416,7 +416,8 @@ There's a lot of value in getting this feature in front of users to see the resp
 Many uses of relations are not performance-critical,
 and the value of a nice API and automatic handling of data synchronization far outweighs any performance cost for those users.
 
-We can fix the perf once we have a better understanding of the APIs we need to support.
+We can fix the perf once we have a better understanding of the APIs we need to support,
+and a tangible implementation to benchmark against.
 There's also nothing stopping you from doing things the old ways in your elaborate graph-traversing systems.
 
 See also: the question directly above.
