@@ -29,6 +29,20 @@ What I hope to explore in this RFC is:
 
 [Link to some fundamental concepts.](../main/replication_concepts.md)
 
+> Please treat all terms like determinism, state transfer, snapshots, and eventual consistency as placeholders. We could easily label them differently.
+
+Bevy aims to make developing networked games as simple as possible. There isn't a "one size fits all" replication strategy that works for every game, but Bevy provides those it has under one API.
+
+First think about your game and consider which form of replication might fit best. Players can *either* send their inputs to each other (or through a relay) and independently and deterministically simulate the game *or* they can send their inputs to a single machine (the server) who simulates the game and sends back updated game state.
+
+> Honestly, Bevy could put something like a questionnaire in the docs. Genre and player count pretty much choose the replication strategy for you.
+
+Next, determine which components and systems affect the global simulation state and tag them accordingly. Usually adding `#[derive(Replicate)]` to all replicable components is enough. You can additionally decorate gameplay logic and systems with `#[client]` or `#[server]` for conditional compilation.
+
+Lastly, add these simulation systems to the `NetworkedFixedUpdate` app state. Bevy will take care of all state rollback, serialization, and compression internally. Other than that, you're free to write your game as if it were local multiplayer. 
+
+> This guide is pretty lazy lol, but that's the gist of it.
+
 ### Example: "Networked" Components
 
 ```rust
@@ -185,11 +199,11 @@ Everything aside from the simulation steps can be generated automatically.
 - Seemingly limited to components that implement `Clone` and `Serialize`.
 
 ## Rationale and alternatives
-- Why is this design the best in the space of possible designs?
+> Why is this design the best in the space of possible designs?
 
 Networking is a widely misunderstood problem domain. The proposed implementation should suffice for most games while minimizing design friction—users need only annotate gameplay-related components and systems, put those systems in `NetworkFixedUpdate`, and configure some settings.
 
-- What other designs have been considered and what is the rationale for not choosing them?
+> What other designs have been considered and what is the rationale for not choosing them?
 
 Replication always boils down to sending inputs or state, so the space of alternative designs includes different choices for the end-user interface and different implementations of save/restore functions.
 
@@ -197,11 +211,11 @@ Frankly, given the abundance of confusion surrounding networking, polluting the 
 
 People who want to make multiplayer games want to focus on designing their game and not worry about how to implement prediction, how to serialize their game, how to keep packets under MTU, etc. All of that should just work. I think the ease of macro annotations is worth any increase in compile times when networking features are enabled.
 
-- What is the impact of not doing this?
+> What is the impact of not doing this?
 
 It'll only grow more difficult to add these features as time goes on. Take Unity for example. Its built-in features are too non-deterministic and its only working solutions for state transfer are paid third-party assets. Thus far, said assets cannot integrate deeply enough to be transparent (at least not without custom memory management and duplicating parts of the engine).
 
-- Why is this important to implement as a feature of Bevy itself, rather than an ecosystem crate?
+> Why is this important to implement as a feature of Bevy itself, rather than an ecosystem crate?
 
 I strongly doubt that fast, efficient, and transparent replication features can be implemented without directly manipulating a World and its component storages.
 
@@ -217,9 +231,8 @@ I strongly doubt that fast, efficient, and transparent replication features can 
 
 ## Future possibilities
 - With some game state diffing tools, these replication systems could help detect non-determinism in other parts of the engine. 
-
 - Much like how Unreal has Fortnite, it would help immensenly if Bevy had an official collection of multiplayer samples to dogfood these features.
-
+- Bevy's future editor could automate most of the configuration and annotation.
 - Beyond replication, Bevy need only provide one good default for protocol and IO for the sake of completeness. I recommend dividing responsibilities as shown below to make it easy for developers to swap them with the [many](https://partner.steamgames.com/doc/features/multiplayer) [robust](https://developer.microsoft.com/en-us/games/solutions/multiplayer/) [platform](https://dev.epicgames.com/docs/services/en-US/Overview/index.html) [SDKs](https://docs.aws.amazon.com/gamelift/latest/developerguide/gamelift-intro.html). Replication addresses all the underlying ECS interop, so it should be settled first.
 
     **replication** (this RFC)
