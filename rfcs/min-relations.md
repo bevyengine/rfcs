@@ -121,7 +121,7 @@ fn caught_in_the_middle(mut query: Query<&mut Stress, With<Relation<FriendsWith>
         RelationFilter::all_of()
         .target(dorothy.entity)
         .target(elphaba.entity)
-    // You can directly chain this as set_relation_filters returns &mut Query
+    // You can directly chain this as filter_relations returns &mut Query
     ).build().for_each(|mut stress| {
         println!("{} is friends with Dorothy and Elphaba!", source_entity);
         stress.val = 1000; 
@@ -186,7 +186,6 @@ fn love_potion(
     let player = player.single().unwrap();
 
     for victim, former_love in query.iter(){
-
         // Only one relation of a given kind can exist between a source and a target;
         // like always, new relations overwrite existing relations
         // with the same source, kind and target
