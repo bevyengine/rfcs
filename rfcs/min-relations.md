@@ -3,7 +3,7 @@
 // FIXME
 // Make sure to talk about these:
 // - Reverse relations.
-// - Or support for add_target_filter.
+// - Or support for target filters.
 
 ## Summary
 
@@ -106,11 +106,11 @@ fn friend_of_dorothy(
     mut query: Query<Entity, With<Relation<FriendsWith>>>, 
     dorothy: Res<Dorothy>,
 ) {
-    // Setting relation filters requires that the query is mutable
-    query.set_relation_filters(
-        RelationFilters::new()
-            .add_target_filter::<FriendsWith, _>(dorothy.entity)
-    );
+    // Setting relation filters requires mutable access to the query
+    query.filter_relation::<FriendsWith, _>(
+        RelationFilter::target(dorothy.entity)
+    // .build() causes the relation filters to be applied
+    ).build();
 
     for source_entity in query.iter(){
         println!("{} is friends with Dorothy!", source_entity);
@@ -125,23 +125,18 @@ fn friend_of_dorothy(
 fn caught_in_the_middle(mut query: Query<&mut Stress, With<Relation<FriendsWith>>>,
     dorothy: Res<Dorothy>,
     elphaba: Res<Elphaba>){
-    
+
+    // Note that we can set relation filters even if the relation is in a query filter
+    query.filter_relation::<FriendsWith, _>(
+        RelationFilter::any_of()
+        .target(dorothy.entity)
+        .target(elphaba.entity)
     // You can directly chain this as set_relation_filters returns &mut Query
-    query.set_relation_filters(
-        // Note that we can set relation filters even if the relation is in a query filter
-        RelationFilters::new()
-            // Note: add_target_filter is additive- i.e. entities this query
-            // matches must be friends with *both* dorothy AND elphaba
-            .add_target_filter::<FriendsWith, _>(dorothy.entity)
-            .add_target_filter::<FriendsWith, _>(elphaba.entity)
-    ).for_each(|mut stress| {
+    ).build().for_each(|mut stress| {
         println!("{} is friends with Dorothy and Elphaba!", source_entity);
         stress.val = 1000; 
     })
 }
-
-/// If we want to combine targets in an "or" fashion, we need a slightly different syntax
-TODO: write example
 
 // Query filters work too!
 fn not_alone(
@@ -182,6 +177,8 @@ fn debts_come_due(
     }
 }
 ```
+
+### Advanced relation filters
 
 ### Grouping entities
 
