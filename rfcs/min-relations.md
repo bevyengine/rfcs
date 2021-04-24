@@ -221,7 +221,7 @@ fn adoption(
 // This system removes all springs attached to mass 1, and adds them to mass 2 instead
 fn reattach_springs(mut commands: Commands,
                    selected_mass1: Query<Entity, With<FirstSelected>>,
-                   selected_mass2: Query<Entity, With<FirstSelected>>,
+                   selected_mass2: Query<Entity, With<SecondSelected>>,
                    query: Query<(Entity, Relation<Spring>)>
                   ) {
     
