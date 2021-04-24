@@ -123,7 +123,7 @@ fn caught_in_the_middle(mut query: Query<&mut Stress, With<Relation<FriendsWith>
 
     // Note that we can set relation filters even if the relation is in a query filter
     query.filter_relation::<FriendsWith, _>(
-        RelationFilter::any_of()
+        RelationFilter::all_of()
         .target(dorothy.entity)
         .target(elphaba.entity)
     // You can directly chain this as set_relation_filters returns &mut Query
