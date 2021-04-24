@@ -12,9 +12,7 @@ Most engines provide "low level" connectivity—virtual connections, optionally 
 
 > The goal of replication is to ensure that all of the players in the game have a consistent model of the game state. Replication is the absolute minimum problem which all networked games have to solve in order to be functional, and all other problems in networked games ultimately follow from it. - [Mikola Lysenko](https://0fps.net/2014/02/10/replication-in-networked-games-overview-part-1/)
 
-Bevy has an opportunity to become one of the first, if not *the* first, open game engines to offer a plug-and-play networking API.
-
-Among Godot, Unity, and Unreal, only Unreal provides any of these built-in (and dogfooded in Fortnite).
+Bevy has an opportunity to become one of the first open game engines to offer a plug-and-play networking API. Among Godot, Unity, and Unreal, only Unreal provides any of these built-in (and dogfooded in Fortnite).
 
 IMO the absence of built-in replication systems leads many to conclude that every multiplayer game must need its own unique solution. This is not true. While the exact replication "strategy" depends of the game, all of them—lockstep, rollback, client-side prediction with server reconciliation—pull from the same bag of tricks. Their differences can be captured with simple configuration options. Really, only *massive* multiplayer games require custom solutions.
 
@@ -123,7 +121,6 @@ fn main() {
       - compensation window: 200ms
 ```
 
-
 ## Reference-level explanation
 
 [TBD](../main/implementation_details.md)
@@ -141,8 +138,9 @@ Requirements
 - Networked entities must be spawned as such. You cannot spawn a non-networked entity and "network it" later, at least not without some kind of RPC.
 
 Saving
-- At the end of every fixed update, iterate the `Added<T>`, `Changed<T>`, and `Removed<T>`  for all replicable components and duplicate them to an isolated copy.
+- At the end of every fixed update, iterate `Changed<T>` and `Removed<T>`  for all replicable components and duplicate them to an isolated copy.
 - This isolated copy would be a collection of sparse sets, for just the replicable components. Tables would be rebuilt when restoring.
+- (From their description, [subworlds](https://github.com/bevyengine/rfcs/pull/16) seem like they could also be used for generating snapshots and performing rollbacks, but I need more details. Might be a lot of overhead.)
 
 Packets
 - For snapshots, also compute the changes as a XOR and copy that into a ring buffer of patches. XOR the latest patch with the earlier patches to bring them up-to-date. Finally, write the packets and pass them to the protocol layer.
@@ -185,7 +183,7 @@ Everything aside from the simulation steps can be generated automatically.
 ## Rationale and alternatives
 - Why is this design the best in the space of possible designs?
 
-Networking is a widely misunderstood problem domain and multiplayer often enters the conversation too far into development. The proposed implementation or interface should suffice for most games while minimizing design friction—users need only annotate gameplay-related components and systems, put those systems in `NetworkFixedUpdate`, and configure some settings.
+Networking is a widely misunderstood problem domain. The proposed implementation should suffice for most games while minimizing design friction—users need only annotate gameplay-related components and systems, put those systems in `NetworkFixedUpdate`, and configure some settings.
 
 - What other designs have been considered and what is the rationale for not choosing them?
 
@@ -195,11 +193,9 @@ Frankly, given the abundance of confusion surrounding networking, polluting the 
 
 People who want to make multiplayer games want to focus on designing their game and not worry about how to implement prediction, how to serialize their game, how to keep packets under MTU, etc. All of that should just work. I think the ease of macro annotations is worth any increase in compile times when networking features are enabled.
 
-From their description, ["subworlds"](https://github.com/bevyengine/rfcs/pull/16) seem promising for generating snapshots and performing rollbacks, but the proposal needs more details on interop with the ECS and performance (so does this one lol).
-
 - What is the impact of not doing this?
 
-Without committing to support these features early, Bevy risks ending up like Unity, whose built-in features were too non-deterministic for the first kind of replication and whose only working solutions for the second kind appeared years later as [subscription-based](blank "monthly, per concurrent user, even when self-hosted") third-party plugins and couldn't integrate deeply enough to be transparent (at least not without duplicating parts of the engine).
+Without committing to support these features early, Bevy risks ending up like Unity, whose built-in features were too non-deterministic for the first kind of replication and whose only working solutions for the second are paid third-party plugins that couldn't integrate deeply enough to be transparent (at least not without duplicating parts of the engine).
 
 - Why is this important to implement as a feature of Bevy itself, rather than an ecosystem crate?
 
