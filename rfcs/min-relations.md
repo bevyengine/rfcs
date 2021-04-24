@@ -204,7 +204,7 @@ fn love_potion(
 fn adoption(
     mut commands: Commands,
     // As with components, you can query for relations that may or may not exist
-    query: Query<(Entity, &NewOwner, Option<Relation<Owns>>), With<Kitten>>,
+    query: Query<(Entity, &NewOwner, Option<&Relation<Owns>>), With<Kitten>>,
 ) {
    for (kitten, new_owner, previous_ownership) in query.iter(){
        // Changing the target or the source will fail silently if no appropriate relation exists
