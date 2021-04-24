@@ -67,7 +67,7 @@ These types are fully defined in 3d space.
 
 - `Point`: type alias of Vec3
 - `Direction`: Vec3 that is guaranteed to be normalized through its getter/setter
-- `Axis` 
+- `Axis`
 - `Line`
 - `Plane`
 - `Quad`
