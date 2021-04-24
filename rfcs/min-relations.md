@@ -182,36 +182,75 @@ As a result, changing the source or target of a relation can only be done while 
 Here's an example of how you might do so:
 
 ```rust
+
 fn love_potion(
-    commands: mut Commands,
-    query: Query<Entity, (With<Relation<&Loves>>, With<Cute>)>,
+    mut commands: Commands,
+    query: Query<Entity, &Relation<Loves>, With<Cute>>,
     player_query: Query<Entity, With<Player>>){
     
     let player = player.single().unwrap();
 
-    for victim in query.iter(){
-        // change_target() and change_source() preserve the relation's data
+    for victim, former_love in query.iter(){
+
         // Only one relation of a given kind can exist between a source and a target;
-        // these command applies to any relations that match,
-        // and overwrite any conflicting relations
-        commands.entity(victim).change_target::<Loves>(player); // This is unethical!!
+        // like always, new relations overwrite existing relations
+        // with the same source, kind and target
+        for (_, former_lover) in former_love {
+            commands.entity(victim).change_target::<Loves>(former_lover, player); // This is unethical!!
+        }
     }
 }
 
 fn adoption(
-    commands: mut Commands,
+    mut commands: Commands,
     // As with components, you can query for relations that may or may not exist
     query: Query<(Entity, &NewOwner, Option<Relation<Owns>>), With<Kitten>>,
 ) {
    for (kitten, new_owner, previous_ownership) in query.iter(){
        // Changing the target or the source will fail silently if no appropriate relation exists
        match previous_ownership {
-           // The first parameter is the data, the second is the old target
-           Some(_,_) => commands.entity(kitten).change_source::<Owns>(new_owner); // uwu :3
+           // We can change sources by controlling which entity owns the relation
+           // move_relation is directly analagous to move_component
+           Some(_, old_owner) => commands.entity(kitten).move_relation::<Owns>(old_owner, new_owner); // uwu :3
            None => commands.entity(kitten).insert_relation(Owns::default(), new_owner); // uwu!!
        }
    } 
 }
+
+// `change_target` and `move_relation` preserve the relation's data
+// This system removes all springs attached to mass 1, and adds them to mass 2 instead
+fn reattach_springs(mut commands: Commands,
+                   selected_mass1: Query<Entity, With<FirstSelected>>,
+                   selected_mass2: Query<Entity, With<FirstSelected>>,
+                   query: Query<(Entity, Relation<Spring>)>
+                  ) {
+    
+    let s1 = selelected_mass1.single().unwrap();
+    let s2 = selelected_mass2.single().unwrap();
+
+    // Relation filtering for the target is faster because it works on archetypes, 
+    // but you can still filter by hand
+    for (source_mass, spring) in query.iter_mut(){
+        
+        // The _ is the spring's data
+        for (target_mass, _) in spring {
+            // This makes it safe to use an else if below
+            assert!(source_mass != target_mass, 
+                "Springs should not connect a mass to itself!");
+
+            // Spring relations are symettric; 
+            // we have two identical relations in opposite direction that we must preserve
+            if source_mass == s1 {
+                // Changing the source
+                commands.entity(target_mass).move_relation::<Spring>(s1, s2);
+            } else if target_mass == s1 {
+                // Changing the target
+                commands.entity(source_mass).change_target::<Spring>(s1, s2);
+            }
+        }
+    }
+}
+
 ```
 
 ### Advanced relation filters
@@ -330,6 +369,7 @@ TODO: Boxy explains the magic.
 1. Introduces another core abstraction to users that they will have to learn.
 Rewriting our parent-child code in terms of relations is important, but will introduce the concept to users quite quickly.
 2. Heavy use of relations can seriously fragment archetypes. We need to be careful that this doesn't badly impact our performance.
+3. `move_component`, `move_relation` and `change_target` only work on `Clone` components / relations due to the need to temporarily be able to access removed component data.
 
 ## Rationale and alternatives
 
