@@ -34,8 +34,8 @@ This powerful and common pattern deserves a proper abstraction that we can make 
 
 ## Guide-level explanation
 
-**Relations** are components that connect entities together, pointing from the entity they are stored on to the entity that they target.
-Just like other components, they can store effectively arbitrary data, or they can be data-less unit structs that serve as **markers**.
+**Relations** are similar to components that connect entities together, pointing from the entity they are stored on to the entity that they target.
+Just like components, they can store effectively arbitrary data, or they can be data-less unit structs that serve as **markers**. Unlike components, they don't store the target entity directly, as that connection is managed by the engine.
 
 Each relation has three parts:
 
