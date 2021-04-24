@@ -249,7 +249,7 @@ and you will bemoan your inability to specify information about the global prope
 However, even relations do have three critical advantages over the **external graph data structure pattern**:
 
 1. You can readily store data in each edge of your directed graph.
-2. You can quickly filter for which entity-node edges are coming from or pointing to.
+2. You can quickly filter for the source or target entities (nodes) of each relation (edge).
 3. You don't have to think about synchronization.
 
 These advantages make even `min-relations` a compelling alternative to both the Entity-in-component and external graph data structure patterns if:
