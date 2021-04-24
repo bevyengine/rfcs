@@ -445,9 +445,8 @@ Here's a look at the complexities involved in doing so in [EnTT](https://skypjac
    2. `Inverse`
    3. `CoRelation`
    4. `TargetOf`
-3. Do we need a full graph constraint solver in our queries to handle things like "check for unrequited love"?
-4. Do we want a macro to make complex calls easier?
-5. Do we want to be able to filter queries by their source as well?
+3. Do we want a macro to make complex calls easier?
+4. Do we want to be able to filter queries by their source as well?
 
 ```rust
 macro_rules Relation {
@@ -473,6 +472,7 @@ Likely implemented using archetype invariants.
 9. Relative ordering between relations of the same kind on the same entity.
 This would enable the `Styles` proposal from #1 to use relations.
 10. Generalized `despawn_recursive` by parameterizing on relation type.
+11. \[Undecided\] A full graph constraint solver in our queries like in FLECS for advanced querying.
 
 Relation applications in the engine:
 
