@@ -1,10 +1,5 @@
 # Feature Name: `min-relations`
 
-// FIXME
-// Make sure to talk about these:
-// - Reverse relations.
-// - Or support for target filters.
-
 ## Summary
 
 Relations allow users to create logical connection between entities. Each source entity can have multiple kinds of relations, each with their own data, and multiple relations of the same kind pointing to a different target entity.
@@ -158,7 +153,8 @@ fn new_friends(query: Query<&mut Excitement, Added<Relation<FriendsWith>>>){
 
 ```
 
-TODO: mention relation cleanup on despawn.
+Relations between entities are automatically cleaned up when either the source or target entity is removed.
+Just like components, you can view which relations were removed in the last frame through the `RemovedRelation<T>` system parameter, which also returns their data.
 
 You can use the `Entity` returned by your relations to fetch data from the target's components by combining it with `query::get()` or `query::get_component<C>()`.
 
