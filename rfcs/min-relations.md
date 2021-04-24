@@ -164,28 +164,7 @@ fn new_friends(query: Query<&mut Excitement, Added<Relation<FriendsWith>>>){
 
 TODO: mention relation cleanup on despawn.
 
-Sometimes, we may instead want to look for "entities that are targets of some relation".
-We can do so by iterating over all entities with that relation, and then filtering by target.
-
-```rust
-fn all_children(
-    player_query: Query<Entity, With<Player>>,
-    child_query: Query<&Name, With<Relation<ChildOf>>>,
-) {
-    let player_entity = player_query.single.unwrap();
-    
-    child_query.set_relation_filters(
-        RelationFilters::new()
-            .add_target_filter::<ChildOf, _>(player_entity)
-    );
-
-    for name in child_query.iter() {
-        println!("{} is one of my children.", name) 			
-    }
-}
-```
-
-Finally, you can use the `Entity` returned by your relations to fetch data from the target's components by combining it with `query::get()` or `query::get_component<C>()`.
+You can use the `Entity` returned by your relations to fetch data from the target's components by combining it with `query::get()` or `query::get_component<C>()`.
 
 ```rust
 // We need to use a marker component to avoid having multiple mutable references
