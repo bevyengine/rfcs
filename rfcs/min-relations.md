@@ -474,5 +474,6 @@ Relation applications in the engine:
 2. Applications for UI: styling, widget wiring etc.
 3. Frustum culling with multiple cameras.
 
-[bikeshed]: AUTHOR'S NOTE: Much like `yeet`, `Noitaler` is the bikeshed-avoidance name for the inverse of `Relation`, and will never be used.
+<b id="bikeshed">AUTHOR'S NOTE</b>: Much like `yeet`, `Noitaler` is the bikeshed-avoidance name for the inverse of `Relation`, and will never be used.
+
 EDITOR's NOTE: `Noitaler` may very much be used :3
