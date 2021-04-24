@@ -27,7 +27,7 @@ What I hope to explore in this RFC is:
 
 ## Guide-level explanation
 
-[TBD](../blob/main/replication_concepts.md)
+[TBD](../main/replication_concepts.md)
 
 ### Example: "Networked" Components
 
@@ -126,7 +126,7 @@ fn main() {
 
 ## Reference-level explanation
 
-[TBD](../blob/main/implementation_details.md)
+[TBD](../main/implementation_details.md)
 
 ### Macros
 - Adds `[repr(C)]`
