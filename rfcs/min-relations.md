@@ -31,6 +31,7 @@ But this quickly starts to balloon in complexity.
 We *could* force our users to solve these problems, over and over again in each individual game.
 
 This powerful and common pattern deserves a proper abstraction that we can make ergonomic, performant and *fearless*.
+Eventually, at least ;)
 
 ## Guide-level explanation
 
