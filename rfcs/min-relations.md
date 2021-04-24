@@ -238,7 +238,28 @@ Let's examine the real-time strategy group example hands-on:
 
 ```
 
-### Entity hierarchies
+### Entity graphs
+
+Unsurprisingly, you can build all manner of complex entity graphs using relations.
+Before you begin to rip out your resources with graph data structures storing `Entity` keys,
+pause to consider that this is, in fact, `*min*-relations`.
+Performance will be limited, APIs will be lacking,
+and you will bemoan your inability to specify information about the global properties of the graph.
+
+However, even relations do have three critical advantages over the **external graph data structure pattern**:
+
+1. You can readily store data in each edge of your directed graph.
+2. You can quickly filter for which entity-node edges are coming from or pointing to.
+3. You don't have to think about synchronization.
+
+These advantages make even `min-relations` a compelling alternative to both the Entity-in-component and external graph data structure patterns if:
+
+1. You don't care about performance.
+2. You don't need to perform complex traversals.
+3. You're operating on general graphs that can contain cycles and self-referential edges.
+4. You're too lazy to thoroughly ensure your code is free of synchronization bugs.
+
+Let's take a look at how you could use relations to build an API for a tree-shaped graph that looks suspiciously like Bevy 0.5's parent-child hierarchy.
 
 ## Reference-level explanation
 
