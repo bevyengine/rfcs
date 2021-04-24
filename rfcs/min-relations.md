@@ -212,7 +212,7 @@ fn adoption(
            // We can change sources by controlling which entity owns the relation
            // move_relation is directly analagous to move_component
            Some(_, old_owner) => commands.entity(kitten).move_relation::<Owns>(old_owner, new_owner); // uwu :3
-           None => commands.entity(kitten).insert_relation(Owns::default(), new_owner); // uwu!!
+           None => commands.entity(new_owner).insert_relation(Owns::default(), kitten); // uwu!!
        }
    } 
 }
