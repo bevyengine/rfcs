@@ -217,8 +217,7 @@ fn reattach_springs(mut commands: Commands,
                    selected_mass1: Res<FirstSelected>,
                    selected_mass2: Res<SecondSelected>,
                    query: Query<Relation<Spring>>
-                  ) {
-    
+) {
     let m1 = selelected_mass1.entity;
     let m2 = selelected_mass2.entity;
     let springs = query.get(m1);
