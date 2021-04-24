@@ -98,22 +98,17 @@ fn interest(query: Query<&mut Relation<Owes>>){
 
 // You can query for entities that target a specific entity
 fn friend_of_dorothy(
-    mut query: Query<Entity, With<Relation<FriendsWith>>>, 
+    query: Query<Entity, With<Relation<FriendsWith>>>, 
     dorothy: Res<Dorothy>,
 ) {
-    // Setting relation filters requires mutable access to the query
-    query.filter_relation::<FriendsWith, _>(
+    let filtered = query.filter_relation::<FriendsWith, _>(
         RelationFilter::target(dorothy.entity)
     // .build() causes the relation filters to be applied
     ).build();
 
-    for source_entity in query.iter(){
+    for source_entity in filtered.iter(){
         println!("{} is friends with Dorothy!", source_entity);
     }
-
-    // RelationFilters are reset at the end of the system, make sure to set them every time your system runs!
-    // You can also reset this manually by applying a new `RelationFilters` to the query
-    // They override existing relation filters, rather than adding to them
 }
 
 // Or even look for some combination of targets!
@@ -299,15 +294,6 @@ fn
 
 Filters chained in this way will operate on the restricted list produces by the previous filter (following "and semantics").
 
-Each query stores the entities that it is filtering as data for the duration of the system.
-If you wish to filter for different entities within the same system,
-simply call `query.reset_filter::<R>()` or `query.reset_filters()`.
-Here's an example showing off the value of this functionality:
-
-```rust
-
-```
-
 Finally, for when you have *truly* complex relation filtering needs, you can turn to **compound relation filters**.
 `RelationFilter::any_of` and `RelationFilter::all_of` can combine *other* relation filters,
 allowing you to nest your logic arbitrarily deep.
@@ -391,6 +377,10 @@ and describing them as such is confusing to beginners.
 Under the hood, the existing implementation models
 
 TODO: add examples of the differences
+
+## Why do we need the builder pattern for filtering relations?
+
+TODO: Boxy explains perf implications
 
 ### Why don't we just store Entities in components?
 
