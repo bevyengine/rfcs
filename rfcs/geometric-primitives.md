@@ -137,7 +137,7 @@ It's unsurprisingly much simpler to use these types when the primitives are full
 - What is the impact of not doing this?
 - Why is this important to implement as a feature of Bevy itself, rather than an ecosystem crate?
 
-## \[Optional\] Prior art
+## Prior art
 
 Unity `PrimitiveObjects`: https://docs.unity3d.com/Manual/PrimitiveObjects.html
 Godot `PrimitiveMesh`: https://docs.godotengine.org/en/stable/classes/class_primitivemesh.html#class-primitivemesh
