@@ -459,11 +459,14 @@ Likely implemented using archetype invariants.
 5. Automatically symmetric (or anti-symmetric) relations to model undirected edges.
 6. `Noitaler`*, for relations that point in the opposite direction.
 7. Streaming iters to allow for queries like: `Query<&mut Money, Relation<Owes, &mut Money>>` and potentially use invariants on graph shape to allow for skipping soundness checks for the aliasing `&mut Money`'s
-8. Assorted Performance optimizations.
+8. Assorted performance optimizations. For example:
+   1. Reducing the cost of having many archetypes.
+   2. Relation storage type options to cause archetype fragmentation based on whether *any* relations of that type are present.
+   3. Index-backed relations look-up.
 9. Relative ordering between relations of the same kind on the same entity.
 This would enable the `Styles` proposal from #1 to use relations.
 10. Generalized `despawn_recursive` by parameterizing on relation type.
-11. \[Undecided\] A full graph constraint solver in our queries like in FLECS for advanced querying.
+11. \[Controversial\] A full graph constraint solver DSL ala [Flecs](https://github.com/SanderMertens/flecs) for advanced querying.
 
 Relation applications in the engine:
 
