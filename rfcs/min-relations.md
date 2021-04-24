@@ -303,11 +303,13 @@ commonly when performing multiple subqueries in bevy. To do so, simply call `que
 ```
 
 Finally, for when you have *truly* complex relation filtering needs, you can turn to **compound relation filters**.
-By combining `RelationFilter::not` with the power of `RelationFilter::inner_join`, `RelationFilter::left_join`, `RelationFilter::right_join`, `RelationFilter::full_join`, you can extract the information you desire from even the most convoluted of architectures!
-As you might expect, these are `(RelationFilter, RelationFilter) -> RelationFilter` functions,
-and act like the [standard database joins](http://www.sql-join.com/sql-join-types) of the same names.
+`RelationFilter::any_of` and `RelationFilter::all_of` can combine *other* relation filters,
+allowing you to nest your logic arbitrarily deep.
+Let's look at a relatively simple example of that.
 
-No example is given: if you need these, you will know what to do.
+```rust
+
+```
 
 ### Grouping entities
 
