@@ -245,6 +245,8 @@ fn reattach_springs(mut commands: Commands,
 
 ### Advanced relation filters
 
+TODO: Complete examples in this section
+
 For those cases where previous examples weren't enough, there are several additional API extensions that you might want to use. Using those, Relation filters can be combined in arbitrarily complex ways.
 
 The first of these is the ability to filter by the source entity, rather than target entity.
@@ -252,7 +254,6 @@ Note that you can get the same sort of effect by using `Query::get`;
 this functionality just makes it more ergonomic to specify complex relation filters.
 
 ```rust
-// TODO complete this
 fn 
 
 ```
