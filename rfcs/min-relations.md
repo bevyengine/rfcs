@@ -253,8 +253,9 @@ fn reattach_springs(mut commands: Commands,
 
 For those cases where previous examples weren't enough, there are several additional API extensions that you might want to use. Using those, Relation filters can be combined in arbitrarily complex ways.
 
-The first of these is the ability to filter by the source entity as well:
-
+The first of these is the ability to filter by the source entity, rather than target entity.
+Note that you can get the same sort of effect by using `Query::get`;
+this functionality just makes it more ergonomic to specify complex relation filters.
 
 ```rust
 fn 
@@ -268,7 +269,8 @@ fn
 
 ```
 
-From time-to-time, we may care about *excluding* entities who have relations to certain targets:
+From time-to-time, we may care about *excluding* entities who have relations to certain targets.
+To do so, we set our relation filter on a `Without<Relation<R>>` query parameter.
 
 ```rust
 fn blackball(){
@@ -276,6 +278,8 @@ fn blackball(){
 }
 
 ```
+
+We can even combine positive and negative filters by including multiple copies
 
 `any_of` and `all_of` can be used to collect groups of entities into a single filter.
 `any_of` uses **or semantics**, returning any entity if any of the filters are met,
@@ -293,10 +297,12 @@ fn
 
 ```
 
-Chaining filters in this way uses "and" semantics, just like `all_of`.
+Filters chained in this way will operate on the restricted list produces by the previous filter (following "and semantics").
 
-While relations filters are reset each time you leave a system, you may want to reset them sooner,
-commonly when performing multiple subqueries in bevy. To do so, simply call `query.reset_filter::<R>()` or `query.reset_filters()`.
+Each query stores the entities that it is filtering as data for the duration of the system.
+If you wish to filter for different entities within the same system,
+simply call `query.reset_filter::<R>()` or `query.reset_filters()`.
+Here's an example showing off the value of this functionality:
 
 ```rust
 
