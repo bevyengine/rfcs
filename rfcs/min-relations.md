@@ -157,7 +157,7 @@ You can use the `Entity` returned by your relations to fetch data from the targe
 
 ```rust
 fn debts_come_due(
-    mut debt_query: Query<(Entity, Relation<Owes>)>, 
+    mut debt_query: Query<(Entity, &Relation<Owes>)>, 
     mut money_query: Query<&mut Money>,
 ) {
     for (debtor, debt) in debt.query() {
