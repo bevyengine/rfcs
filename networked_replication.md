@@ -27,7 +27,7 @@ What I hope to explore in this RFC is:
 
 ## Guide-level explanation
 
-[Link to some fundamental concepts.](../main/replication_concepts.md)
+[Link to my explanation of important replication concepts.](../main/replication_concepts.md)
 
 > Please treat all terms like determinism, state transfer, snapshots, and eventual consistency as placeholders. We could easily label them differently.
 
@@ -39,7 +39,7 @@ First think about your game and consider which form of replication might fit bes
 
 Next, determine which components and systems affect the global simulation state and tag them accordingly. Usually adding `#[derive(Replicate)]` to all replicable components is enough. You can additionally decorate gameplay logic and systems with `#[client]` or `#[server]` for conditional compilation.
 
-Lastly, add these simulation systems to the `NetworkedFixedUpdate` app state. Bevy will take care of all state rollback, serialization, and compression internally. Other than that, you're free to write your game as if it were local multiplayer. 
+Lastly, add these simulation systems to the `NetworkFixedUpdate` app state. Bevy will take care of all state rollback, serialization, and compression internally. Other than that, you're free to write your game as if it were local multiplayer. 
 
 > This guide is pretty lazy lol, but that's the gist of it.
 
@@ -141,7 +141,7 @@ replication strategy: snapshots
 
 ## Reference-level explanation
 
-[Link to some implementation details.](../main/implementation_details.md)
+[Link to more in-depth implementation details.](../main/implementation_details.md)
 
 ### Macros
 - Add `[repr(C)]`
