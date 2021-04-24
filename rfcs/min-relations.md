@@ -216,28 +216,22 @@ fn adoption(
 fn reattach_springs(mut commands: Commands,
                    selected_mass1: Res<FirstSelected>,
                    selected_mass2: Res<SecondSelected>,
-                   query: Query<(Entity, Relation<Spring>)>
+                   query: Query<Relation<Spring>>
                   ) {
     
     let m1 = selelected_mass1.entity;
     let m2 = selelected_mass2.entity;
+    let springs = query.get(m1);
 
-    for (source_mass, spring) in query.iter_mut(){        
-        for (target_mass, _) in spring {
-            assert!(source_mass != target_mass, 
-                "Springs should not connect a mass to itself!");
+    // Spring relations are symmetric; each spring is defined by
+    // two identical relations that point opposite direction.
+    // We need to preserve both during this operation
+    for (target_mass, _) in springs {
+        // When mass 1 is the source, we must change the source to mass 2
+        commands.entity(m1).move_relation::<Spring>(m2, target_mass);
 
-            // Spring relations are symmetric; each spring is defined by
-            // two identical relations that point opposite direction.
-            // We need to preserve both during this operation
-            if m1 == source_mass {
-                // If mass 1 is the source, we must change the source to mass 2
-                commands.entity(m1).move_relation::<Spring>(m2, target_mass);
-            } else if target_mass == m1 {
-                // If mass 1 is the target, we must change the target to mass 2
-                commands.entity(source_mass).change_target::<Spring>(m1, m2);
-            }
-        }
+        // When mass 1 is the target, we must change the target to mass 2
+        commands.entity(target_mass).change_target::<Spring>(m1, m2);
     }
 }
 
