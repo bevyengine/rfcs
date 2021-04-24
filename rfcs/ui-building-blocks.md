@@ -9,9 +9,9 @@ It is combined with a design pattern to manipulate UI styles ergonomically using
 
 UI is the next big challenge for Bevy, with a complex set of data structures that need to be stored and manipulated.
 In particular, the ability to style elements in a reusable fashion is central to a polished, easy-to UI, but there's no immediately obvious approach to handling this.
-What makes a "style" in Bevy? How do we represent the individual style parameters? How are widgets represented? How are styles composed? How are they applied?
+What makes a "style" in Bevy? How do we represent the individual attributes? How are widgets represented? How are styles composed? How are they applied?
 
-None of these questions are terribly challenging to implement on their own, but taking the first-seen path is particularly dangerous here, due to the risk of proliferation of non-local configuration and similar-but-not-identical style parameters, as seen in CSS.
+None of these questions are terribly challenging to implement on their own, but taking the first-seen path is particularly dangerous here, due to the risk of proliferation of non-local configuration and similar-but-not-identical attributes, as seen in CSS.
 
 We need to settle on a common standard, in order to enable interop between UI crates and establish the basic building blocks that more complex UI decisions can build off of.
 
@@ -37,19 +37,19 @@ For example, if you wanted to have a world-space UI as commonly seen in XR appli
 
 User interfaces in Bevy are made out of **widgets**, which are modified by the **styles** that are applied to them, and the aesthetic and functional behavior of is ultimately implemented through **UI systems**.
 
-A **widget** is a distinct part of the UI that needs its own data: be that its position, local state or any style parameters.
+A **widget** is a distinct part of the UI that needs its own data: be that its position, local state or any attributes.
 Widgets in Bevy are represented by entities with a `Widget` marker component.
 
 Each widget has an associated `Styles` component, which contains a `Vec<Entity>` which points to some (possibly 0) number of **styles**, represented as entities with a `Style` marker component.
 
-Each style in that vector is applied, in order, to the widget, overriding the **style parameters** that already exist.
-Style parameters are stored as components, and serve to control some element of its presentation, such as the font, background color or text alignment.
-Style parameters can be reused across disparate widget types, with functionality achieved through systems that query for the relevant components.
-The type of the style parameter components determines which behavior it controls,
+Each style in that vector is applied, in order, to the widget, overriding the **attributes** that already exist.
+attributes are stored as components, and serve to control some element of its presentation, such as the font, background color or text alignment.
+attributes can be reused across disparate widget types, with functionality achieved through systems that query for the relevant components.
+The type of the attribute components determines which behavior it controls,
 while the value returned by `.get()` controls the final behavior of the widget.
 
-Every style parameter has both a `MyStyle<Base>` and a `MyStyle<Final>` variant, stored together on each entity.
-When creating a new style parameter, you must ensure that it implements `StyleParam`, typically achieved with `#[derive(StyleParam)]`.
+Every attribute has both a `MyStyle<Base>` and a `MyStyle<Final>` variant, stored together on each entity.
+When creating a new attribute, you must ensure that it implements `StyleParam`, typically achieved with `#[derive(StyleParam)]`.
 
 Styles can be modified directly, by modifying the `Styles` component of the widgets you wish to modify.
 When spawning entities, you may find it convenient to work with the relevant `EntityCommands` methods instead
@@ -62,7 +62,7 @@ automatically applying them to large groups of widgets at once.
 In Bevy, themes are applied by adding a generic system that corresponds to that theme to your app's schedule.
 Select a marker component type `W`, then add a theme system to your app with `W` as a type parameter:
 `app.add_startup_system(solarized_theme::<Button>.system())` will then create an entity that stores the solarized theme
-style parameters to your world, and adds the appropriate `Entity` reference to the end of each of the `Styles` components
+attributes to your world, and adds the appropriate `Entity` reference to the end of each of the `Styles` components
 on all entities with `Widget` that have the `Button` marker component on them.
 
 Generally, you'll want to add these systems to a startup stage, but you may also find it useful to add them to various `State`s.
@@ -87,7 +87,7 @@ commands.spawn_bundle(ButtonBundle::default()).add_style::<BoldStyle>()
 
 ```rust
 // Adds two styles to `SpecialWidget` entities
-// SpecializedStyle will overwrite BaseStyle for any shared style parameters 
+// SpecializedStyle will overwrite BaseStyle for any shared attributes 
 // 
 // If we wanted to ensure that these styles were always associated with `SpecialWidget` 
 // even after its identity changed, we'd need to write a `Removed` system as well
@@ -124,12 +124,12 @@ fn on_hover(mut query: Query<(&IsHovered, &mut Styles), (With<OnHover>, Changed<
 
 ### Style data flow
 
-At the heart of the styling design is a data flow that propagates style parameters from the style to the end widget.
-Naively, you'd like to just overwrite the parameter in question, applying the first style's value if any, then the next and so on.
+At the heart of the styling design is a data flow that propagates attributes from the style to the end widget.
+Naively, you'd like to just overwrite the attribute in question, applying the first style's value if any, then the next and so on.
 Unfortunately, this causes issues with dynamically applying and reverting styles, because the original value is lost completely.
 
 In order to get around this, we need to somehow duplicate our data, storing both the original and final values.
-This is done by creating two variants of each style parameter component: `Foo::Base` and `Foo::Final`.
+This is done by creating two variants of each attribute component: `Foo::Base` and `Foo::Final`.
 
 This requires the `StyleParam` trait:
 
@@ -171,17 +171,17 @@ impl StyleParam for Foo {
 In order for the data to be propagated from our styles to our widgets, we need a set of **style propagation systems**, that work like so:
 
 ```rust
-/// Rebuilds the style parameter `S` for the widget
+/// Rebuilds the attribute `S` for the widget
 ///
 /// Styles need to be update if either
-/// a) the styles associated with the widget has changed or b) the style's style parameter values have changed
+/// a) the styles associated with the widget has changed or b) the style's attribute values have changed
 /// Styles are rebuilt from scratch, working from their base value each time the styles are changed
 fn apply_styles<S:StyleParam>(mut widget_param: &mut S, style_params: Vec<Option<&S>>){  
   // If the style is set in that style, use style_param.set() to apply it
   // This replaces any previous values for the `final` field
 }
 
-/// Automatically updates the styling for all style parameter components of type `S` whose Styles changed
+/// Automatically updates the styling for all attribute components of type `S` whose Styles changed
 ///
 /// End users should register this system in your app using `app.add_style::<S>()
 pub fn propagate_styles<S: StyleParam>(mut widget_query: Query<(&S::Base, &mut S::Final, &Styles), 
@@ -200,7 +200,7 @@ pub fn propagate_styles<S: StyleParam>(mut widget_query: Query<(&S::Base, &mut S
 }
 
 
-/// Automatically updates the styling for all style parameter components of type `S` whose underlying style entity changed
+/// Automatically updates the styling for all attribute components of type `S` whose underlying style entity changed
 ///
 /// End users should register this system in your app using `app.add_style::<S>()
 pub fn propagate_style_changes<S: StyleParam>(mut widget_query: Query<(&S::Base, &mut S::Final, &Styles), 
@@ -231,7 +231,7 @@ When we call `app.add_style::<S::Base, S::Final>()`, the following steps occur:
 2. We add a `propagate_style_changes::<S::Base, S::Final>` system to `CoreStage::Update`.
 3. We add a `propagate_style::<S::Base, S::Final>` system to `CoreStage::Update`, which runs after the corresponding `propagate_style_changes`.
 
-This is done under the hood for all of the built-in style parameters as part of `DefaultPlugins`.
+This is done under the hood for all of the built-in attributes as part of `DefaultPlugins`.
 
 ### Theming systems
 
@@ -314,7 +314,7 @@ We need to carefully design for this from the start, and ensure that as much of 
 Implementation concerns:
 
 1. Applying stored themes relies on hand-crafted `Commands` magic due to timing issues, rather than being implementable in transparent vanilla Bevy.
-2. Every style parameter component needs its own `propagate_style` and `maintain_style` systems.
+2. Every attribute component needs its own `propagate_style` and `maintain_style` systems.
 3. The type-system macro magic around `#[style_param]` is complex and mildly cursed.
 4. Implementing traits on `StyleParam` structs doesn't work in the obvious way.
 Instead of `impl MyTrait for Foo { ... }`, users must do:
@@ -404,26 +404,26 @@ Simply examine the `Styles` on the entity you're attempting to debug, examine th
 and you have a complete understanding of why your widget looks the way it does.
 No endless chains or inheritance trees to walk!
 
-### Storing original style parameter values
+### Storing original attribute values
 
-While storing old data about the style parameters complicates our design significantly,
+While storing old data about the attributes complicates our design significantly,
 it is critical for managing dynamic changes in style (such as light/dark mode or hover behavior).
 Without automatically caching the value for our users on the component itself, the users (or the engine) are left to cache the state of the widgets before applying the theme on their own, then reset it.
 
-Instead of our current approach, we could instead cache the previous value of the style parameter components in a resource or a component of its own,
-using trait objects (`Box<dyn StyleParameter>`), then refer to these when restoring the original components.
+Instead of our current approach, we could instead cache the previous value of the attribute components in a resource or a component of its own,
+using trait objects (`Box<dyn StyleAttribute>`), then refer to these when restoring the original components.
 This keeps our components simpler, but is more technically challenging and dramatically more magical for end users (who will no longer be able to simply check the original value on their own).
 
 Instead of the generics pattern described in the *Reference-Level Explanation*,
-we could use getter and setter methods on the `StyleParam` trait:
+we could use getter and setter methods on the `StyleAttribute` trait:
 
 ```rust
 trait StyleParam: Component {
-  /// The underlying value of the style parameter, unique to this particular widget
+  /// The underlying value of the attribute, unique to this particular widget
   ///
   /// Modifying this value is akin to applying an in-line style to your widget
   pub fn base(&self) -> Self;  
-  /// The final value of the style parameter, which will be displayed in your app
+  /// The final value of the attribute, which will be displayed in your app
   ///
   /// Obtained by succesively applying the styles found in this widget's `Styles` component,
   /// with later styles overwriting earlier styles
@@ -445,7 +445,7 @@ Scenes require a large amount of boilerplate to get working right now, including
 
 ## Unresolved questions
 
-1. Can / should we use trait queries to reduce the boilerplate involved in adding new style parameters?
+1. Can / should we use trait queries to reduce the boilerplate involved in adding new attributes?
 2. Does the `#[style_param]` magic work? Particularly with derive macros.
 3. Should we just use two generics in `add_style`, `propagate_style` and `maintain_style` and spare the macro magic?
 4. If we're using macro magic, do we care about the `Inner` trait type to avoid the querying footgun?
@@ -460,9 +460,9 @@ which ensures that `Base` and `Final` variants of each component always coexist 
 3. Once we have fairly advanced [relations](https://github.com/bevyengine/bevy/pull/1627) features, we should look at using them in place of `Vec<Entity>` in `Styles`.
 This is not as trivial as it might appear: `Styles` very much wants an ordered list of entity references (rather than an unordered set or numbered priority list).
 4. As alternative to the mildly cursed `#[style_param]` solution, we could use [relations](https://github.com/bevyengine/bevy/pull/1627) to duplicate the data.
-The base version of the style parameter data will be a relation with a target of a unique dummy entity, whose identity is stored in a resource.
+The base version of the attribute data will be a relation with a target of a unique dummy entity, whose identity is stored in a resource.
 Then, the final version of the data is a vanilla component (a relation with no target) of the same type,
-allowing end users to query for style parameter components directly to receive the current value after all styles have been applied.
+allowing end users to query for attribute components directly to receive the current value after all styles have been applied.
 5. Nothing in the styling system limits its use to widgets alone. This opens up opportunities to use the same code and design patterns to game logic, meshes and so on. It hasn't been discussed above due to scope, but it's a powerful tool for end users.
 6. Finally, in order to fully move forward on the second rendition of `bevy_ui`, we also need to solve the following other UI focus areas:
 
