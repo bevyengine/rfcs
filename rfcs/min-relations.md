@@ -214,7 +214,7 @@ TODO: Boxy explains the magic.
 
 ## Drawbacks
 
-1. Introduces another core abstraction to users that they will want to learn.
+1. Introduces another core abstraction to users that they will have to learn.
 Rewriting our parent-child code in terms of relations is important, but will introduce the concept to users quite quickly.
 2. Even if relations are more ergonomic than the Entity-in-component approach to accomplish the same tasks, relations will be held to a higher bar for quality.
 3. Heavy use of relations can seriously fragment archetypes. We need to be careful that this doesn't badly impact our performance.
