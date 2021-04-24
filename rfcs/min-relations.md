@@ -333,7 +333,57 @@ Rewriting our parent-child code in terms of relations is important, but will int
 
 ## Rationale and alternatives
 
-TODO: Write.
+### Why do relations fragment archetypes?
+
+TODO: Boxy explains her decisions.
+
+### Why are relations stored in the ECS?
+
+TODO: Boxy help!
+
+### Why aren't relations described as a special type of components?
+
+They don't behave in exactly the same ways,
+and describing them as such is confusing to beginners.
+
+Under the hood, the existing implementation models
+
+TODO: add examples of the differences
+
+### Why don't we just store Entities in components?
+
+See [Motivation].
+
+### Why don't we just store graph data structures in a Resource?
+
+See [Motivation] *and* [Entity Graphs].
+
+### Why do we need arbitrarily complex relation filters??
+
+Relation filters take advantage of archetypes to be much faster and more ergonomic than doing the same operation by naive iteration.
+In order to ensure that it can always be used effectively, we need a genuinely complete DSL,
+in addition to the convenient methods discussed first.
+
+The API for compound relation filters is simple to implement and easily ignored.
+
+### Why is my favorite feature relegated to Future Work?
+
+It's already many thousands of words long, and the associated PR has thousands of lines of code.
+Done is better than perfect, and we had to draw the line somewhere.
+As with all things, we can gradually improve this over time.
+
+The set of features expressed here is useful enough to be a clear improvement over the existing patterns in at least some use cases.
+There's a lot of value in getting this feature in front of users to see the response at scale.
+
+### Why is the implementation for this so *slow*?
+
+Many uses of relations are not performance-critical,
+and the value of a nice API and automatic handling of data synchronization far outweighs any performance cost for those users.
+
+We can fix the perf once we have a better understanding of the APIs we need to support.
+There's also nothing stopping you from doing things the old ways in your elaborate graph-traversing systems.
+
+See also: the question directly above.
 
 ## Prior art
 
