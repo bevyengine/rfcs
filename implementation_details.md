@@ -84,40 +84,47 @@ Lag compensation goes like this:
 
 After that's done, any surviving projectiles will exist in the correct time. The process is the same for raycast weapons.
 
-*Overwatch* allows defensive abilities to mitigate lag-compensated shots. This is simple to do. If a player activates any defensive bonus, just apply it to all their buffered hitboxes.
-[Link](https://youtu.be/W3aieHjyNvw?t=2492) 
+There's a lot to learn from *Overwatch* here.
 
-*Overwatch* also reduces the number of intersection tests by calculating the movement envelope of each entity, the "sum" of its bounding volumes over the full lag compensation window, and only rewinding characters whose movement envelopes intersect projectiles.
-[Link](https://youtu.be/W3aieHjyNvw?t=2226)
+*Overwatch* [allows defensive abilities to mitigate lag-compensated shots](https://youtu.be/W3aieHjyNvw?t=2492). AFAIK this is simple to do. If a player activates any defensive bonus, just apply it to all their buffered hitboxes.
 
-For clients with very high ping, their interpolated time will lag too far behind their predicted time. Generally, you won't want to favor the shooter past a certain limit (e.g. 250ms), so those clients will have to extrapolate the difference. Not extrapolating is also valid, but then lagging clients would abruptly have to start leading their targets.
-[Link](https://youtu.be/W3aieHjyNvw?t=2347)
+*Overwatch* also [finds the movement envelope of each entity](https://youtu.be/W3aieHjyNvw?t=2226), the "sum" of its bounding volumes over the full lag compensation window, to reduce the number of intersection tests, only rewinding characters whose movement envelopes intersect projectiles.
+
+For clients with very high ping, their interpolated time will lag too far behind their predicted time. You generally don't want to favor the shooter past a certain limit (e.g. 250ms), so [those clients have to extrapolate the difference](https://youtu.be/W3aieHjyNvw?t=2347). Not extrapolating is also valid, but then lagging clients would abruptly have to start leading their targets.
 
 This limit is the only relation between the predicted time and the interpolated time. They're otherwise decoupled.
 
 ## Smooth Rendering
 Whenever clients receive an update with new remote entities, those entities shouldn't be rendered until that update is interpolated.
 
+Cameras need a little special treatment. Inputs to the view rotation need to be accumulated at the render rate and re-applied just before rendering.
+
 Is an exponential decay enough for smooth error correction or are there better algorithms?
 
 ## Prediction <-> Interpolation
-TBD
-
 Clients can't directly modify the authoritative state, but they should be able to predict whatever they want locally. One obvious implementation is to literally fork the latest authoritative state. If copying the full state ends up being too expensive, we can probably use a copy-on-write layer.
 
 Clients should predict the entities driven by their input, the entities they spawn (until confirmed), and any entities mutated as a result of the first two. I think that should cover it. Predicting *everything* would be a compile-time choice.
 
-So we can predict with component granularity, but how do we shift things between prediction and interpolation? My current idea is for everything to default to interpolation (reset upon receiving a server update) and then use specialized change detection `DerefMut` magic to produce `Predicted<T>`.
+I said entities, but we can predict with component granularity. The million-dollar question is how to shift things between prediction and interpolation. My current idea is for everything to default to interpolation (reset upon receiving a server update) and then use specialized change detection `DerefMut` magic.
 
-All systems that handle "predictable" interactions (pushing a button, putting an item in your inventory) should run *before* physics. Everything should run before rendering.
+```
+Predicted<T>
+PredictAdded<T>
+PredictRemoved<T>
+Confirmed<T>
+ConfirmAdded<T>
+ConfirmRemoved<T>
+Canceled<T>
+CancelAdded<T>
+CancelRemoved<T>
+```
 
-Cameras need a little special treatment. Inputs to the view rotation need to be accumulated at the render rate and re-applied just before rendering.
+With these, we can generate events that only trigger on authoritative changes and events that trigger on predicted changes to be confirmed or cancelled later. The latter are necessary for handling sounds and particle effects. Those shouldn't be duplicated during rollbacks and should be faded out if mispredicted.
+
+All systems that handle "predictable" interactions (pushing a button, putting an item in your inventory) should run *before* physics. Everything in `NetworkFixedUpdate` should run before rendering.
 
 Should UI be allowed to reference predicted state or only verified state?
-
-Events are tricky. We'll need some events that only trigger on authoritative changes and others that trigger on predicted changes with follow-up confirmed or cancelled events.
-
-We'll need something like the latter to handle sounds and particle effects. Those shouldn't be duplicated during rollbacks and should be faded out if mispredicted.
 
 ## Predicting Entity Creation
 This requires some special consideration.

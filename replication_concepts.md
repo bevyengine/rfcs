@@ -31,7 +31,7 @@ Determinism is awesome when it fits but it's generally unavailable. Neither Godo
 
 Whenever you can't have or don't want bit-perfect determinism, you use state transfer.
 
-The idea behind state transfer is the concept of **authority**. It's essentially ownership in Rust. Those who own any state are responsible for broadcasting up-to-date information about it. I sometimes see authority divided into *input* authority (control permission) and *state* authority (write permission), but usually authority means state authority.
+The key idea behind state transfer is the concept of **authority**. It's essentially ownership in Rust. Those who own state are responsible for broadcasting up-to-date information about it. I sometimes see authority divided into *input* authority (control permission) and *state* authority (write permission), but usually authority means state authority.
 
 The server usually owns everything, but authority is very flexible. In games like *Destiny* and *Fall Guys*, clients own their movement state. Other games even trust clients to confirm hits. Distributing authority like this adds complexity and obviously leaves the door wide open for cheaters, but sometimes it's necessary. In VR, it makes sense to let clients claim and relinquish authority over interactable objects.
 
