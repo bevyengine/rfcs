@@ -220,24 +220,27 @@ macro_rules Relation {
 
 ## Future possibilities
 
-Relation enhancements:
+Relation enhancements beyond the scope of `min-relations`:
 
-1. Sugar for accessing data on the target entity in a single query. `Relation<T: Component, Q: WorldQuery>`
-2. Graph traversals.
-3. Arbitrary target types instead of just `Entity` combined with `KindedEntity` proposal to ensure your targets are valid.
-4. Automatically symmetric relations.
-5. `Noitaler`*
-6. Graph shape guarantees using archetype invariants.
+1. Sugar for accessing data on the target entity in a single query.
+Proposed API: `Relation<T: Component, Q: WorldQuery>`
+2. Graph shape guarantees (e.g tree, acyclic, 1-depth, non-self-referential).
+Likely implemented using archetype invariants.
+3. Graph traversals API: breadth-first, depth-first, root of tree etc.
+4. Arbitrary target types instead of just `Entity` combined with `KindedEntity` proposal to ensure your targets are valid.
+5. Automatically symmetric (or anti-symmetric) relations.
+6. `Noitaler`*, for relations that point in the opposite direction.
 7. Streaming iters to allow for queries like: `Query<&mut Money, Relation<Owes, &mut Money>>` and potentially use invariants on graph shape to allow for skipping soundness checks for the aliasing `&mut Money`'s
 8. Assorted Performance optimizations.
-9. Relation orders to enable things like `Styles`.
-10. Generalized `despawn_recursive`.
+9. Relative ordering between relations of the same kind on the same entity.
+This would enable the `Styles` proposal from #1 to use relations.
+10. Generalized `despawn_recursive` by parameterizing on relation type.
 
 Relation applications in the engine:
 
-1. Replace existing parent-child.
+1. Replace existing parent-child API.
 2. Applications for UI: styling, widget wiring etc.
-3. Frustum culling.
+3. Frustum culling with multiple cameras.
 
 [bikeshed]: AUTHOR'S NOTE: Much like `yeet`, `Noitaler` is the bikeshed-avoidance name for the inverse of `Relation`, and will never be used.
 EDITOR's NOTE: `Noitaler` may very much be used :3
