@@ -255,12 +255,10 @@ fn reattach_springs(mut commands: Commands,
 
 ### Advanced relation filters
 
-As the savvy reader may have guessed, we can combine relation filters in arbitrarily complex ways.
-While most of you may never need to plumb the dizzying heights of compound relation filtering,
-the DBAs in the audience will surely both thank us for our efforts and deride our naive implementations.
+For those cases where previous examples weren't enough, there are several additional API extensions that you might want to use. Using those, Relation filters can be combined in arbitrarily complex ways.
 
-Fortunately, there are several simple and convenient API extensions that you might want to use.
 The first of these is the ability to filter by the source entity as well:
+
 
 ```rust
 fn 
