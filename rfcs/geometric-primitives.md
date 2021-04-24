@@ -146,7 +146,7 @@ These examples intermingle primitive geometry with the meshes themselves. This R
 
 
 ## Unresolved questions
-
+TODO: discuss unresolved questions.
 - What parts of the design do you expect to resolve through the RFC process before this gets merged?
 - What parts of the design do you expect to resolve through the implementation of this feature before the feature PR is merged?
 
