@@ -218,6 +218,25 @@ fn adoption(
 
 ### Grouping entities
 
+By targeting a common entity, relations work fantastically as an ergonomic way to group entities.
+This pattern acts as a nice complement to marker components when either:
+
+1. You want to define the *kind* of group, rather than just membership.
+2. The number of different groups you need is unknowable at compile time.
+
+Here are some concrete examples where this pattern works well:
+
+- you're storing multiple parts (such as meshes or sprites with their own `Transform`s) of the same in-game-object across multiple entities
+- you want to dynamically group units together, like in a real-time-strategy game
+- the effects created by a single entity, like the bullets they're spewing out
+- you want a way to mark the controller of a unit in a queryable way, but the number of possible controllers is unknown at compile time
+- you have multiple cameras, and want to mark which frustum each entity is in so they can be culled independently
+
+Let's examine the real-time strategy group example hands-on:
+
+```rust
+
+```
 
 ### Entity hierarchies
 
