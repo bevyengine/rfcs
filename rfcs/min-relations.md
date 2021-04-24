@@ -466,7 +466,7 @@ Proposed API: `Relation<T: Component, Q: WorldQuery>`
 Likely implemented using archetype invariants.
 3. Graph traversals API: breadth-first, depth-first, root of tree etc.
 4. Arbitrary target types instead of just `Entity` combined with `KindedEntity` proposal to ensure your targets are valid.
-5. Automatically symmetric (or anti-symmetric) relations.
+5. Automatically symmetric (or anti-symmetric) relations to model undirected edges.
 6. `Noitaler`*, for relations that point in the opposite direction.
 7. Streaming iters to allow for queries like: `Query<&mut Money, Relation<Owes, &mut Money>>` and potentially use invariants on graph shape to allow for skipping soundness checks for the aliasing `&mut Money`'s
 8. Assorted Performance optimizations.
