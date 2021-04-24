@@ -14,7 +14,7 @@ Geometric primitives are lightweight representations of geometry that describe t
 
 ```rust
 pub struct Circle {
-  origin: Vec2
+  origin: Point,
   radius: f32,
 }
 ```
@@ -38,10 +38,24 @@ These types only exist in 2d space: their dimensions and location are only defin
 
 - `Point`: type alias of Vec2
 - `Direction`: Vec2 that is guaranteed to be normalized through its getter/setter
-- `Axis`: (point: Point, normal: Vec2) axis with infinite length
+
+#### Axis
+
+Line with infinite length on the x/y plane.
+
+
+```rust
+struct Axis { point: Point, normal: Direction }
+``` 
+
+#### Line
+
 - `Line`: (start: Point, end: Point) line bounded by two points
 - `Arc`: (start: Point, end: Point, radius_origin: Point) segment of a circle
-- `Circle`
+
+```rust
+struct Circle` { origin: Point, radius: f32 }
+```
 - `Triangle`
 - `AABBCentered` origin and half-extents
 - `AabbExtents` minimum and maximum extents
@@ -53,8 +67,10 @@ These types are fully defined in 3d space.
 
 - `Point`: type alias of Vec3
 - `Direction`: Vec3 that is guaranteed to be normalized through its getter/setter
-- `Axis`
+- `Axis` 
 - `Line`
+- `Plane`
+- `Quad`
 - `Sphere`
 - `Cylinder`
 - `Capsule`
