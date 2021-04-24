@@ -354,7 +354,7 @@ These advantages make even `min-relations` a compelling alternative to both the 
 1. You don't care about performance.
 2. You don't need to perform complex traversals.
 3. You're operating on general graphs that can contain cycles and self-referential edges.
-4. You're too lazy to thoroughly ensure your code is free of synchronization bugs.
+4. You don't want to worry about synchronization bugs.
 
 Let's take a look at how you could use relations to build an API for a tree-shaped graph that looks suspiciously like Bevy 0.5's parent-child hierarchy.
 
