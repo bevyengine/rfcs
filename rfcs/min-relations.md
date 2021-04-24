@@ -427,6 +427,9 @@ See also: the question directly above.
 These are somewhat different, they use an elaborate query domain-specific language along with being more feature rich.
 You read more about them in the [corresponding PR](https://github.com/SanderMertens/flecs/pull/358).
 
+You can, of course, build similar data structures using the ECS itself.
+Here's a look at the complexities involved in doing so in [EnTT](https://skypjack.github.io/2019-06-25-ecs-baf-part-4/).
+
 ## Unresolved questions
 
 1. How do we put relations in Bundles?
