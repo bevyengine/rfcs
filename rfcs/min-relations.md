@@ -434,7 +434,7 @@ You read more about them in the [corresponding PR](https://github.com/SanderMert
 ## Unresolved questions
 
 1. How do we put relations in Bundles?
-2. What do we actually call [`Noitaler`][[bikeshed]? Candidates so far are:
+2. What do we actually call [`Noitaler`](#bikeshed)? Candidates so far are:
    1. `ReverseRelation`
    2. `Inverse`
    3. `CoRelation`
