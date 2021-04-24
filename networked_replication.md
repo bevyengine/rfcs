@@ -27,7 +27,7 @@ What I hope to explore in this RFC is:
 
 ## Guide-level explanation
 
-[TBD](../main/replication_concepts.md)
+[Link to some fundamental concepts.](../main/replication_concepts.md)
 
 ### Example: "Networked" Components
 
@@ -109,30 +109,30 @@ fn main() {
 
 ### Example Configuration Options
 ```
-players: 32,
-max networked entities: 1024,
-replication strategy: snapshots,
-  mode: listen server,
+players: 32
+max networked entities: 1024
+replication strategy: snapshots
+  mode: listen server
   simulation tick rate: 60Hz
-  client send interval: 1 tick,
-  server send interval: 2 ticks,
-  client input delay: 0,
-  server input delay: 2 ticks,
-  prediction: local-only,
-    rollback window: 250ms,
-    min interpolation delay: 32ms,
+  client send interval: 1 tick
+  server send interval: 2 ticks
+  client input delay: 0
+  server input delay: 2 ticks
+  prediction: local-only
+    rollback window: 250ms
+    min interpolation delay: 32ms
     lag compensation: true
       compensation window: 200ms
 ```
 
 ## Reference-level explanation
 
-[TBD](../main/implementation_details.md)
+[Link to some implementation details.](../main/implementation_details.md)
 
 ### Macros
 - Add `[repr(C)]`
-- Networked state identification
-- Float quantization and compression
+- Identification of networked state for snapshots
+- Quantization and range compression
 - Conditional compilation of client and server logic
 
 ### Saving and Restoring Game State
@@ -220,7 +220,7 @@ I strongly doubt that fast, efficient, and transparent replication features can 
 
 - Much like how Unreal has Fortnite, it would help immensenly if Bevy had an official collection of multiplayer samples to dogfood these features.
 
-- Beyond replication, Bevy need only provide one good default for protocol and IO for the sake of completeness. I recommend dividing responsibilities as shown below to make it easy for developers to swap them with the [many](https://partner.steamgames.com/doc/features/multiplayer) [robust](https://developer.microsoft.com/en-us/games/solutions/multiplayer/) [platform](https://dev.epicgames.com/docs/services/en-US/Overview/index.html) [SDKs](https://docs.aws.amazon.com/gamelift/latest/developerguide/gamelift-intro.html).
+- Beyond replication, Bevy need only provide one good default for protocol and IO for the sake of completeness. I recommend dividing responsibilities as shown below to make it easy for developers to swap them with the [many](https://partner.steamgames.com/doc/features/multiplayer) [robust](https://developer.microsoft.com/en-us/games/solutions/multiplayer/) [platform](https://dev.epicgames.com/docs/services/en-US/Overview/index.html) [SDKs](https://docs.aws.amazon.com/gamelift/latest/developerguide/gamelift-intro.html). Replication addresses all the underlying ECS interop, so it should be settled first.
 
     **replication** (this RFC)
     - save and restore
@@ -240,5 +240,3 @@ I strongly doubt that fast, efficient, and transparent replication features can 
 
     **I/O**
     - send, recv, poll, etc.
-
-Replication addresses all the underlying ECS interop, so it should be settled first.
