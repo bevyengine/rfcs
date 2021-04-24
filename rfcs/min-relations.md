@@ -216,6 +216,66 @@ fn adoption(
 
 ### Advanced relation filters
 
+As the savvy reader may have guessed, we can combine relation filters in arbitrarily complex ways.
+While most of you may never need to plumb the dizzying heights of compound relation filtering,
+the DBAs in the audience will surely both thank us for our efforts and deride our naive implementations.
+
+Fortunately, there are several simple and convenient API extensions that you might want to use.
+The first of these is the ability to filter by the source entity as well:
+
+```rust
+fn 
+
+```
+
+Next, you may wish to operate over entire groups of entities at once:
+
+```rust
+fn 
+
+```
+
+From time-to-time, we may care about *excluding* entities who have relations to certain targets:
+
+```rust
+fn blackball(){
+
+}
+
+```
+
+`any_of` and `all_of` can be used to collect groups of entities into a single filter.
+`any_of` uses **or semantics**, returning any entity if any of the filters are met,
+while `all_of` uses **and semantics**, rejecting entities who do not meet every specified filter.
+
+```rust
+fn 
+
+```
+
+We can filter on multiple types of relations at once by chaining together our `.filter_relation` methods before we call `.build()`.
+
+```rust
+fn 
+
+```
+
+Chaining filters in this way uses "and" semantics, just like `all_of`.
+
+While relations filters are reset each time you leave a system, you may want to reset them sooner,
+commonly when performing multiple subqueries in bevy. To do so, simply call `query.reset_filter::<R>()` or `query.reset_filters()`.
+
+```rust
+
+```
+
+Finally, for when you have *truly* complex relation filtering needs, you can turn to **compound relation filters**.
+
+```rust
+fn 
+
+```
+
 ### Grouping entities
 
 By targeting a common entity, relations work fantastically as an ergonomic way to group entities.
@@ -291,6 +351,7 @@ You read more about them in the [corresponding PR](https://github.com/SanderMert
    4. `TargetOf`
 3. Do we need a full graph constraint solver in our queries to handle things like "check for unrequited love"?
 4. Do we want a macro to make complex calls easier?
+5. Do we want to be able to filter queries by their source as well?
 
 ```rust
 macro_rules Relation {
