@@ -184,7 +184,7 @@ Restoring
 Clients
 1. Iterate received server updates.
 2. Update simulation and interpolation timescales.
-3. Sample and send inputs to server.
+3. Sample inputs and push them to send buffer.
 4. Rollback and re-sim *if* a new update was received.
 5. Simulate predicted tick.
 
@@ -193,7 +193,7 @@ Server
 2. Sample buffered inputs.
 3. Simulate authoritative tick.
 4. Duplicate state changes to copy.
-5. Send updated state to clients.
+5. Push client updates to send buffer.
 
 Everything aside from the simulation steps could be auto-generated.
 
@@ -247,9 +247,9 @@ I strongly doubt that fast, efficient, and transparent replication features can 
 
 ## Future possibilities
 - With some tool to visualize game state diffs, these replication systems could help detect non-determinism in other parts of the engine. 
-- Much like how Unreal has Fortnite, it would help immensenly if Bevy had an official collection of multiplayer samples to dogfood these features.
+- Much like how Unreal has Fortnite, Bevy could have an official (or community-curated) collection of multiplayer samples to dogfood these features.
 - Bevy's future editor could automate most of the configuration and annotation.
-- Beyond replication, Bevy need only provide one good default for protocol and IO for the sake of completeness. I recommend dividing responsibilities as shown below to make it easy for developers to swap them with the [many](https://partner.steamgames.com/doc/features/multiplayer) [robust](https://developer.microsoft.com/en-us/games/solutions/multiplayer/) [platform](https://dev.epicgames.com/docs/services/en-US/Overview/index.html) [SDKs](https://docs.aws.amazon.com/gamelift/latest/developerguide/gamelift-intro.html). Replication addresses all the underlying ECS interop, so it should be settled first.
+- Beyond replication, Bevy need only provide one good default for protocol and I/O for the sake of completeness. I recommend dividing crates at least to the extent shown below to make it easy for developers to swap the low-level stuff with [whatever](https://partner.steamgames.com/doc/features/multiplayer) [alternatives](https://developer.microsoft.com/en-us/games/solutions/multiplayer/) [they](https://dev.epicgames.com/docs/services/en-US/Overview/index.html) [want](https://docs.aws.amazon.com/gamelift/latest/developerguide/gamelift-intro.html). Replication addresses all the underlying ECS interop, so it should be settled first.
 
     **replication** ← this RFC
     - save and restore
