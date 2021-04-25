@@ -132,7 +132,7 @@ replication strategy: snapshots
   server send interval: 2 ticks
   client input delay: 0
   server input delay: 2 ticks
-  prediction: local-only
+  prediction: true
     rollback window: 250ms
     min interpolation delay: 32ms
     lag compensation: true
@@ -144,52 +144,58 @@ replication strategy: snapshots
 [Link to more in-depth implementation details.](../main/implementation_details.md)
 
 ### Macros
-- Add `[repr(C)]`
-- Identification of networked state for snapshots
-- Quantization and range compression
-- Conditional compilation of client and server logic
+- `#[derive(Replicate)]` for identification and serialization; also adds `[repr(C)]`
+- `#[replicate(precision=?)]` for quantization
+- `#[replicate(range=(?, ?))]` for range compression
+- `#[client]` and `#[server]` for conditional compilation
 
 ### Saving and Restoring Game State
+
 Requirements
-- Replicable components must only be mutated in `NetworkFixedUpdate`.
-- `World` needs to reserve a range of entity IDs and track metadata for them separately.
-- Networked entities must be spawned as such. You cannot spawn a non-networked entity and "network it" later, at least not without some kind of RPC.
+
+- Replicable components should only be mutated inside `NetworkFixedUpdate`.
+- Networked entities will have a global `NetworkID` component at minimum.
+- Clients shouldn't try to "network" local entities through the addition of replicable components since those entities do not exist on the server. 
+- `World` should reserve an `Entity` ID range and track metadata for it separately.
+  - [Sub-worlds](https://github.com/bevyengine/rfcs/pull/16) seem like a potential candidate for this.
 
 Saving
-- At the end of every fixed update, iterate `Changed<T>` and `Removed<T>`  for all replicable components and duplicate them to an isolated copy.
-- This isolated copy would be a collection of `SpareSet<T>`, for just the replicable components. Tables would be rebuilt when restoring.
-- (From [their RFC](https://github.com/bevyengine/rfcs/pull/16), "sub-worlds" seem like they might be usable for snapshot generation and rollbacks, but I need more details. AFAIK, they only address the "reserve a range of entities with separate metadata" requirement.)
+- At the end of each fixed update, server iterates `Changed<T>` and `Removed<T>` for all replicable components and duplicates them to an isolated collection of `SpareSet<T>`.
+  - You could pass this "read-only" copy to another thread to do the remaining work.
+  - Tables would be rebuilt when restoring.
 
-Packets
-- Snapshots will use delta compression.
-  - We'll keep a ring buffer of patches for the last `N` snapshots.
-  - Whenever we duplicate changes to the isolated copy, also compute `copy xor changes` as the latest patch and push it into the ring buffer. Update the earlier patches by xor'ing them with the new patch.
-  - Finally, compress whichever patches clients need and pass them to the protocol layer.
-- Eventual consistency will use interest management. 
+Preparing Packets
+- Snapshots (full state updates) will use delta compression.
+  - Server keeps a ring buffer of patches for the last `N` snapshots.
+  - Server computes the latest patch by xor'ing the copy and the latest changes (before applying them) and pushes it into the ring buffer. The servers also updates the earlier patches by xor'ing them with the latest patch. (The xor'ing is basically a pre-compression step that produces long zero chains with high probability.)
+  - Server compresses whichever patches clients need and hands them off to the protocol layer. (The same patch can be sent to multiple clients, so it scales pretty well.)
+
+- Eventual consistency (partial state updates) will use interest management. 
   - Entities accrue send priority over time. Maybe we can use the magnitude of component changes as the base amount to accrue. 
-  - Users-defined rules for gameplay relevancy would run.
-  - For physical entities, we can use collision detection to prioritize the entities inside each client's area of interest.
-  - Finally, write the payload for each client and pass them to the protocol layer.
+  - Server runs users-defined rules for gameplay relevance.
+  - Server runs collision detection to prioritize physical entities inside each client's area of interest.
+  - Server writes the payload for each client and hands them off to the protocol layer.
 
 Restoring
-- TBD
+- At the beginning of each fixed update, the client decompresses the received update and writes its changes to the appropriate `SparseSet<T>` collection (several will be buffered).
+- Client then uses this updated collection to write the prediction copy that has all the tables and non-replicable components.
 
 ### NetworkFixedUpdate
 Clients
-1. Poll for received updates.
+1. Iterate received server updates.
 2. Update simulation and interpolation timescales.
 3. Sample and send inputs to server.
-4. Rollback and re-sim (if received new update).
+4. Rollback and re-sim *if* a new update was received.
 5. Simulate predicted tick.
 
 Server
-1. Poll for received inputs.
+1. Iterate received client inputs.
 2. Sample buffered inputs.
 3. Simulate authoritative tick.
 4. Duplicate state changes to copy.
-5. Send updates to clients.
+5. Send updated state to clients.
 
-Everything aside from the simulation steps can be generated automatically.
+Everything aside from the simulation steps could be auto-generated.
 
 ### Network Modes
 | Mode | Playable? | Authoritative? | Open to connections? |
@@ -204,8 +210,8 @@ Everything aside from the simulation steps can be generated automatically.
 - Relays are for managing deterministic and client-authoritative games. They can do "clock" synchronization, input validation, interest management, etc. Just no simulation.
 
 ## Drawbacks
-- Possibly cursed macro magic.
-- Writes to `World` directly.
+- Lots of potentially cursed macro magic.
+- Direct writes to `World`.
 - Seemingly limited to components that implement `Clone` and `Serialize`.
 
 ## Rationale and alternatives
@@ -223,29 +229,29 @@ People who want to make multiplayer games want to focus on designing their game 
 
 > What is the impact of not doing this?
 
-It'll only grow more difficult to add these features as time goes on. Take Unity for example. Its built-in features are too non-deterministic and its only working solutions for state transfer are paid third-party assets. Thus far, said assets cannot integrate deeply enough to be transparent (at least not without custom memory management and duplicating parts of the engine).
+It'll only grow more difficult to add these features as time goes on. Take Unity for example. Its built-in features are too non-deterministic and its only working solutions for state transfer are paid third-party assets. Thus far, said assets cannot integrate deeply enough to be transparent (at least not without substituting parts of the engine).
 
 > Why is this important to implement as a feature of Bevy itself, rather than an ecosystem crate?
 
-I strongly doubt that fast, efficient, and transparent replication features can be implemented without directly manipulating a World and its component storages.
+I strongly doubt that fast, efficient, and transparent replication features can be implemented without directly manipulating a `World` and its component storages.
 
 ## Unresolved questions
-- What can't be serialized?
-- What is the correct amount of isolation between replicable and non-replicable game state? Are we sure non-networked entities can't *become* networked through the addition of replicable components?
+- What components and resources can't be serialized?
+- Is there a better way to isolate replicable and non-replicable entities?
 - Can we provide lints for undefined behavior like mutating networked state outside of `NetworkFixedUpdate`? 
 - How should UI widgets interact with networked state? Exclusively poll verified data?
-- How should we deal with predicting and reconciling events and FX—animations, audio, particles? 
-- Do rollbacks break change detection?
+- How should we deal with correcting mispredicted events and FX? 
+- Does rolling back break existing change detection or events?
 - Can we replicate animations exactly without explicitly sending animation parameters?
 - When sending partial state updates, how should we deal with weird stuff like there being references to entities that haven't been spawned or have been destroyed?
 
 ## Future possibilities
-- With some game state diffing tools, these replication systems could help detect non-determinism in other parts of the engine. 
+- With some tool to visualize game state diffs, these replication systems could help detect non-determinism in other parts of the engine. 
 - Much like how Unreal has Fortnite, it would help immensenly if Bevy had an official collection of multiplayer samples to dogfood these features.
 - Bevy's future editor could automate most of the configuration and annotation.
 - Beyond replication, Bevy need only provide one good default for protocol and IO for the sake of completeness. I recommend dividing responsibilities as shown below to make it easy for developers to swap them with the [many](https://partner.steamgames.com/doc/features/multiplayer) [robust](https://developer.microsoft.com/en-us/games/solutions/multiplayer/) [platform](https://dev.epicgames.com/docs/services/en-US/Overview/index.html) [SDKs](https://docs.aws.amazon.com/gamelift/latest/developerguide/gamelift-intro.html). Replication addresses all the underlying ECS interop, so it should be settled first.
 
-    **replication** (this RFC)
+    **replication** ← this RFC
     - save and restore
     - prediction
     - serialization and compression

@@ -109,12 +109,12 @@ Cameras need a little special treatment. Inputs to the view rotation need to be 
 
 Is an exponential decay enough for smooth error correction or are there better algorithms?
 
-## Prediction <-> Interpolation
+## Prediction ⟷ Interpolation
 Clients can't directly modify the authoritative state, but they should be able to predict whatever they want locally. One obvious implementation is to literally fork the latest authoritative state. If copying the full state ends up being too expensive, we can probably use a copy-on-write layer.
 
 Clients should predict the entities driven by their input, the entities they spawn (until confirmed), and any entities mutated as a result of the first two. I think that should cover it. Predicting *everything* would be a compile-time choice.
 
-I said entities, but we can predict with component granularity. The million-dollar question is how to shift things between prediction and interpolation. My current idea is for everything to default to interpolation (reset upon receiving a server update) and then use specialized change detection `DerefMut` magic.
+I said entities, but we can predict with component granularity. The million-dollar question is how to shift things between prediction and interpolation. My current idea is for everything to default to interpolation (reset upon receiving a server update) and then use specialized change detection `DerefMut` magic to flag local predictions.
 
 ```
 Predicted<T>
@@ -128,9 +128,9 @@ CancelAdded<T>
 CancelRemoved<T>
 ```
 
-With these, we can generate events that only trigger on authoritative changes and events that trigger on predicted changes to be confirmed or cancelled later. The latter are necessary for handling sounds and particle effects. Those shouldn't be duplicated during rollbacks and should be faded out if mispredicted.
+With these, we can explicitly opt-out of funneling non-predicted components through expensive systems. We can also generate events that only trigger on authoritative changes and events that trigger on predicted changes to be confirmed or cancelled later. The latter are necessary for handling sounds and particle effects. Those shouldn't be duplicated during rollbacks and should be faded out if mispredicted.
 
-All systems that handle "predictable" interactions (pushing a button, putting an item in your inventory) should run *before* physics. Everything in `NetworkFixedUpdate` should run before rendering.
+All systems that handle "predictable" interactions (pushing a button, putting an item in your inventory) should probably run *before* the expensive stuff (physics, path-planning). Rendering should come after `NetworkFixedUpdate`.
 
 Should UI be allowed to reference predicted state or only verified state?
 
@@ -139,11 +139,11 @@ This requires some special consideration.
 
 The naive solution is to have clients spawn dummy entities. When an update that confirms the result arrives, clients can simply destroy the dummy and spawn the true entity. IMO this is a poor solution because it prevents clients from smoothly blending these entities from predicted time into interpolated time. It won't look right.
 
-A better solution is for the server to assign each networked entity a global ID that the spawning client can predict and map to its local instance.
+A better solution is for the server to assign each networked entity a global ID (`NetworkID`) that the spawning client can predict and map to its local instance.
 
-- The simplest form of this would be an incrementing generational index whose upper bits are fixed to match the spawning player's ID. This is my recommendation. Basically, reuse Entity and reserve some of the upper bits in the ID.
+- The simplest form of this would be an incrementing generational index whose upper bits are fixed to match the spawning player's ID. This is my recommendation. Basically, reuse `Entity` and reserve some of the upper bits in the ID.
 
-- Alternatively, PRNGs could be used to generate shared keys for pairing global and local IDs. Rather than predict the global ID, the client would predict the shared key. Server updates that confirm the predicted entity would include both its global ID and the shared key, which the client can then use to pair the IDs. This method adds complexity but bypasses the previous method's implicit entity limit.
+- Alternatively, PRNGs could be used to generate shared keys (called "prediction keys" in some places) for pairing global and local IDs. Rather than predict the global ID, the client would predict the shared key. Server updates that confirm the predicted entity would include both its global ID and the shared key, which the client can then use to pair the IDs. This method adds complexity but bypasses the previous method's implicit entity limit.
 
 - A more extreme solution would be to somehow bake global IDs directly into the memory allocation. If memory layouts are mirrored, relative pointers become global IDs, which don't need to be explicitly written into packets. This would save 4-8 bytes per entity before compression.
 
@@ -161,8 +161,6 @@ Let's consider a simpler default:
 
 3. Always rollback and re-simulate.
 
-Now, you might be thinking, "Isn't that wasteful?"
+Now, if you're thinking that's wasteful, the "if mispredicted" gives you a false sense of security. If I make a game and claim it can rollback 250ms, that basically should mean *any* 250ms, with no stuttering. If clients *always* rollback and re-sim, it'll be easier to profile and optimize for that. As a bonus, clients never need to store old predicted states.
 
-*If* gives a false sense of security. If I make a game and claim it can rollback 250ms, that basically should mean *any* 250ms, with no stuttering. If clients *always* rollback and re-sim, it'll be easier to profile and optimize for that. As a bonus, clients can immediately toss old predicted states.
-
-Constant rollbacks may sound expensive, but there were games with rollback running on the original Playstation 20+ years ago.
+Constant rollbacks may sound expensive, but there were games with rollback running on the original Playstation over 20 years ago.
