@@ -264,7 +264,6 @@ In concert with this, `any_of` and `all_of` can be used to collect groups of ent
 `any_of` uses **or semantics**, returning any entity if any of the filters are met,
 while `all_of` uses **and semantics**, rejecting entities who do not meet every specified filter.
 
-
 ```rust
 // In this example, possible moves are stored on each piece
 // as a relation to a specific board position
@@ -279,19 +278,10 @@ fn next_move(
         .filter_relation::<Action, _>(RelationFilter::any_of().targets(valid_positions))
         .build();
 
-    for (piece, valid_moves) in filtered.iter() {
-        for (potential_position, current_move) in valid_moves {
-            // Our heuristic is always >= 0
-            let mut current_best = -1.0;
-            // This is just a dummy to be replaced
-            let best_move = Entity::new();
-            let current = current_move.compute_heuristic();
+    let best_move = valid_moves
+    .max_by_key(|(potential_position, _)| potential_position.compute_heuristic());
 
-            if current > current_best {
-                current_best = current;
-                best_move = current_move;
-            }
-        }
+    if let Some((_, best_move)) = best_move {
         commands.insert_relation::<NextMove>(piece, best_move);
     }
 }
