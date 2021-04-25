@@ -190,7 +190,8 @@ This makes can be relevant to the performance of your game; accelerating target 
 As a result, changing the source or target of a relation can only be done while the app has exclusive access to the world, via `Commands` or in exclusive systems.
 Here's an example of how you might do so:
 
-```rustfn love_potion(
+```rust
+fn love_potion(
     mut commands: Commands,
     query: Query<Entity, &Relation<Loves>, With<Cute>>,
     player_query: Query<Entity, With<Player>>,
