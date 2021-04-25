@@ -249,7 +249,11 @@ fn reattach_springs(mut commands: Commands,
 ### Advanced relation filters
 
 The examples shown above show of the basics of relation filtering, but that's not all they can do.
-The most important extension is the ability to filter for multiple entities at once from a `Vec<Entity>`:
+The most important extension is the ability to filter for multiple entities at once from a `Vec<Entity>`.
+In concert with this, `any_of` and `all_of` can be used to collect groups of entities into a single filter.
+`any_of` uses **or semantics**, returning any entity if any of the filters are met,
+while `all_of` uses **and semantics**, rejecting entities who do not meet every specified filter.
+
 
 ```rust
 // In this example, possible movess are stored on each piece
@@ -396,17 +400,6 @@ fn purity_testing(
 }
 ```
 
-We can even combine positive and negative filters by including multiple copies
-
-`any_of` and `all_of` can be used to collect groups of entities into a single filter.
-`any_of` uses **or semantics**, returning any entity if any of the filters are met,
-while `all_of` uses **and semantics**, rejecting entities who do not meet every specified filter.
-
-```rust
-fn 
-
-```
-
 We can filter on multiple types of relations at once by chaining together our `.filter_relation` methods before we call `.build()`.
 
 ```rust
@@ -415,13 +408,11 @@ fn
 ```
 
 Filters chained in this way will operate on the restricted list produces by the previous filter (following "and semantics").
-
-Finally, for when you have *truly* complex relation filtering needs, you can turn to **compound relation filters**.
-`RelationFilter::any_of` and `RelationFilter::all_of` can combine *other* relation filters,
-allowing you to nest your logic arbitrarily deep.
-Let's look at a relatively simple example of that.
+We can even combine positive and negative filters by including multiple copies of the same relation in our query, and then specifying which relation we're filtering using the second type parameter.
+This advanced technique is helpful when you really need to be specific, as shown in these examples:
 
 ```rust
+fn 
 
 ```
 
@@ -440,12 +431,6 @@ Here are some concrete examples where this pattern works well:
 - the effects created by a single entity, like the bullets they're spewing out
 - you want a way to mark the controller of a unit in a queryable way, but the number of possible controllers is unknown at compile time
 - you have multiple cameras, and want to mark which frustum each entity is in so they can be culled independently
-
-Let's examine the real-time strategy group example hands-on:
-
-```rust
-
-```
 
 ### Entity graphs
 
@@ -593,7 +578,8 @@ Likely implemented using archetype invariants.
 9. Relative ordering between relations of the same kind on the same entity.
 This would enable the `Styles` proposal from #1 to use relations.
 10. Generalized `despawn_recursive` by parameterizing on relation type.
-11. \[Controversial\] A full graph constraint solver DSL ala [Flecs](https://github.com/SanderMertens/flecs) for advanced querying.
+11. Compound relation filters, letting you nest logic arbitrarily deep. These are just sugar / perf for very advanced users, and can wait for a while.
+12. \[Controversial\] A full graph constraint solver DSL ala [Flecs](https://github.com/SanderMertens/flecs) for advanced querying.
 
 Relation applications in the engine:
 
