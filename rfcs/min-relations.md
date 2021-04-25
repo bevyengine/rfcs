@@ -57,7 +57,7 @@ let boxy = world.spawn().id();
 commands.entity(alice).insert_relation(FriendsWith, boxy); // uwu:3
 
 // You can remove them with commands!
-commands.entity(alice).remove_relation(FriendsWith, boxy) // not uwu :(
+commands.entity(alice).remove_relation(FriendsWith, boxy); // not uwu :(
 
 // You can use direct World access!
 world.entity_mut(alice).insert_relation(FriendsWith, boxy); // uwu:3
@@ -69,7 +69,7 @@ commands.entity(boxy).insert_relation(FriendsWith, alice); // one way friendship
 commands.entity(alice).insert_relation(Owes(9999), boxy); // :)))))
 
 // You can add mulitple relations of the same kind to a single source entity!
-let cart  = world.spawn().id();
+let cart = world.spawn().id();
 commands.entity(alice).insert_relation(FriendsWith, cart); // Hi!
 ```
 
@@ -80,25 +80,25 @@ Just like with ordinary components, you can request them in your queries:
 // Relations can be queried for immutably
 fn friendship_is_magic(mut query: Query<(&mut Magic, &Relation<FriendsWith>), With<Pony>>) {
     // Each entity can have their own friends
-    for (mut magic, friends) in query.iter_mut(){
+    for (mut magic, friends) in query.iter_mut() {
         // Relations return an iterator when unpacked
         magic.power += friends.count();
     }
 }
 
 // Or you can request mutable access to modify the relation's data
-fn interest(query: Query<&mut Relation<Owes>>){
-    for debts in query.iter(){
+fn interest(query: Query<&mut Relation<Owes>>) {
+    for debts in query.iter() {
         for (owed_to, amount_owed) in debts {
             println!("we owe {} some money", owed_to);
-            amount_owed *= 1.05; 
+            amount_owed *= 1.05;
         }
     }
 }
 
 // You can look for relations with a specific kind, source and target
-fn unrequited_love(query: Query<(Entity, &Relation<Loves>)>){
-    for (lover, crushes) in query.iter(){
+fn unrequited_love(query: Query<(Entity, &Relation<Loves>)>) {
+    for (lover, crushes) in query.iter() {
         for (crush, _) in crushes {
             let reciprocal_crush = query.get_relation::<Loves>(crush, lover);
             reciprocal_crush.expect("Surely they must feel the same way!");
@@ -107,50 +107,51 @@ fn unrequited_love(query: Query<(Entity, &Relation<Loves>)>){
 }
 
 // You can query for entities that target a specific entity
-fn friend_of_dorothy(
-    query: Query<Entity, With<Relation<FriendsWith>>>, 
-    dorothy: Res<Dorothy>,
-) {
-    let filtered = query.filter_relation::<FriendsWith, _>(
-        RelationFilter::target(dorothy.entity)
-    // .build() causes the relation filters to be applied
-    ).build();
+fn friend_of_dorothy(query: Query<Entity, With<Relation<FriendsWith>>>, dorothy: Res<Dorothy>) {
+    let filtered = query
+        .filter_relation::<FriendsWith, _>(
+            RelationFilter::target(dorothy.entity), // .build() causes the relation filters to be applied
+        )
+        .build();
 
-    for source_entity in filtered.iter(){
+    for source_entity in filtered.iter() {
         println!("{} is friends with Dorothy!", source_entity);
     }
 }
 
 // Or even look for some combination of targets!
-fn caught_in_the_middle(mut query: Query<&mut Stress, With<Relation<FriendsWith>>>,
+fn caught_in_the_middle(
+    mut query: Query<&mut Stress, With<Relation<FriendsWith>>>,
     dorothy: Res<Dorothy>,
-    elphaba: Res<Elphaba>){
-
+    elphaba: Res<Elphaba>,
+) {
     // Note that we can set relation filters even if the relation is in a query filter
-    query.filter_relation::<FriendsWith, _>(
-        RelationFilter::all_of()
-        .target(dorothy.entity)
-        .target(elphaba.entity)
-    // You can directly chain this as filter_relations returns &mut Query
-    ).build().for_each(|mut stress| {
-        println!("{} is friends with Dorothy and Elphaba!", source_entity);
-        stress.val = 1000; 
-    })
+    query
+        .filter_relation::<FriendsWith, _>(
+            RelationFilter::all_of()
+                .target(dorothy.entity)
+                .target(elphaba.entity), // You can directly chain this as filter_relations returns &mut Query
+        )
+        .build()
+        .for_each(|mut stress| {
+            println!("{} is friends with Dorothy and Elphaba!", source_entity);
+            stress.val = 1000;
+        })
 }
 
 // Query filters work too!
 fn not_alone(
-    commands: mut Commands, 
+    mut commands: Commands,
     query: Query<Entity, Without<Relation<FriendsWith>>>,
-    puppy: Res<Puppy>
+    puppy: Res<Puppy>,
 ) {
-    for lonely_entity in query.iter(){
+    for lonely_entity in query.iter() {
         commands.insert_relation(FriendsWith, puppy.entity);
     }
 }
 
 // So does change detection with Added and Changed!
-fn new_friends(query: Query<&mut Excitement, Added<Relation<FriendsWith>>>){
+fn new_friends(query: Query<&mut Excitement, Added<Relation<FriendsWith>>>) {
     query.for_each(|(mut excitement, new_friends)| {
         excitement.value += 10 * new_friends.count();
     });
@@ -162,18 +163,21 @@ You can use the `Entity` returned by your relations to fetch data from the targe
 
 ```rust
 fn debts_come_due(
-    mut debt_query: Query<(Entity, &Relation<Owes>)>, 
+    mut debt_query: Query<(Entity, &Relation<Owes>)>,
     mut money_query: Query<&mut Money>,
 ) {
     for (debtor, debt) in debt.query() {
         for (lender, amount_owed) in debt {
-            *money_query.get(debtor).unwrap()
+            *money_query
+                .get(debtor)
+                .unwrap()
                 .checked_sub(amount_owed)
                 .expect("Nice kneecaps you got there...");
             *money_query.get(lender).unwrap() += amount_owed;
         }
     }
 }
+
 ```
 
 ### Nuances of relations
@@ -186,21 +190,21 @@ This makes can be relevant to the performance of your game; accelerating target 
 As a result, changing the source or target of a relation can only be done while the app has exclusive access to the world, via `Commands` or in exclusive systems.
 Here's an example of how you might do so:
 
-```rust
-
-fn love_potion(
+```rustfn love_potion(
     mut commands: Commands,
     query: Query<Entity, &Relation<Loves>, With<Cute>>,
-    player_query: Query<Entity, With<Player>>){
-    
+    player_query: Query<Entity, With<Player>>,
+) {
     let player = player.single().unwrap();
 
-    for victim, former_love in query.iter(){
+    for (victim, former_love) in query.iter() {
         // Only one relation of a given kind can exist between a source and a target;
         // like always, new relations overwrite existing relations
         // with the same source, kind and target
         for (_, former_lover) in former_love {
-            commands.entity(victim).change_target::<Loves>(former_lover, player); // This is unethical!!
+            commands
+                .entity(victim)
+                .change_target::<Loves>(former_lover, player); // This is unethical!!
         }
     }
 }
@@ -210,23 +214,28 @@ fn adoption(
     // As with components, you can query for relations that may or may not exist
     query: Query<(Entity, &NewOwner, Option<&Relation<Owns>>), With<Kitten>>,
 ) {
-   for (kitten, new_owner, previous_ownership) in query.iter(){
-       // Changing the target or the source will fail silently if no appropriate relation exists
-       match previous_ownership {
-           // We can change sources by controlling which entity owns the relation
-           // move_relation is directly analagous to move_component
-           Some(old_owner, _) => commands.entity(old_owner).move_relation::<Owns>(new_owner, kitten); // uwu :3
-           None => commands.entity(new_owner).insert_relation(Owns::default(), kitten); // uwu!!
-       }
-   } 
+    for (kitten, new_owner, previous_ownership) in query.iter() {
+        // Changing the target or the source will fail silently if no appropriate relation exists
+        match previous_ownership {
+            // We can change sources by controlling which entity owns the relation
+            // move_relation is directly analagous to move_component
+            Some(old_owner, _) => commands
+                .entity(old_owner)
+                .move_relation::<Owns>(new_owner, kitten), // uwu :3
+            None => commands
+                .entity(new_owner)
+                .insert_relation(Owns::default(), kitten), // uwu!!
+        }
+    }
 }
 
 // `change_target` and `move_relation` preserve the relation's data
 // This system removes all springs attached to mass 1, and adds them to mass 2 instead
-fn reattach_springs(mut commands: Commands,
-                   selected_mass1: Res<FirstSelected>,
-                   selected_mass2: Res<SecondSelected>,
-                   query: Query<Relation<Spring>>
+fn reattach_springs(
+    mut commands: Commands,
+    selected_mass1: Res<FirstSelected>,
+    selected_mass2: Res<SecondSelected>,
+    query: Query<Relation<Spring>>,
 ) {
     let m1 = selelected_mass1.entity;
     let m2 = selelected_mass2.entity;
@@ -256,27 +265,28 @@ while `all_of` uses **and semantics**, rejecting entities who do not meet every 
 
 
 ```rust
-// In this example, possible movess are stored on each piece
+// In this example, possible moves are stored on each piece
 // as a relation to a specific board position
-fn next_move(mut commands: Commands,
-             board_state: Res<BoardState>,
-             query: Query<(Entity, &Relation<Move>), With<Piece>>){    
-    
+fn next_move(
+    mut commands: Commands,
+    board_state: Res<BoardState>,
+    query: Query<(Entity, &Relation<Move>), With<Piece>>,
+) {
     let valid_positions: Vec<Entity> = board_state.compute_valid_positions();
 
-    let filtered = query.filter_relation::<Action, _>( 
-        RelationFilter::any_of().targets(valid_positions)
-    ).build();
+    let filtered = query
+        .filter_relation::<Action, _>(RelationFilter::any_of().targets(valid_positions))
+        .build();
 
-    for (piece, valid_moves) in filtered.iter(){
+    for (piece, valid_moves) in filtered.iter() {
         for (potential_position, current_move) in valid_moves {
             // Our heuristic is always >= 0
             let mut current_best = -1.0;
             // This is just a dummy to be replaced
             let best_move = Entity::new();
-            let current = current_move.compute_heuristic()
+            let current = current_move.compute_heuristic();
 
-            if current > current_best{
+            if current > current_best {
                 current_best = current;
                 best_move = current_move;
             }
@@ -286,18 +296,20 @@ fn next_move(mut commands: Commands,
 }
 
 // We can use this with either all_of or any_of to get the effect we need
-fn all_roads_lead_to_rome(commands: mut Commands,
-              cities_query: Query<Entity, With<&City>>,   
-              roads_query: Query<(Entity, (With<City>, With<Rel<Road>>)>){
+fn all_roads_lead_to_rome(
+    mut commands: Commands,
+    cities_query: Query<Entity, With<&City>>,
+    roads_query: Query<Entity, (With<City>, With<Rel<Road>>)>,
+) {
     let all_cities: Vec<Entity> = cities_query.iter().collect();
-    roads_query.filter_relation::<Road, _>( 
-        RelationFilter::all_of().targets(all_cities)
-    )
-    .build()
-    // The cities still left are connected to all other cities by roads
-    // We're tagging them with a Hub marker component so we can find them again quickly
-    .map(|city| commands.entity(city).insert(Hub));
+    roads_query
+        .filter_relation::<Road, _>(RelationFilter::all_of().targets(all_cities))
+        .build()
+        // The cities still left are connected to all other cities by roads
+        // We're tagging them with a Hub marker component so we can find them again quickly
+        .map(|city| commands.entity(city).insert(Hub));
 }
+
 ```
 
 As your filters grow in complexity, it can be useful to filter by the source entity, rather than target entity.
@@ -305,70 +317,69 @@ Note that you can get the same sort of effect by using `Query::get`;
 this functionality just makes it more ergonomic to specify certain complex relation filters.
 
 ```rust
-fn paths_to_choose(location: Res<PlayerLocation>,
-                   mut query: Query<&mut Relation<Path>>){
+fn paths_to_choose(location: Res<PlayerLocation>, mut query: Query<&mut Relation<Path>>) {
     // We only care about paths that lead away from our current position
     query
-        .filter_relation::<Path, _>(
-            RelationFilter::source(location.entity)
-        )
+        .filter_relation::<Path, _>(RelationFilter::source(location.entity))
         .build()
-        .map(|_, mut path|{
+        .map(|_, mut path| {
             path.highlight();
         });
 
     // You can accomplish the same thing by subsetting your query
     // using query.get, query.single or branching on Entity
     // This is equivalent because queries are composed of a collection of source entities
-    let mut paths_from_player_location = query.get_mut(location.entity).unwrap()
+    let mut paths_from_player_location = query.get_mut(location.entity).unwrap();
     for (path, _) in paths_from_player_location {
-        println!("It will take {} minutes to get to {} from here.",
-            path.travel_time,
-            path.destination_name
+        println!(
+            "It will take {} minutes to get to {} from here.",
+            path.travel_time, path.destination_name
         );
     }
 }
 
 // With more complex logic that blends sources and targets,
 // the value of this approach is more evident
-fn sever_groups(commands: mut Commands,
-                selection_query: Query<Entity, &Selection>,
-                mass_query: Query<Entity, (With<Mass>, With<Rel<Spring>>)>
-){
-    // Our goal is to remove all of the springs 
+fn sever_groups(
+    mut commands: Commands,
+    selection_query: Query<Entity, &Selection>,
+    mass_query: Query<Entity, (With<Mass>, With<Rel<Spring>>)>,
+) {
+    // Our goal is to remove all of the springs
     // connecting these two groups of point masses
-    let mut group_1 = Vec<Entity>::new();
-    let mut group_2 = Vec<Entity>::new();
+    let mut group_1 = Vec::<Entity>::new();
+    let mut group_2 = Vec::<Entity>::new();
 
-    for (entity, selection) in selection_query.iter(){
+    for (entity, selection) in selection_query.iter() {
         match selection {
             Selection::Group1 => group_1.push(entity),
             Selection::Group2 => group_2.push(entity),
         }
     }
 
-    let 1_to_2 = mass_query.filter_relation::<Spring, _>( 
-        RelationFilter::any_of().sources(group_1).targets(group_2)
-    ).build();
+    let one_to_two = mass_query
+        .filter_relation::<Spring, _>(RelationFilter::any_of().sources(group_1).targets(group_2))
+        .build();
 
-    let 2_to_1 = mass_query.filter_relation::<Spring, _>( 
-        RelationFilter::any_of().sources(group_2).targets(group_1)
-    ).build();
+    let two_to_one = mass_query
+        .filter_relation::<Spring, _>(RelationFilter::any_of().sources(group_2).targets(group_1))
+        .build();
 
     // First we remove the springs that point in one direction
-    for (source, springs) in 1_to_2.iter(){
-        for (target, _) in springs{
+    for (source, springs) in one_to_two.iter() {
+        for (target, _) in springs {
             commands.entity(source).remove_relation::<Spring>(target)
         }
     }
 
     // And then, because the relation is symmetric, the other
-    for (source, springs) in 2_to_1.iter(){
-        for (target, _) in springs{
+    for (source, springs) in two_to_one.iter() {
+        for (target, _) in springs {
             commands.entity(source).remove_relation::<Spring>(target)
         }
     }
 }
+
 ```
 
 From time-to-time, we may care about *excluding* entities who have relations to certain targets.
@@ -377,43 +388,42 @@ To do so, we set our relation filter on a `Without<Relation<R>>` query parameter
 ```rust
 // Fraternizing with communists is a strict disqualifcation!
 fn purity_testing(
-    commands: mut Commands,
+    mut commands: Commands,
     candidate_query: Query<Entity, (With<Candidate>, Without<Relation<FriendsWith>>)>,
-    communist_query: Query<(Entity, With<Communist>>,
+    communist_query: Query<Entity, With<Communist>>,
 ) {
     let communists = communist_query.iter().collect();
 
     // Normally, Without relation filters disqualify all entities with that relation.
     // But by narrowing them to only affect certain sources or targets,
     // we can control which entities are affected!
-    candidate_query.filter_relation::<FriendsWith, _>( 
-        // Even a single communist friend is disqualifying!
-        RelationFilter::any_of().targets(communists)
-    )
-    .build()
-    // Candidates who are not friends with any communists have been filtered
-    // Leaving only suspect candidates to be stripped of their candidacy
-    .map(|candidate| commands.entity(candidate).remove::<Candidate>();
+    candidate_query
+        .filter_relation::<FriendsWith, _>(
+            // Even a single communist friend is disqualifying!
+            RelationFilter::any_of().targets(communists),
+        )
+        .build()
+        // Candidates who are not friends with any communists have been filtered
+        // Leaving only suspect candidates to be stripped of their candidacy
+        .for_each(|candidate| commands.entity(candidate).remove::<Candidate>());
 
     // Note that candidates with no friends at all are always excluded from the query,
     // sparing them from our arbitrary interrogation
 }
+
 ```
 
 We can filter on multiple types of relations at once by chaining together our `.filter_relation` methods before we call `.build()`.
 
 ```rust
 fn frenemies(
-    query: Query<Entity, (With<Rel<FriendsWith>, With<Rel<EnemiesWith>>)>,
-    player: Res<Player>
-){
+    query: Query<Entity, (With<Rel<FriendsWith>>, With<Rel<EnemiesWith>>)>,
+    player: Res<Player>,
+) {
     query
-        .filter_relation::<FriendsWith, _>( 
-            RelationFilter::target(player.entity)
-        )
-        .filter_relation::<EnemiesWith, _>( 
-            RelationFilter::target(player.entity)
-        ).map(|entity| println!("{} is frenemies with the player!", entity));
+        .filter_relation::<FriendsWith, _>(RelationFilter::target(player.entity))
+        .filter_relation::<EnemiesWith, _>(RelationFilter::target(player.entity))
+        .for_each(|entity| println!("{} is frenemies with the player!", entity));
 }
 ```
 
@@ -423,25 +433,24 @@ This advanced technique is helpful when you really need to be specific, as shown
 
 ```rust
 fn herbivores(
-    commands: mut Commands,
+    mut commands: Commands,
     plants_query: Query<Entity, With<Plant>>,
     animals_query: Query<Enity, With<Animal>>,
-    species_query: Query<Entity, (With<Relation<Consumes>, Without<Relation<Consumes>>)>
-){
+    species_query: Query<Entity, (With<Relation<Consumes>>, Without<Relation<Consumes>>)>,
+) {
     let plants = plants_query.iter().collect();
     let animals = animals_query.iter().collect();
 
     species_query
         // The second type parameter controls which relation filter of that type is being modified
-        .filter_relation::<Consumes, InFilter<{1}>>(RelationFilter::any_of().targets(plants))
+        .filter_relation::<Consumes, InFilter<{ 1 }>>(RelationFilter::any_of().targets(plants))
         // Because this is a without filter, this means that we exclude all entities
         // with even one Consumes relation that targets an animal
-        .filter_relation::<Consumes, InFilter<{2}>>(RelationFilter::any_of().targets(animals))
-        .map(|entity| commands.entity(entity).insert(Herbivore));
+        .filter_relation::<Consumes, InFilter<{ 2 }>>(RelationFilter::any_of().targets(animals))
+        .for_each(|entity| commands.entity(entity).insert(Herbivore));
 }
-```
 
-Check out **The second relation filter type parameter** section below for more details on how and why this works.
+```
 
 ### Grouping entities
 
@@ -486,9 +495,9 @@ Let's take a look at how you could use relations to build an API for a tree-shap
 
 TODO: Boxy explains the magic.
 
-### Data storage model
+### Data Storage Model
 
-### The second relation filter type parameter
+### The Second Relation Filter Type Parameter
 
 ## Drawbacks
 
