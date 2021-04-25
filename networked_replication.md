@@ -162,11 +162,11 @@ Saving
 
 Packets
 - Snapshots will use delta compression.
-  - We'll keep a ring buffer of patches for the last N snapshots.
-  - Whenever we duplicate changes to the isolated copy, also compute `copy ^ changes` and push this "patch" into a ring buffer. Importantly, XOR this new patch with the earlier patches to bring them up-to-date. (All this XOR'ing should produce many chains of zero bits.)
-  - Finally, compress whichever patches (run-length encoding, variable-byte encoding, etc.) clients need and pass them to the protocol layer.
+  - We'll keep a ring buffer of patches for the last `N` snapshots.
+  - Whenever we duplicate changes to the isolated copy, also compute `copy xor changes` as the latest patch and push it into the ring buffer. Update the earlier patches by xor`ing them with the new patch.
+  - Finally, compress whichever patches clients need and pass them to the protocol layer.
 - Eventual consistency will use interest management. 
-  - Entities accrue send priority over time. Maybe we can use the magnitude of component changes (addition or removal would be largest magnitude) as the base amount to accrue. 
+  - Entities accrue send priority over time. Maybe we can use the magnitude of component changes as the base amount to accrue. 
   - Users-defined rules for gameplay relevancy would run.
   - For physical entities, we can use collision detection to prioritize the entities inside each client's area of interest.
   - Finally, write the payload for each client and pass them to the protocol layer.
