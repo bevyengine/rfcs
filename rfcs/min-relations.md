@@ -422,10 +422,26 @@ We can even combine positive and negative filters by including multiple copies o
 This advanced technique is helpful when you really need to be specific, as shown in these examples:
 
 ```rust
-fn herbivores(){
+fn herbivores(
+    commands: mut Commands,
+    plants_query: Query<Entity, With<Plant>>,
+    animals_query: Query<Enity, With<Animal>>,
+    species_query: Query<Entity, (With<Relation<Consumes>, Without<Relation<Consumes>>)>
+){
+    let plants = plants_query.iter().collect();
+    let animals = animals_query.iter().collect();
 
+    species_query
+        // The second type parameter controls which relation filter of that type is being modified
+        .filter_relation::<Consumes, InFilter<{1}>>(RelationFilter::any_of().targets(plants))
+        // Because this is a without filter, this means that we exclude all entities
+        // with even one Consumes relation that targets an animal
+        .filter_relation::<Consumes, InFilter<{2}>>(RelationFilter::any_of().targets(animals))
+        .map(|entity| commands.entity(entity).insert(Herbivore));
 }
 ```
+
+Check out **The second relation filter type parameter** section below for more details on how and why this works.
 
 ### Grouping entities
 
@@ -470,9 +486,9 @@ Let's take a look at how you could use relations to build an API for a tree-shap
 
 TODO: Boxy explains the magic.
 
-### Data Storage Model
+### Data storage model
 
-### The Second Relation Filter Type Parameter
+### The second relation filter type parameter
 
 ## Drawbacks
 
