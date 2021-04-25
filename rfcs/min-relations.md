@@ -96,6 +96,16 @@ fn interest(query: Query<&mut Relation<Owes>>){
     }
 }
 
+// You can look for relations with a specific kind, source and target
+fn unrequited_love(query: Query<(Entity, &Relation<Loves>)>){
+    for (lover, crushes) in query.iter(){
+        for (crush, _) in crushes {
+            let reciprocal_crush = query.get_relation::<Loves>(crush, lover);
+            reciprocal_crush.expect("Surely they must feel the same way!");
+        }
+    }
+}
+
 // You can query for entities that target a specific entity
 fn friend_of_dorothy(
     query: Query<Entity, With<Relation<FriendsWith>>>, 
