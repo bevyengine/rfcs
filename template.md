@@ -8,7 +8,7 @@ One paragraph explanation of the feature.
 
 Why are we doing this? What use cases does it support?
 
-## Guide-level explanation
+## User-facing explanation
 
 Explain the proposal as if it was already included in the engine and you were teaching it to another Bevy user. That generally means:
 
