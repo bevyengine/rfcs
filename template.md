@@ -66,6 +66,7 @@ Why should we *not* do this?
 
 - Why is this design the best in the space of possible designs?
 - What other designs have been considered and what is the rationale for not choosing them?
+- What objections immediately spring to mind? How have you addressed them?
 - What is the impact of not doing this?
 - Why is this important to implement as a feature of Bevy itself, rather than an ecosystem crate?
 
