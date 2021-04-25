@@ -387,7 +387,7 @@ From time-to-time, we may care about *excluding* entities who have relations to 
 To do so, we set our relation filter on a `Without<Relation<R>>` query parameter.
 
 ```rust
-// Fraternizing with communists is a strict disqualifcation!
+// Fraternizing with communists is a strict disqualification!
 fn purity_testing(
     mut commands: Commands,
     candidate_query: Query<Entity, (With<Candidate>, Without<Relation<FriendsWith>>)>,
