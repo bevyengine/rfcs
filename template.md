@@ -20,7 +20,26 @@ Explain the proposal as if it was already included in the engine and you were te
 
 ## \[Optional\] Examples
 
-This is the technical portion of the RFC. Explain the design in sufficient detail that:
+Lay out the examples that Bevy should add to either the examples folders or the doc comments to help new users discover and learn about this feature.
+These can either be completely new, or simply changes to existing examples.
+When completing this section, you can but do not have to write all of these examples yourself.
+Describing them in sufficient detail that another developer can do so is perfectly fine.
+If your examples are particularly long, please provide a brief description and link to a [Gist](https://gist.github.com/) for each.
+
+Most examples in Bevy aim to clearly demonstrate a single feature, group of closely related small features,
+or show how to accomplish a particular task (such as asset loading, creating a custom shader or how to test your app).
+In rare cases, creating new "game" examples is justified to demonstrate new features that open a complex class of functionality in a way that's hard to showcase in isolation or requires additional integration testing.
+
+Examples in Bevy should be:
+
+1. Working. They must compile and run, and should fail in obvious ways.
+2. Clear. They must use descriptive variable names, have reasonable code-quality, be formatted, and be appropriately commented.
+3. Relevant. They should use game-relevant fluff and explain why what they're demonstrating is useful.
+4. Minimal. They should be no larger or more complex than is needed to meet their other goals.
+This reduces maintenance burden and improves clarity when used as a reference.
+
+More complex demonstrations of functionality are also welcome, but for now belong in community tutorials or template games.
+
 ## Implementation strategy
 
 This is the technical portion of the RFC.
