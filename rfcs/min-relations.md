@@ -589,22 +589,25 @@ macro_rules Relation {
 
 Relation enhancements beyond the scope of `min-relations`:
 
-1. Sugar for accessing data on the target entity in a single query.
+1. Convenience functions of all sorts:
+    1. `remove_relations::<T>`, for removing a `Vec<Entity>` of relations at once.
+    2. `clear_relation::<T>`, for removing all relations of that type at once.
+    3. Generalized `despawn_recursive::<T>`, parameterizing by relation kind.
+2. Sugar for accessing data on the target entity in a single query.
 Proposed API: `Relation<T: Component, Q: WorldQuery>`
-2. Graph shape guarantees (e.g tree, acyclic, 1-depth, non-self-referential).
+3. Graph shape guarantees (e.g tree, acyclic, 1-depth, non-self-referential).
 Likely implemented using archetype invariants.
-3. Graph traversals API: breadth-first, depth-first, root of tree etc.
-4. Arbitrary target types instead of just `Entity` combined with `KindedEntity` proposal to ensure your targets are valid.
-5. Automatically symmetric (or anti-symmetric) relations to model undirected edges.
-6. `Noitaler`*, for relations that point in the opposite direction.
-7. Streaming iters to allow for queries like: `Query<&mut Money, Relation<Owes, &mut Money>>` and potentially use invariants on graph shape to allow for skipping soundness checks for the aliasing `&mut Money`'s
-8. Assorted performance optimizations. For example:
+4. Graph traversals API: breadth-first, depth-first, root of tree etc.
+5. Arbitrary target types instead of just `Entity` combined with `KindedEntity` proposal to ensure your targets are valid.
+6. Automatically symmetric (or anti-symmetric) relations to model undirected edges.
+7. `Noitaler`*, for relations that point in the opposite direction.
+8. Streaming iters to allow for queries like: `Query<&mut Money, Relation<Owes, &mut Money>>` and potentially use invariants on graph shape to allow for skipping soundness checks for the aliasing `&mut Money`'s
+9. Assorted performance optimizations. For example:
    1. Reducing the cost of having many archetypes.
    2. Relation storage type options to cause archetype fragmentation based on whether *any* relations of that type are present.
    3. Index-backed relations look-up.
-9. Relative ordering between relations of the same kind on the same entity.
+10. Relative ordering between relations of the same kind on the same entity.
 This would enable the `Styles` proposal from #1 to use relations.
-10. Generalized `despawn_recursive` by parameterizing on relation type.
 11. Compound relation filters, letting you nest logic arbitrarily deep. These are just sugar / perf for very advanced users, and can wait for a while.
 12. \[Controversial\] A full graph constraint solver DSL ala [Flecs](https://github.com/SanderMertens/flecs) for advanced querying.
 
