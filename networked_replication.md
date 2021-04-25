@@ -160,7 +160,7 @@ Requirements
   - [Sub-worlds](https://github.com/bevyengine/rfcs/pull/16) seem like a potential candidate for this.
 
 Saving
-- At the end of each fixed update, server iterates `Changed<T>` and `Removed<T>` for all replicable components and duplicates them to an isolated collection of `SpareSet<T>`.
+- At the end of each fixed update, server iterates `Changed<T>` and `Removed<T>` for all replicable components and duplicates them to an isolated collection of `SparseSet<T>`.
   - You could pass this "read-only" copy to another thread to do the remaining work.
   - Tables would be rebuilt when restoring.
 
@@ -247,7 +247,7 @@ I strongly doubt that fast, efficient, and transparent replication features can 
 
 ## Future possibilities
 - With some tool to visualize game state diffs, these replication systems could help detect non-determinism in other parts of the engine. 
-- Much like how Unreal has Fortnite, Bevy could have an official (or community-curated) collection of multiplayer samples to dogfood these features.
+- Much like how Unreal has Fortnite, Bevy could have an official (or curated) collection of multiplayer samples to dogfood these features.
 - Bevy's future editor could automate most of the configuration and annotation.
 - Beyond replication, Bevy need only provide one good default for protocol and I/O for the sake of completeness. I recommend dividing crates at least to the extent shown below to make it easy for developers to swap the low-level stuff with [whatever](https://partner.steamgames.com/doc/features/multiplayer) [alternatives](https://developer.microsoft.com/en-us/games/solutions/multiplayer/) [they](https://dev.epicgames.com/docs/services/en-US/Overview/index.html) [want](https://docs.aws.amazon.com/gamelift/latest/developerguide/gamelift-intro.html). Replication addresses all the underlying ECS interop, so it should be settled first.
 
