@@ -248,24 +248,123 @@ fn reattach_springs(mut commands: Commands,
 
 ### Advanced relation filters
 
-TODO: Complete examples in this section
-
-For those cases where previous examples weren't enough, there are several additional API extensions that you might want to use. Using those, Relation filters can be combined in arbitrarily complex ways.
-
-The first of these is the ability to filter by the source entity, rather than target entity.
-Note that you can get the same sort of effect by using `Query::get`;
-this functionality just makes it more ergonomic to specify complex relation filters.
+The examples shown above show of the basics of relation filtering, but that's not all they can do.
+The most important extension is the ability to filter for multiple entities at once from a `Vec<Entity>`:
 
 ```rust
-fn 
+// In this example, possible movess are stored on each piece
+// as a relation to a specific board position
+fn next_move(mut commands: Commands,
+             board_state: Res<BoardState>,
+             query: Query<(Entity, &Relation<Move>), With<Piece>>){    
+    
+    let valid_positions: Vec<Entity> = board_state.compute_valid_positions();
 
+    let filtered = query.filter_relation::<Action, _>( 
+        RelationFilter::any_of().targets(valid_positions)
+    ).build();
+
+    for (piece, valid_moves) in filtered.iter(){
+        for (potential_position, current_move) in valid_moves {
+            // Our heuristic is always >= 0
+            let mut current_best = -1.0;
+            // This is just a dummy to be replaced
+            let best_move = Entity::new();
+            let current = current_move.compute_heuristic()
+
+            if current > current_best{
+                current_best = current;
+                best_move = current_move;
+            }
+        }
+        commands.insert_relation::<NextMove>(piece, best_move);
+    }
+}
+
+// We can use this with either all_of or any_of to get the effect we need
+fn all_roads_lead_to_rome(commands: mut Commands,
+              cities_query: Query<Entity, With<&City>>,   
+              roads_query: Query<(Entity, (With<City>, With<Rel<Road>>)>){
+    let all_cities: Vec<Entity> = cities_query.iter().collect();
+    roads_query.filter_relation::<Road, _>( 
+        RelationFilter::all_of().targets(all_cities)
+    )
+    .build()
+    // The cities still left are connected to all other cities by roads
+    // We're tagging them with a Hub marker component so we can find them again quickly
+    .map(|city| commands.entity(city).insert(Hub));
+}
 ```
 
-Next, you may wish to operate over entire groups of entities at once:
+As your filters grow in complexity, it can be useful to filter by the source entity, rather than target entity.
+Note that you can get the same sort of effect by using `Query::get`;
+this functionality just makes it more ergonomic to specify certain complex relation filters.
 
 ```rust
-fn 
+fn paths_to_choose(location: Res<PlayerLocation>,
+                   mut query: Query<&mut Relation<Path>>){
+    // We only care about paths that lead away from our current position
+    query
+        .filter_relation::<Path, _>(
+            RelationFilter::source(location.entity)
+        )
+        .build()
+        .map(|_, mut path|{
+            path.highlight();
+        });
 
+    // You can accomplish the same thing by subsetting your query
+    // using query.get, query.single or branching on Entity
+    // This is equivalent because queries are composed of a collection of source entities
+    let mut paths_from_player_location = query.get_mut(location.entity).unwrap()
+    for (path, _) in paths_from_player_location {
+        println!("It will take {} minutes to get to {} from here.",
+            path.travel_time,
+            path.destination_name
+        );
+    }
+}
+
+// With more complex logic that blends sources and targets,
+// the value of this approach is more evident
+fn sever_groups(commands: mut Commands,
+                selection_query: Query<Entity, &Selection>,
+                mass_query: Query<Entity, (With<Mass>, With<Rel<Spring>>)>
+){
+    // Our goal is to remove all of the springs 
+    // connecting these two groups of point masses
+    let mut group_1 = Vec<Entity>::new();
+    let mut group_2 = Vec<Entity>::new();
+
+    for (entity, selection) in selection_query.iter(){
+        match selection {
+            Selection::Group1 => group_1.push(entity),
+            Selection::Group2 => group_2.push(entity),
+        }
+    }
+
+    let 1_to_2 = mass_query.filter_relation::<Spring, _>( 
+        RelationFilter::any_of().sources(group_1).targets(group_2)
+    ).build();
+
+    let 2_to_1 = mass_query.filter_relation::<Spring, _>( 
+        RelationFilter::any_of().sources(group_2).targets(group_1)
+    ).build();
+
+    // First we remove the springs that point in one direction
+    for (source, springs) in 1_to_2.iter(){
+        for (target, _) in springs{
+            commands.remove_relation::<Spring>(source, target)
+        }
+    }
+
+    // And then, because the relation is symmetric, the other
+    for (source, springs) in 2_to_1.iter(){
+        for (target, _) in springs{
+            commands.remove_relation::<Spring>(source, target)
+        }
+    }
+}
 ```
 
 From time-to-time, we may care about *excluding* entities who have relations to certain targets.
