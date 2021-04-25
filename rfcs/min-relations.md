@@ -354,14 +354,14 @@ fn sever_groups(commands: mut Commands,
     // First we remove the springs that point in one direction
     for (source, springs) in 1_to_2.iter(){
         for (target, _) in springs{
-            commands.remove_relation::<Spring>(source, target)
+            commands.entity(source).remove_relation::<Spring>(target)
         }
     }
 
     // And then, because the relation is symmetric, the other
     for (source, springs) in 2_to_1.iter(){
         for (target, _) in springs{
-            commands.remove_relation::<Spring>(source, target)
+            commands.entity(source).remove_relation::<Spring>(target)
         }
     }
 }
@@ -371,10 +371,29 @@ From time-to-time, we may care about *excluding* entities who have relations to 
 To do so, we set our relation filter on a `Without<Relation<R>>` query parameter.
 
 ```rust
-fn blackball(){
+// Fraternizing with communists is a strict disqualifcation!
+fn purity_testing(
+    commands: mut Commands,
+    candidate_query: Query<Entity, (With<Candidate>, Without<Relation<FriendsWith>>)>,
+    communist_query: Query<(Entity, With<Communist>>,
+) {
+    let communists = communist_query.iter().collect();
 
+    // Normally, Without relation filters disqualify all entities with that relation.
+    // But by narrowing them to only affect certain sources or targets,
+    // we can control which entities are affected!
+    candidate_query.filter_relation::<FriendsWith, _>( 
+        // Even a single communist friend is disqualifying!
+        RelationFilter::any_of().targets(communists)
+    )
+    .build()
+    // Candidates who are not friends with any communists have been filtered
+    // Leaving only suspect candidates to be stripped of their candidacy
+    .map(|candidate| commands.entity(candidate).remove::<Candidate>();
+
+    // Note that candidates with no friends at all are always excluded from the query,
+    // sparing them from our arbitrary interrogation
 }
-
 ```
 
 We can even combine positive and negative filters by including multiple copies
