@@ -403,8 +403,18 @@ fn purity_testing(
 We can filter on multiple types of relations at once by chaining together our `.filter_relation` methods before we call `.build()`.
 
 ```rust
-fn 
-
+fn frenemies(
+    query: Query<Entity, (With<Rel<FriendsWith>, With<Rel<EnemiesWith>>)>,
+    player: Res<Player>
+){
+    query
+        .filter_relation::<FriendsWith, _>( 
+            RelationFilter::target(player.entity)
+        )
+        .filter_relation::<EnemiesWith, _>( 
+            RelationFilter::target(player.entity)
+        ).map(|entity| println!("{} is frenemies with the player!", entity));
+}
 ```
 
 Filters chained in this way will operate on the restricted list produces by the previous filter (following "and semantics").
@@ -412,8 +422,9 @@ We can even combine positive and negative filters by including multiple copies o
 This advanced technique is helpful when you really need to be specific, as shown in these examples:
 
 ```rust
-fn 
+fn herbivores(){
 
+}
 ```
 
 ### Grouping entities
