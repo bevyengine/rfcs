@@ -3,8 +3,16 @@
 ## Delta Compression
 TBD
 
-## Area of Interest
+## Interest Management
 TBD
+
+## RPC
+RPCs are best for sending global alerts and any gameplay mechanics you explicitly want modeled as request-reply (or one-way) interactions. They can be reliable or unreliable.
+
+TBD
+
+## Clients are not players...
+I know I've been using the terms somewhat interchangeably, but `Player` and `Connection` should be separate tokens. No reason to force one player per connection in the engine API. Having `Player` be its own thing makes it easier to do stuff like replace leaving players with bots.
 
 ## "Clock" Synchronization
 Ideally, clients predict ahead by just enough to have their inputs reach the server right before they're needed. For some reason, people frequently arrive at the idea that clients should estimate the clock time on the server (with some SNTP handshake) and use that to schedule the next simulation step.
@@ -115,7 +123,7 @@ PredictRemoved<T>
 Confirmed<T>
 ConfirmAdded<T>
 ConfirmRemoved<T>
-Canceled<T>
+Cancelled<T>
 CancelAdded<T>
 CancelRemoved<T>
 ```
@@ -133,7 +141,7 @@ The naive solution is to have clients spawn dummy entities. When an update that 
 
 A better solution is for the server to assign each networked entity a global ID that the spawning client can predict and map to its local instance.
 
-- The simplest form of this would be an incrementing index whose upper bits are fixed to match the spawning player's ID. This is my recommendation.
+- The simplest form of this would be an incrementing generational index whose upper bits are fixed to match the spawning player's ID. This is my recommendation. Basically, reuse Entity and reserve some of the upper bits in the ID.
 
 - Alternatively, PRNGs could be used to generate shared keys for pairing global and local IDs. Rather than predict the global ID, the client would predict the shared key. Server updates that confirm the predicted entity would include both its global ID and the shared key, which the client can then use to pair the IDs. This method adds complexity but bypasses the previous method's implicit entity limit.
 

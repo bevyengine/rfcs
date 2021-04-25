@@ -14,7 +14,7 @@ Bevy has an opportunity to be among the first open game engines to provide a tru
 
 Most engines provide "low level" connectivity—virtual connections, optionally reliable UDP channels, rooms—and stop there. Those are not very useful to developers without "high level" replication features—prediction, reconciliation, lag compensation, interest management, etc.
 
-Among Godot, Unity, and Unreal, only Unreal provides [any of these](https://docs.unrealengine.com/en-US/InteractiveExperiences/Networking/ReplicationGraph/index.html) built-in.
+Among Godot, Unity, and Unreal, only Unreal provides [some](https://youtu.be/JOJP0CvpB8w) [features](https://www.unrealengine.com/en-US/tech-blog/replication-graph-overview-and-proper-replication-methods) built-in.
 
 IMO the broader absence of these systems leads many to conclude that every multiplayer game must need its own unique solution. This is not true. While the exact replication "strategy" depends of the game, all of them—lockstep, rollback, client-side prediction with server reconciliation, etc.—pull from the same bag of tricks. Their differences can be captured with simple configuration options. Really, only *massive* multiplayer games require custom solutions.
 
@@ -31,7 +31,7 @@ What I hope to explore in this RFC is:
 
 > Please treat all terms like determinism, state transfer, snapshots, and eventual consistency as placeholders. We could easily label them differently.
 
-Bevy aims to make developing networked games as simple as possible. There isn't a "one size fits all" replication strategy that works for every game, but Bevy provides those it has under one API.
+Bevy aims to make developing networked games as simple as possible. There isn't one replication strategy that works best for every game, but Bevy provides those it has under one API.
 
 First think about your game and consider which form of replication might fit best. Players can *either* send their inputs to each other (or through a relay) and independently and deterministically simulate the game *or* they can send their inputs to a single machine (the server) who simulates the game and sends back updated game state.
 
@@ -109,7 +109,7 @@ fn main() {
                 .with_system(check_zero_health.system())
                 // ... Most user systems would go here.
         )
-        #[server_only]
+        #[server]
         .add_system_set(
             SystemSet::on_update(AppState::NetworkFixedUpdate)
                 .label(NetworkLabel::LagComp)
@@ -152,17 +152,24 @@ replication strategy: snapshots
 ### Saving and Restoring Game State
 Requirements
 - Replicable components must only be mutated in `NetworkFixedUpdate`.
-- World needs to reserve a range of entity IDs and track metadata for them separately.
+- `World` needs to reserve a range of entity IDs and track metadata for them separately.
 - Networked entities must be spawned as such. You cannot spawn a non-networked entity and "network it" later, at least not without some kind of RPC.
 
 Saving
 - At the end of every fixed update, iterate `Changed<T>` and `Removed<T>`  for all replicable components and duplicate them to an isolated copy.
 - This isolated copy would be a collection of `SpareSet<T>`, for just the replicable components. Tables would be rebuilt when restoring.
-- (From [their RFC](https://github.com/bevyengine/rfcs/pull/16), `SubWorlds` seem like they might be usable for snapshot generation and rollbacks, but I need more details. AFAIK, they only address the "reserve a range of entities with separate metadata" requirement.)
+- (From [their RFC](https://github.com/bevyengine/rfcs/pull/16), "sub-worlds" seem like they might be usable for snapshot generation and rollbacks, but I need more details. AFAIK, they only address the "reserve a range of entities with separate metadata" requirement.)
 
 Packets
-- For snapshots, also compute the changes as a XOR and copy that into a ring buffer of patches. XOR the latest patch with the earlier patches to bring them up-to-date. Finally, write the packets and pass them to the protocol layer.
-- For eventual consistency, we need some metadata. Entities accrue send priority over time. We can use the magnitude of the changes (addition or removal would be largest magnitude) as the base amount to accrue. We can then run a bipartite AABB sweep-and-prune followed by a  radial distance test to prioritize the entities physically inside each client's areas of interest. Then any user-defined prioritization rules could run. Finally, write the packets and pass them to the protocol layer.
+- Snapshots will use delta compression.
+  - We'll keep a ring buffer of patches for the last N snapshots.
+  - Whenever we duplicate changes to the isolated copy, also compute `copy ^ changes` and push this "patch" into a ring buffer. Importantly, XOR this new patch with the earlier patches to bring them up-to-date. (All this XOR'ing should produce many chains of zero bits.)
+  - Finally, compress whichever patches (run-length encoding, variable-byte encoding, etc.) clients need and pass them to the protocol layer.
+- Eventual consistency will use interest management. 
+  - Entities accrue send priority over time. Maybe we can use the magnitude of component changes (addition or removal would be largest magnitude) as the base amount to accrue. 
+  - Users-defined rules for gameplay relevancy would run.
+  - For physical entities, we can use collision detection to prioritize the entities inside each client's area of interest.
+  - Finally, write the payload for each client and pass them to the protocol layer.
 
 Restoring
 - TBD
@@ -184,14 +191,17 @@ Server
 
 Everything aside from the simulation steps can be generated automatically.
 
-### Networking Modes
-- listen server
-  - client and server instances on same machine
-  - single player = listen server with dummy socket / no connections
-- dedicated server
-- relay
-  - for managing deterministic and client-authoritative games 
-  - clock reference, input validation, interest management, etc. but no simulation
+### Network Modes
+| Mode | Playable? | Authoritative? | Open to connections? |
+| :--- | :---: | :---: | :---: |
+| Client | ✓ | ✗ | ✗ | 
+| Standalone | ✓ | ✓ | ✗ | 
+| Listen Server | ✓ | ✓ | ✓ | 
+| Dedicated Server | ✗ | ✓ | ✓ |
+| Relay | ✗ | ✗ | ✓ |
+
+- Listen servers have client and server instances on the same machine. Standalone is a listen server configured with a dummy socket and closed to connections.
+- Relays are for managing deterministic and client-authoritative games. They can do "clock" synchronization, input validation, interest management, etc. Just no simulation.
 
 ## Drawbacks
 - Possibly cursed macro magic.

@@ -55,7 +55,7 @@ for message in queue.iter() {
 *state[n+1] = s;
 ```
 
-Messages are the right tool for when you really do want explicit request-response interactions or for global alerts like players joining or leaving. They just aren't good for replication. They encourage poor ergonomics, with send and receive calls littered everywhere. Even if you collect and send messages in batches, they don't compress as well as inputs or state.
+Messages are the right tool for when you really do want explicit request-reply interactions or for global alerts like players joining or leaving. They just aren't good for general replication. They encourage poor ergonomics, with send and receive calls littered everywhere. Even if you collect and send messages in batches, they don't compress as well as inputs or state.
 
 # Latency
 Networking a game simulation so that players who live in different locations can play together is an unintuitive problem. No matter how we physically connect their computers, they most likely won't be able to exchange data within one simulation step.
