@@ -215,7 +215,7 @@ fn adoption(
        match previous_ownership {
            // We can change sources by controlling which entity owns the relation
            // move_relation is directly analagous to move_component
-           Some(_, old_owner) => commands.entity(old_owner).move_relation::<Owns>(new_owner, kitten); // uwu :3
+           Some(old_owner, _) => commands.entity(old_owner).move_relation::<Owns>(new_owner, kitten); // uwu :3
            None => commands.entity(new_owner).insert_relation(Owns::default(), kitten); // uwu!!
        }
    } 
