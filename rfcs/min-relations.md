@@ -356,6 +356,10 @@ Let's take a look at how you could use relations to build an API for a tree-shap
 
 TODO: Boxy explains the magic.
 
+### Data Storage Model
+
+### The Second Relation Filter Type Parameter
+
 ## Drawbacks
 
 1. Introduces another core abstraction to users that they will have to learn.
