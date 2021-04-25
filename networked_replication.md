@@ -163,7 +163,7 @@ Saving
 Packets
 - Snapshots will use delta compression.
   - We'll keep a ring buffer of patches for the last `N` snapshots.
-  - Whenever we duplicate changes to the isolated copy, also compute `copy xor changes` as the latest patch and push it into the ring buffer. Update the earlier patches by xor`ing them with the new patch.
+  - Whenever we duplicate changes to the isolated copy, also compute `copy xor changes` as the latest patch and push it into the ring buffer. Update the earlier patches by xor'ing them with the new patch.
   - Finally, compress whichever patches clients need and pass them to the protocol layer.
 - Eventual consistency will use interest management. 
   - Entities accrue send priority over time. Maybe we can use the magnitude of component changes as the base amount to accrue. 

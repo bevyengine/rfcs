@@ -1,7 +1,7 @@
 # Replication
 Abstractly, you can think of a game as a pure function that accepts an initial state and player inputs and generates a new state.
 ```rust
-let state[n+1] = simulate(&state[n], &inputs[n]);
+*state[n+1] = simulate(&state[n], &inputs[n]);
 ```
 Fundamentally, if several players want to perform a synchronized simulation over a network, they have basically two options:
 
@@ -36,13 +36,13 @@ The key idea behind state transfer is the concept of **authority**. It's essenti
 The server usually owns everything, but authority is very flexible. In games like *Destiny* and *Fall Guys*, clients own their movement state. Other games even trust clients to confirm hits. Distributing authority like this adds complexity and obviously leaves the door wide open for cheaters, but sometimes it's necessary. In VR, it makes sense to let clients claim and relinquish authority over interactable objects.
 
 ## Why not messaging patterns?
-The only other strategy you really see used for replication is messaging. Like RPCs or remote events. Not sure why, but it's what most people try the first time.
+The only other strategy you really see used for replication is messaging. Like RPCs or remote events. Not sure why, but it's what I most often see people try the first time.
 
 Take chess for example. Instead of sending polled player inputs or the state of the chessboard, you could just send the moves like "white, e2 to e4," etc.
 
 Here's the issue. Messages are tightly coupled to their game's logic. They can't be generalized. Chess is simple—one turn, one event—but what about an FPS? What messages would it need? How many? When and where would those messages need be sent and received?
 
-If those messages have cascading effects, they can only be sent reliable, ordered. How can you build prediction and reconciliation when you can't drop a packet?
+If those messages have cascading effects, they can only be sent reliable, ordered.
 ```rust
 let mut s = state[n];
 for message in queue.iter() {
@@ -54,8 +54,9 @@ for message in queue.iter() {
 // applied and applied in the right order.
 *state[n+1] = s;
 ```
+How do you even build prediction and reconciliation out of this?
 
-Messages are the right tool for when you really do want explicit request-reply interactions or for global alerts like players joining or leaving. They just aren't good for general replication. They encourage poor ergonomics, with send and receive calls littered everywhere. Even if you collect and send messages in batches, they don't compress as well as inputs or state.
+Messages are the right tool for when you really do want explicit request-reply interactions or for global alerts like players joining or leaving. They just don't cut it as a general tool. Even if you were to avoid littering send and receive calls everywhere (i.e., collect and send in batches), messages don't compress as well as inputs or state.
 
 # Latency
 Networking a game simulation so that players who live in different locations can play together is an unintuitive problem. No matter how we physically connect their computers, they most likely won't be able to exchange data within one simulation step.
@@ -83,8 +84,10 @@ Once again, determinism is an all or nothing deal. If you predict, you predict e
 
 State transfer has the flexibility to predict only *some* things, letting you offload expensive systems onto the server. Games like *Rocket League* still predict everything, including other clients (the server re-distributes their inputs along with game state so that this is more accurate). However, most games choose not to do this. It's more common for clients to predict only what they control and interact with. 
 
-# Consistency
+# Visual Consistency
+**tl;dr**: Hard snap the simulation state and subtly blend the view. Time travel if needed.
 ## Smooth Rendering and Lag Compensation
+
 Predicting only *some* things adds implementation complexity. 
 
 When clients predict everything, they produce renderable state at a fixed pace. Now, anything that isn't predicted must be rendered using data received from the server. The problem is that server updates are sent over a lossy, unreliable internet that disrupts any consistent spacing between packets. This means clients need to buffer incoming server updates long enough to have two authoritative updates to interpolate most of the time.
@@ -92,8 +95,6 @@ When clients predict everything, they produce renderable state at a fixed pace. 
 Gameplay-wise, not predicting everything also divides entities between two points in time: a predicted time and an interpolated time. Clients see themselves in the future and everything else in the past. Because players demand a WYSIWYG experience, the server must compensate for this "remote lag" by allowing certain things, mainly projectiles, to interact with the past.
 
 Visually, we'll often have to blend between extrapolated and authoritative data. Simply interpolating between two authoritative updates is incorrect. The visual state can and will accrue errors, but that's what we want. Those can be tracked and smoothly reduced (to some near-zero threshold, then cleared).
-
-If it's unclear: Hard snap the actual game state to reconcile but softly blend the view.
 
 # Bandwidth
 ## How much can we fit into each packet?
