@@ -24,7 +24,7 @@ Lay out the examples that Bevy should add to either the examples folders or the 
 These can either be completely new, or simply changes to existing examples.
 When completing this section, you can but do not have to write all of these examples yourself.
 Describing them in sufficient detail that another developer can do so is perfectly fine.
-If your examples are particularly long, please provide a brief description and link to a [Gist](https://gist.github.com/) for each.
+If your examples are particularly long, please use a [collapsible section](https://gist.github.com/pierrejoubert73/902cc94d79424356a8d20be2b382e1ab) with a summary for each example.
 
 Most examples in Bevy aim to clearly demonstrate a single feature, group of closely related small features,
 or show how to accomplish a particular task (such as asset loading, creating a custom shader or how to test your app).
