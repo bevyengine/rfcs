@@ -15,9 +15,9 @@ TBD
 I know I've been using the terms somewhat interchangeably, but `Player` and `Connection` should be separate tokens. No reason to force one player per connection in the engine API. Having `Player` be its own thing makes it easier to do stuff like replace leaving players with bots.
 
 ## "Clock" Synchronization
-Ideally, clients predict ahead by just enough to have their inputs reach the server right before they're needed. For some reason, people frequently arrive at the idea that clients should estimate the clock time on the server (with some SNTP handshake) and use that to schedule the next simulation step.
+Ideally, clients predict ahead by just enough to have their inputs reach the server right before they're needed. People often try to have clients estimate the clock time on the server (with some SNTP handshake) and use that to schedule the next simulation step, but that's overly complex.
 
-That's overcomplicating it. What we really care about is: How much time passes between when the server receives my input and when that input is consumed? If the server simply tells clients how long their inputs are waiting in its buffer, the clients can use that information to converge on the correct lead.
+What we really care about is: How much time passes between when the server receives my input and when that input is consumed? If the server simply tells clients how long their inputs are waiting in its buffer, the clients can use that information to converge on the correct lead.
 
 ```rust
 if received_newer_server_update:
@@ -71,7 +71,7 @@ The key idea here is that simplifying the client-server relationship makes the p
 ## Lag Compensation
 Lag compensation mainly deals with colliders. To avoid weird outcomes, lag compensation needs to run after all motion and physics systems.
 
-Again, people get weird ideas about having the server estimate what interpolated state the client was looking at based on their RTT. Again,  that kind of guesswork is unnecessary.
+Again, people often imagine having the server estimate what interpolated state the client was looking at based on their RTT, but we can solve this problem without any guesswork.
 
 Clients can just tell the server what they were looking at by bundling the interpolated tick numbers and the blend value inside the input payloads.
 
@@ -103,19 +103,20 @@ For clients with very high ping, their interpolated time will lag too far behind
 This limit is the only relation between the predicted time and the interpolated time. They're otherwise decoupled.
 
 ## Smooth Rendering
+Rendering should come after `NetworkFixedUpdate`.
+
 Whenever clients receive an update with new remote entities, those entities shouldn't be rendered until that update is interpolated.
 
 Cameras need a little special treatment. Inputs to the view rotation need to be accumulated at the render rate and re-applied just before rendering.
+
+We'll also need to distinguish instant motion from integrated motion when interpolating. Moving an entity by modifying `transform.translation` and `rigidbody.velocity` should look different.
 
 Is an exponential decay enough for smooth error correction or are there better algorithms?
 
 ## Prediction <-> Interpolation
 Clients can't directly modify the authoritative state, but they should be able to predict whatever they want locally. One obvious implementation is to literally fork the latest authoritative state. If copying the full state ends up being too expensive, we can probably use a copy-on-write layer.
 
-Clients should predict the entities driven by their input, the entities they spawn (until confirmed), and any entities mutated as a result of the first two. I think that should cover it. Predicting *everything* would be a compile-time choice.
-
-I said entities, but we can predict with component granularity. The million-dollar question is how to shift things between prediction and interpolation. My current idea is for everything to default to interpolation (reset upon receiving a server update) and then use specialized change detection `DerefMut` magic to flag local predictions.
-
+My current idea to shift components between prediction and interpolation is to default to interpolated (reset upon receiving a server update) and then use specialized change detection `DerefMut` magic to flag as predicted.
 ```
 Predicted<T>
 PredictAdded<T>
@@ -127,10 +128,9 @@ Cancelled<T>
 CancelAdded<T>
 CancelRemoved<T>
 ```
+Everything is predicted by default, but users can opt-out by filtering on `Predicted<T>`. In the more conservative cases, clients would predict the entities driven by their input, the entities they spawn (until confirmed), and any entities mutated as a result of the first two. Systems with filtered queries (i.e. physics, path-planning) should typically run last.
 
-With these, we can explicitly opt-out of funneling non-predicted components through expensive systems. We can also generate events that only trigger on authoritative changes and events that trigger on predicted changes to be confirmed or cancelled later. The latter are necessary for handling sounds and particle effects. Those shouldn't be duplicated during rollbacks and should be faded out if mispredicted.
-
-All systems that handle "predictable" interactions (pushing a button, putting an item in your inventory) should probably run *before* the expensive stuff (physics, path-planning). Rendering should come after `NetworkFixedUpdate`.
+We can also use these filters to generate events that only trigger on authoritative changes and events that trigger on predicted changes to be confirmed or cancelled later. The latter are necessary for handling sounds and particle effects. Those shouldn't be duplicated during rollbacks and should be faded out if mispredicted.
 
 Should UI be allowed to reference predicted state or only verified state?
 
