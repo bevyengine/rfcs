@@ -109,7 +109,7 @@ Cameras need a little special treatment. Inputs to the view rotation need to be 
 
 Is an exponential decay enough for smooth error correction or are there better algorithms?
 
-## Prediction ⟷ Interpolation
+## Prediction <-> Interpolation
 Clients can't directly modify the authoritative state, but they should be able to predict whatever they want locally. One obvious implementation is to literally fork the latest authoritative state. If copying the full state ends up being too expensive, we can probably use a copy-on-write layer.
 
 Clients should predict the entities driven by their input, the entities they spawn (until confirmed), and any entities mutated as a result of the first two. I think that should cover it. Predicting *everything* would be a compile-time choice.

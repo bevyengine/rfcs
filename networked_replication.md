@@ -29,19 +29,17 @@ What I hope to explore in this RFC is:
 
 [Link to my explanation of important replication concepts.](../main/replication_concepts.md)
 
-> Please treat all terms like determinism, state transfer, snapshots, and eventual consistency as placeholders. We could easily label them differently.
+> Please consider terms like determinism, state transfer, snapshots, etc. as placeholders.
 
 Bevy aims to make developing networked games as simple as possible. There isn't one replication strategy that works best for every game, but Bevy provides those it has under one API.
 
 First think about your game and consider which form of replication might fit best. Players can *either* send their inputs to each other (or through a relay) and independently and deterministically simulate the game *or* they can send their inputs to a single machine (the server) who simulates the game and sends back updated game state.
 
-> Honestly, Bevy could put something like a questionnaire in the docs. Genre and player count pretty much choose the replication strategy for you.
+> Bevy could have a questionnaire in the docs. Genre and player count basically choose for you.
 
 Next, determine which components and systems affect the global simulation state and tag them accordingly. Usually adding `#[derive(Replicate)]` to all replicable components is enough. You can additionally decorate gameplay logic and systems with `#[client]` or `#[server]` for conditional compilation.
 
 Lastly, add these simulation systems to the `NetworkFixedUpdate` app state. Bevy will take care of all state rollback, serialization, and compression internally. Other than that, you're free to write your game as if it were local multiplayer. 
-
-> This guide is pretty lazy lol, but that's the gist of it.
 
 ### Example: "Networked" Components
 
@@ -65,13 +63,26 @@ struct Health {
 
 ### Example: "Networked" Systems
 ```rust
-// No networking boilerplate. Just swap components.
-// Same code runs on client and server.
 fn check_zero_health(mut query: Query<(&Health, &mut NetworkTransform)>){
     for (health, mut transform) in query.iter_mut() {
         if health.hp <= 0.0 {
-            transform.translation = Vec3::ZERO;
+            *transform.translation = Vec3::ZERO;
         }
+    }
+}
+```
+
+```rust
+fn update_player_velocity(mut q: Query<(&Player, &mut Rigidbody)>) {
+    for (player, mut rigidbody) in q.iter_mut() {
+        // DerefMut flags these rigidbodies as predicted on the client.
+        *rigidbody.velocity = player.move_direction * player.move_speed;
+    }
+}
+
+fn expensive_physics_calculation(mut q: Query<(&mut Rigidbody), Predicted<Rigidbody>>) {
+    for rigidbody in q.iter_mut() {
+        // Do stuff with only the predicted rigidbodies...
     }
 }
 ```
@@ -143,28 +154,36 @@ replication strategy: snapshots
 
 [Link to more in-depth implementation details.](../main/implementation_details.md)
 
-### Macros
+### What is required?
+- Guaranteed `ComponentId` stability.
+- Make `World` able to reserve an `Entity` ID range and track metadata for it separately.
+  - If merged, [#16](https://github.com/bevyengine/rfcs/pull/16) could probably be used to handle this cleanly.
+- Ideally, `RunCriteria` would support nested loops. I'm pretty sure this isn't an actual blocker, but the workaround feels a little hacky.
+
+### Primitives
 - `#[derive(Replicate)]` for identification and serialization; also adds `[repr(C)]`
 - `#[replicate(precision=?)]` for quantization
 - `#[replicate(range=(?, ?))]` for range compression
 - `#[client]` and `#[server]` for conditional compilation
+- `NetworkID` component for GUID
+- `NetworkFixedUpdate` app state
+- Specialized change detection filters
+  - `Predicted<T>`
+  - `Confirmed<T>`
+  - `Cancelled<T>`
+  - `Added<T>` and `Removed<T>` variants for each also
 
-### Saving and Restoring Game State
-
-Requirements
-
+### Best Practices
+- Networked entities will have the `NetworkID` component at minimum. Could be auto-added.
 - Replicable components should only be mutated inside `NetworkFixedUpdate`.
-- Networked entities will have a global `NetworkID` component at minimum.
-- Clients shouldn't try to "network" local entities through the addition of replicable components since those entities do not exist on the server. 
-- `World` should reserve an `Entity` ID range and track metadata for it separately.
-  - [Sub-worlds](https://github.com/bevyengine/rfcs/pull/16) seem like a potential candidate for this.
+- Clients shouldn't try to "network" local entities by just adding replicable components. Those entities do not exist on the server. Client-authoritative is a different story.
 
-Saving
+### Saving Game State
 - At the end of each fixed update, server iterates `Changed<T>` and `Removed<T>` for all replicable components and duplicates them to an isolated collection of `SparseSet<T>`.
   - You could pass this "read-only" copy to another thread to do the remaining work.
   - Tables would be rebuilt when restoring.
 
-Preparing Packets
+### Preparing Server Packets
 - Snapshots (full state updates) will use delta compression.
   - Server keeps a ring buffer of patches for the last `N` snapshots.
   - Server computes the latest patch by xor'ing the copy and the latest changes (before applying them) and pushes it into the ring buffer. The servers also updates the earlier patches by xor'ing them with the latest patch. (The xor'ing is basically a pre-compression step that produces long zero chains with high probability.)
@@ -176,7 +195,7 @@ Preparing Packets
   - Server runs collision detection to prioritize physical entities inside each client's area of interest.
   - Server writes the payload for each client and hands them off to the protocol layer.
 
-Restoring
+### Restoring Game State
 - At the beginning of each fixed update, the client decompresses the received update and writes its changes to the appropriate `SparseSet<T>` collection (several will be buffered).
 - Client then uses this updated collection to write the prediction copy that has all the tables and non-replicable components.
 
@@ -246,12 +265,12 @@ I strongly doubt that fast, efficient, and transparent replication features can 
 - When sending partial state updates, how should we deal with weird stuff like there being references to entities that haven't been spawned or have been destroyed?
 
 ## Future possibilities
-- With some tool to visualize game state diffs, these replication systems could help detect non-determinism in other parts of the engine. 
+- With some tool to visualize game state diffs, these replication systems could help detect non-determinism in other parts of the engine.
 - Much like how Unreal has Fortnite, Bevy could have an official (or curated) collection of multiplayer samples to dogfood these features.
 - Bevy's future editor could automate most of the configuration and annotation.
 - Beyond replication, Bevy need only provide one good default for protocol and I/O for the sake of completeness. I recommend dividing crates at least to the extent shown below to make it easy for developers to swap the low-level stuff with [whatever](https://partner.steamgames.com/doc/features/multiplayer) [alternatives](https://developer.microsoft.com/en-us/games/solutions/multiplayer/) [they](https://dev.epicgames.com/docs/services/en-US/Overview/index.html) [want](https://docs.aws.amazon.com/gamelift/latest/developerguide/gamelift-intro.html). Replication addresses all the underlying ECS interop, so it should be settled first.
 
-    **replication** ← this RFC
+    **replication** <- this RFC
     - save and restore
     - prediction
     - serialization and compression
