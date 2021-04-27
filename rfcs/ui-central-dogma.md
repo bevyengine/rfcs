@@ -64,16 +64,18 @@ This framing allows us to break the UI problem space down into many smaller, loo
 Each of these **UI building blocks** works together, answering the following questions:
 
 1. **Input dispatching**
-    1. How do we transform input streams into actions?
-    2. How do we unify multiple input methods to the same actions?
-    3. How do we ensure actions are handed off to the correct widget?
+    1. How do we read input more than once per frame?
+    2. How do we transform input streams into actions?
+    3. How do we unify multiple input methods to the same actions?
+    4. How do we ensure actions are handed off to the correct widget?
 2. **Widget state management** ([RFC: System-driven polling architecture](https://github.com/bevyengine/rfcs/pull/11))
    1. How do widgets respond to actions?
-   2. How do make our UIs animate?
-   3. How do we ensure our UIs can be easily configured to respond to actions in automatic ephemeral ways (such as when hovered)?
-   4. How is the state of widgets stored?
-   5. How do game systems read the state of widgets?
-   6. How do widgets read the state of the world and change to account for it?
+   2. How do we allow widgets to [respond to actions more than once per frame](https://discord.com/channels/691052431525675048/743663673393938453/836404717499449375)?
+   3. How do make our UIs animate?
+   4. How do we ensure our UIs can be easily configured to respond to actions in automatic ephemeral ways (such as when hovered)?
+   5. How is the state of widgets stored?
+   6. How do game systems read the state of widgets?
+   7. How do widgets read the state of the world and change to account for it?
 3. **Object selection**
    1. How do we know which widget (or unit or...) is selected?
    2. How do we select different widgets with the mouse? Keyboard? Joystick?
