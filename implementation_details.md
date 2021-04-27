@@ -1,7 +1,7 @@
 
 # Implementation Details
 ## `Connection` != `Player`
-I know I've been using the terms "client" and "player" somewhat interchangeably, but `Connection` and `Player` should be separate tokens. There's no benefit in forcing one player per connection. Having `Player` be its own thing makes it easier to do stuff like replace leaving players with bots.
+I know I've been using the terms "client" and "player" somewhat interchangeably, but `Connection` and `Player` should be separate tokens. There's no benefit in forcing one player per connection. Having `Player` be its own thing makes it easier to do stuff like online splitscreen, temporarily fill team slots with bots, etc.
 
 ## "Clock" Synchronization
 Ideally, clients predict ahead by just enough to have their inputs reach the server right before they're needed. People often try to have clients estimate the clock time on the server (with some SNTP handshake) and use that to schedule the next simulation step, but that's overly complex.
@@ -103,11 +103,11 @@ We'll also need to distinguish instant motion from integrated motion when interp
 Is an exponential decay enough for smooth error correction or are there better algorithms?
 
 ## Lag Compensation
-Lag compensation mainly deals with colliders. To avoid weird outcomes, lag compensation needs to run after all motion and physics systems.
+Lag compensation deals with colliders. To avoid weird outcomes, lag compensation needs to run after all motion and physics systems.
 
-Again, people often imagine having the server estimate what interpolated state the client was looking at based on their RTT, but we can solve this problem without any guesswork.
+Again, people often imagine having the server estimate what interpolated state the client was looking at based on their RTT, but we can resolve this without any guesswork.
 
-Clients can just tell the server what they were looking at by bundling the interpolated tick numbers and the blend value inside the input payloads.
+Clients can just tell the server what they were looking at by bundling the interpolated tick numbers and the blend value inside the input payloads. With this information, the server can reconstruct *exactly* what each client saw.
 
 ```
 <packet header>
@@ -117,24 +117,18 @@ tick number (interpolated to)
 interpolation blend value
 <rest of payload>
 ```
-With this information, the server can reconstruct *exactly* what each client saw. 
 
-Lag compensation goes like this:
-1. Queue projectile spawns, tagged with their shooter's interpolation data.
-2. Restore all colliders to the earliest interpolated moment.
-3. Replay forward to the current tick, spawning the projectiles at the appropriate times and registering hits.
-
-After that's done, any surviving projectiles will exist in the correct time. The process is the same for raycast weapons.
+So there are two ways to go about the actual compensation:
+- Compensate upfront by bringing new projectiles into the present (similar to a rollback).
+- Compensate over time ("amortized"), constantly testing projectiles against the history buffer.
 
 There's a lot to learn from *Overwatch* here.
 
-*Overwatch* [allows defensive abilities to mitigate lag-compensated shots](https://youtu.be/W3aieHjyNvw?t=2492). AFAIK this is simple to do. If a player activates any defensive bonus, just apply it to all their buffered hitboxes.
+*Overwatch* shows that [time is just another collision dimension](https://youtu.be/W3aieHjyNvw?t=2226). Basically, you can broadphase test against the entire collider history at once (with the amortized method).
 
-*Overwatch* also [finds the movement envelope of each entity](https://youtu.be/W3aieHjyNvw?t=2226), the "sum" of its bounding volumes over the full lag compensation window, to reduce the number of intersection tests, only rewinding characters whose movement envelopes intersect projectiles.
+*Overwatch* [allows defensive abilities to mitigate compensated projectiles](https://youtu.be/W3aieHjyNvw?t=2492). AFAIK this is simple to do. If a player activates any defensive bonus, just apply it to all their buffered hitboxes.
 
-For clients with very high ping, their interpolated time will lag too far behind their predicted time. You generally don't want to favor the shooter past a certain limit (e.g. 250ms), so [those clients have to extrapolate the difference](https://youtu.be/W3aieHjyNvw?t=2347). Not extrapolating is also valid, but then lagging clients would abruptly have to start leading their targets.
-
-This limit is the only relation between the predicted time and the interpolated time. They're otherwise decoupled.
+For clients with too-high ping, their interpolation will lag far behind their prediction. If you only compensate up to a limit (e.g. 200ms), [those clients will have to extrapolate the difference](https://youtu.be/W3aieHjyNvw?t=2347). Doing nothing is also valid, but lagging clients would abruptly have to start leading their targets.
 
 ## Unconditional Rollbacks
 Every article on "rollback netcode" and "client-side prediction and server reconciliation" encourages having clients compare their predicted state to the authoritative state and reconciling *if* they mispredicted. But how do you actually detect a mispredict?
