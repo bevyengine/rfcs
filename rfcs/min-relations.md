@@ -209,7 +209,8 @@ fn love_potion(
     let player = player.single().unwrap();
 
     for (victim, former_love) in query.iter() {
-        // Only one relation of a given kind can exist between a source and a target;
+        // Only one relation of a given kind can exist between a source and a target
+        // (although the opposite direction can exist on the target entity)
         // like always, new relations overwrite existing relations
         // with the same source, kind and target
         for (_, former_lover) in former_love {
@@ -219,6 +220,10 @@ fn love_potion(
         }
     }
 }
+
+/*
+
+FIXME: This example is a bit borked but if we fix it the we no longer need `move_relation`
 
 fn adoption(
     mut commands: Commands,
@@ -239,6 +244,7 @@ fn adoption(
         }
     }
 }
+*/
 
 // `change_target` and `move_relation` preserve the relation's data
 // This system removes all springs attached to mass 1, and adds them to mass 2 instead
@@ -285,14 +291,16 @@ fn next_move(
     let valid_positions: Vec<Entity> = board_state.compute_valid_positions();
 
     let filtered = query
-        .filter_relation::<Action, _>(RelationFilter::any_of().targets(valid_positions))
-        .build();
+        .filter_relation(
+            RelationFilter::<Action>::any_of().targets(valid_positions)
+        )
+        .apply_filters();
 
     let best_move = valid_moves
-    .max_by_key(|(potential_position, _)| potential_position.compute_heuristic());
+        .max_by_key(|(potential_position, _)| potential_position.compute_heuristic());
 
     if let Some((_, best_move)) = best_move {
-        commands.insert_relation::<NextMove>(piece, best_move);
+        commands.entity(piece).insert_relation::<NextMove>(best_move);
     }
 }
 
@@ -304,8 +312,10 @@ fn all_roads_lead_to_rome(
 ) {
     let all_cities: Vec<Entity> = cities_query.iter().collect();
     roads_query
-        .filter_relation::<Road, _>(RelationFilter::all_of().targets(all_cities))
-        .build()
+        .filter_relation(
+            RelationFilter::<Road>::all_of().targets(all_cities)
+        )
+        .apply_filters()
         // The cities still left are connected to all other cities by roads
         // We're tagging them with a Hub marker component so we can find them again quickly
         .map(|city| commands.entity(city).insert(Hub));
@@ -321,8 +331,8 @@ this functionality just makes it more ergonomic to specify certain complex relat
 fn paths_to_choose(location: Res<PlayerLocation>, mut query: Query<&mut Relation<Path>>) {
     // We only care about paths that lead away from our current position
     query
-        .filter_relation::<Path, _>(RelationFilter::source(location.entity))
-        .build()
+        .filter_relation(RelationFilter::<Path>::source(location.entity))
+        .apply_filters()
         .map(|_, mut path| {
             path.highlight();
         });
@@ -359,12 +369,12 @@ fn sever_groups(
     }
 
     let one_to_two = mass_query
-        .filter_relation::<Spring, _>(RelationFilter::any_of().sources(group_1).targets(group_2))
-        .build();
+        .filter_relation(RelationFilter::<Spring>::any_of().sources(group_1).targets(group_2))
+        .apply_filters();
 
     let two_to_one = mass_query
-        .filter_relation::<Spring, _>(RelationFilter::any_of().sources(group_2).targets(group_1))
-        .build();
+        .filter_relation(RelationFilter::<Spring>::any_of().sources(group_2).targets(group_1))
+        .apply_filters();
 
     // First we remove the springs that point in one direction
     for (source, springs) in one_to_two.iter() {
@@ -399,11 +409,11 @@ fn purity_testing(
     // But by narrowing them to only affect certain sources or targets,
     // we can control which entities are affected!
     candidate_query
-        .filter_relation::<FriendsWith, _>(
+        .filter_relation(
             // Even a single communist friend is disqualifying!
-            RelationFilter::any_of().targets(communists),
+            RelationFilter::<FriendsWith>::any_of().targets(communists),
         )
-        .build()
+        .apply_filters()
         // Candidates who are not friends with any communists have been filtered
         // Leaving only suspect candidates to be stripped of their candidacy
         .for_each(|candidate| commands.entity(candidate).remove::<Candidate>());
@@ -414,16 +424,16 @@ fn purity_testing(
 
 ```
 
-We can filter on multiple types of relations at once by chaining together our `.filter_relation` methods before we call `.build()`.
+We can filter on multiple types of relations at once by chaining together our `.filter_relation` methods before we call `.apply_filters()`.
 
 ```rust
 fn frenemies(
-    query: Query<Entity, (With<Rel<FriendsWith>>, With<Rel<EnemiesWith>>)>,
+    query: Query<Entity, (With<Relation<FriendsWith>>, With<Relation<EnemiesWith>>)>,
     player: Res<Player>,
 ) {
     query
-        .filter_relation::<FriendsWith, _>(RelationFilter::target(player.entity))
-        .filter_relation::<EnemiesWith, _>(RelationFilter::target(player.entity))
+        .filter_relation(RelationFilter::<FriendsWith>::target(player.entity))
+        .filter_relation(RelationFilter::<EnemiesWith>::target(player.entity))
         .for_each(|entity| println!("{} is frenemies with the player!", entity));
 }
 ```
@@ -442,12 +452,14 @@ fn herbivores(
     let plants = plants_query.iter().collect();
     let animals = animals_query.iter().collect();
 
+    // The generics on `filter_relation` are normally inferred but we can manually
+    // specify them to disambiguate which `Relation<T>` we are filtering in the query
     species_query
         // The second type parameter controls which relation filter of that type is being modified
-        .filter_relation::<Consumes, InFilter<{ 1 }>>(RelationFilter::any_of().targets(plants))
+        .filter_relation::<Consumes, InFilter<{ 0 }>>(RelationFilter::any_of().targets(plants))
         // Because this is a without filter, this means that we exclude all entities
         // with even one Consumes relation that targets an animal
-        .filter_relation::<Consumes, InFilter<{ 2 }>>(RelationFilter::any_of().targets(animals))
+        .filter_relation::<Consumes, InFilter<{ 1 }>>(RelationFilter::any_of().targets(animals))
         .for_each(|entity| commands.entity(entity).insert(Herbivore));
 }
 
