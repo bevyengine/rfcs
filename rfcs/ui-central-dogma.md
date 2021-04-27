@@ -68,7 +68,7 @@ Each of these **UI building blocks** works together, answering the following que
     2. How do we transform input streams into actions?
     3. How do we unify multiple input methods to the same actions?
     4. How do we ensure actions are handed off to the correct widget?
-2. **Widget state management** ([RFC: System-driven polling architecture](https://github.com/bevyengine/rfcs/pull/11))
+2. **Widget state management** ([Discussion: UI as a pure function of state](https://github.com/bevyengine/bevy/discussions/1996#discussioncomment-654221)m [RFC: System-driven polling](https://github.com/bevyengine/rfcs/pull/11))
    1. How do widgets respond to actions?
    2. How do we allow widgets to [respond to actions more than once per frame](https://discord.com/channels/691052431525675048/743663673393938453/836404717499449375)?
    3. How do make our UIs animate?
