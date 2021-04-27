@@ -80,8 +80,8 @@ Just like with ordinary components, you can request them in your queries:
 // Relations can be queried for immutably
 fn friendship_is_magic(mut query: Query<(&mut Magic, &Relation<FriendsWith>), With<Pony>>) {
     // Each entity can have their own friends
-    for (mut magic, friends) in query.iter_mut() {
-        // Relations return an iterator when unpacked
+    for (mut magic, friends: RelationIter<FriendsWith>) in query.iter_mut() {
+        // Relations return an iterator over the target and data of each relation on an entity
         magic.power += friends.count();
     }
 }
@@ -89,54 +89,11 @@ fn friendship_is_magic(mut query: Query<(&mut Magic, &Relation<FriendsWith>), Wi
 // Or you can request mutable access to modify the relation's data
 fn interest(query: Query<&mut Relation<Owes>>) {
     for debts in query.iter() {
-        for (owed_to, amount_owed) in debts {
+        for (owed_to: Entity, amount_owed: &mut Owes) in debts {
             println!("we owe {} some money", owed_to);
             amount_owed *= 1.05;
         }
     }
-}
-
-// You can look for relations with a specific kind, source and target
-fn unrequited_love(query: Query<(Entity, &Relation<Loves>)>) {
-    for (lover, crushes) in query.iter() {
-        for (crush, _) in crushes {
-            let reciprocal_crush = query.get_relation::<Loves>(crush, lover);
-            reciprocal_crush.expect("Surely they must feel the same way!");
-        }
-    }
-}
-
-// You can query for entities that target a specific entity
-fn friend_of_dorothy(query: Query<Entity, With<Relation<FriendsWith>>>, dorothy: Res<Dorothy>) {
-    let filtered = query
-        .filter_relation::<FriendsWith, _>(
-            RelationFilter::target(dorothy.entity), // .build() causes the relation filters to be applied
-        )
-        .build();
-
-    for source_entity in filtered.iter() {
-        println!("{} is friends with Dorothy!", source_entity);
-    }
-}
-
-// Or even look for some combination of targets!
-fn caught_in_the_middle(
-    mut query: Query<&mut Stress, With<Relation<FriendsWith>>>,
-    dorothy: Res<Dorothy>,
-    elphaba: Res<Elphaba>,
-) {
-    // Note that we can set relation filters even if the relation is in a query filter
-    query
-        .filter_relation::<FriendsWith, _>(
-            RelationFilter::all_of()
-                .target(dorothy.entity)
-                .target(elphaba.entity), // You can directly chain this as filter_relations returns &mut Query
-        )
-        .build()
-        .for_each(|mut stress| {
-            println!("{} is friends with Dorothy and Elphaba!", source_entity);
-            stress.val = 1000;
-        })
 }
 
 // Query filters work too!
@@ -150,18 +107,70 @@ fn not_alone(
     }
 }
 
-// So does change detection with Added and Changed!
+// So does change detection with Added and Changed! You can use `Relation<T>` 
+// instead of a component type in all of the query filters!
 fn new_friends(query: Query<&mut Excitement, Added<Relation<FriendsWith>>>) {
-    query.for_each(|(mut excitement, new_friends)| {
+    for (excitement, new_friends) in query {
         excitement.value += 10 * new_friends.count();
-    });
+    }
+}
+
+// You can look for relations with a specific kind, source and target
+fn unrequited_love(query: Query<(Entity, &Relation<Loves>)>) {
+    for (lover, crushes) in query.iter() {
+        for (crush, _) in crushes {
+            // The `get_relation` method on Query is used just like `get_component`
+            // except you have to specify the target of the relation you want to get!
+            let reciprocal_crush = query.get_relation::<Loves>(crush, lover);
+            reciprocal_crush.expect("Surely they must feel the same way! u-uwu");
+        }
+    }
+}
+
+// You can query for entities that target a specific entity
+fn friend_of_dorothy(query: Query<Entity, With<Relation<FriendsWith>>>, dorothy: Res<Dorothy>) {
+    let filtered = query
+        // Relation filters make the `Relation<T>` in our query type
+        // only be for the given targets specified- by default `Relation<T>`
+        // will apply to any target
+        .filter_relation(
+            RelationFilter::<FriendsWith>::target(dorothy.entity)
+        )
+        // You must call .apply_filters() before you can access the query again
+        .apply_filters();
+
+    for source_entity in filtered.iter() {
+        println!("{} is friends with Dorothy!", source_entity);
+    }
+}
+
+// Or even look for some combination of targets!
+fn caught_in_the_middle(
+    mut query: Query<&mut Stress, With<Relation<FriendsWith>>>,
+    dorothy: Res<Dorothy>,
+    elphaba: Res<Elphaba>,
+) {
+    query
+        // Note that we can set relation filters even if the relation is in a query filter
+        .filter_relation(
+            RelationFilter::<FriendsWith>::all_of()
+                .target(dorothy.entity)
+                .target(elphaba.entity),
+        )
+        .apply_filters()
+        // apply_filters() returns `&mut Query` so we can just iterate straight away
+        .for_each(|mut stress| {
+            println!("{} is friends with Dorothy and Elphaba!", source_entity);
+            stress.val = 1000;
+        })
 }
 
 ```
 
-You can use the `Entity` returned by your relations to fetch data from the target's components by combining it with `query::get()` or `query::get_component<C>()`.
 
 ```rust
+// You can use the `Entity` target returned by your relations to fetch data from the 
+// target's components by combining it with `query::get()` or `query::get_component<C>()`.
 fn debts_come_due(
     mut debt_query: Query<(Entity, &Relation<Owes>)>,
     mut money_query: Query<&mut Money>,
@@ -173,6 +182,7 @@ fn debts_come_due(
                 .unwrap()
                 .checked_sub(amount_owed)
                 .expect("Nice kneecaps you got there...");
+            // getting the money on the target of our `Owes` relation!
             *money_query.get(lender).unwrap() += amount_owed;
         }
     }
