@@ -155,6 +155,6 @@ TBD
 TBD
 
 ## Messages
-Messages are best for sending global alerts and any gameplay mechanics you explicitly want modeled as request-reply (or one-way) interactions. They can be reliable or unreliable.
+Messages are best for sending global alerts and any gameplay mechanics you explicitly want modeled as request-reply (or one-way) interactions. They can be unreliable or reliable. You can also postmark messages to be executed on a certain tick like inputs. That can only be best effort, though.
 
 TBD

@@ -1,4 +1,8 @@
 # Replication
+> The goal of replication is to ensure that all of the players in the game have a consistent model of the game state. Replication is the absolute minimum problem which all networked games have to solve in order to be functional, and all other problems in networked games ultimately follow from it. - [Mikola Lysenko][1]
+
+[1]: https://0fps.net/2014/02/10/replication-in-networked-games-overview-part-1/
+
 Abstractly, you can think of a game as a pure function that accepts an initial state and player inputs and generates a new state.
 ```rust
 *state[n+1] = simulate(&state[n], &inputs[n]);
