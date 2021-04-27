@@ -308,7 +308,7 @@ fn next_move(
 fn all_roads_lead_to_rome(
     mut commands: Commands,
     cities_query: Query<Entity, With<&City>>,
-    roads_query: Query<Entity, (With<City>, With<Rel<Road>>)>,
+    roads_query: Query<Entity, (With<City>, With<Relation<Road>>)>,
 ) {
     let all_cities: Vec<Entity> = cities_query.iter().collect();
     roads_query
@@ -354,7 +354,7 @@ fn paths_to_choose(location: Res<PlayerLocation>, mut query: Query<&mut Relation
 fn sever_groups(
     mut commands: Commands,
     selection_query: Query<Entity, &Selection>,
-    mass_query: Query<Entity, (With<Mass>, With<Rel<Spring>>)>,
+    mass_query: Query<Entity, (With<Mass>, With<Relation<Spring>>)>,
 ) {
     // Our goal is to remove all of the springs
     // connecting these two groups of point masses
