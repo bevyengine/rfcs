@@ -1,46 +1,43 @@
 # Replication
 > The goal of replication is to ensure that all of the players in the game have a consistent model of the game state. Replication is the absolute minimum problem which all networked games have to solve in order to be functional, and all other problems in networked games ultimately follow from it. - [Mikola Lysenko][1]
 
-[1]: https://0fps.net/2014/02/10/replication-in-networked-games-overview-part-1/
+---
 
 Abstractly, you can think of a game as a pure function that accepts an initial state and player inputs and generates a new state.
 ```rust
-*state[n+1] = simulate(&state[n], &inputs[n]);
+let new_state = simulate(&state, &inputs);
 ```
 Fundamentally, if several players want to perform a synchronized simulation over a network, they have basically two options:
 
-**Active replication**
-- Send their inputs to each other and independently and deterministically simulate the game.
-- also called lockstep, state-machine synchronization, and "determinism"
-
-**Passive replication**
-- Send their inputs to a single machine (the server) who simulates the game and broadcasts updates back. 
-- also called client-server, primary-backup, master-slave, and "state transfer"
+- Send their inputs to each other and independently and deterministically simulate the game. 
+  - <details><summary>also known as</summary>active replication,  lockstep, state-machine synchronization, determinism</details>
+- Send their inputs to a single machine (the server) who simulates the game and broadcasts updates back.
+  - <details><summary>also known as</summary>passive replication, client-server, primary-backup, state transfer</details>
 
 In other words, players can either run the "real" game or follow it.
 
-Although the distributed computing terminology is probably more useful, for the rest of this RFC, I'll refer to active and passive replication as determinism and state transfer, respectively. They're more commonly used in the gamedev context.
+For the rest of this RFC, I'll refer to them as determinism and state transfer, respectively. I just think they're the most literal terminology.
 
 ## Why determinism?
-Determinism is straightforward. It's basically local multiplayer but with really long, sometimes ocean-spanning controller cables. The netcode is virtually independent from the gameplay code, it simply supplies the inputs. 
+Deterministic multiplayer is basically local multiplayer but with *really* long controller cables. The netcode simply supplies the gameplay code with inputs. They're basically decoupled.
 
 Determinism has low infrastructure costs, both in terms of bandwith and server hardware. All steady-state network traffic is input, which is not only small but also compresses well. (Note that as player count increases, there *is* a crossover point where state transfer becomes more efficient). Likewise, as the game runs completely on the clients, there's no need to rent powerful servers. Relays are still handy for efficiently managing rooms and scaling to higher player counts, but those could be cheap VPS instances.
 
-Determinism is also tamperproof. It's impossible to do anything like speedhack or teleport as running these exploits would simply cause cheaters to desync. On the other hand, determinism inherently leaks all information.  
+Determinism is also tamperproof. It's impossible to do anything like speedhack or teleport as running these exploits would simply cause cheaters to desync. On the other hand, determinism inherently suffers from total information leakage.  
 
-The biggest strength of determinism is also its biggest limitation: every client must run the *entire* game. While this works well for games with thousands of micro-managed entities like *Starcraft 2*, you won't be seeing games with expansive worlds like *Genshin Impact* networked this way any time soon.
+That every client must run the *entire* world is also determinism's biggest limit. While this works well for games with thousands of micro-managed entities like *Starcraft 2*, you won't be seeing games with expansive worlds like *Genshin Impact* networked this way any time soon.
 
 ## Why state transfer?
 Determinism is awesome when it fits but it's generally unavailable. Neither Godot nor Unity nor Unreal can make this guarantee for large parts of their engines, particularly physics.
 
-Whenever you can't have or don't want bit-perfect determinism, you use state transfer.
+Whenever you can't have or don't want determinism, you should use state transfer.
 
-The key idea behind state transfer is the concept of **authority**. It's essentially ownership in Rust. Those who own state are responsible for broadcasting up-to-date information about it. I sometimes see authority divided into *input* authority (control permission) and *state* authority (write permission), but usually authority means state authority.
+Its main underlying idea is **authority**, which is just like ownership in Rust. Those who own state are responsible for broadcasting up-to-date information about it. I sometimes see authority divided into *input* authority (control permission) and *state* authority (write permission), but usually authority means state authority.
 
 The server usually owns everything, but authority is very flexible. In games like *Destiny* and *Fall Guys*, clients own their movement state. Other games even trust clients to confirm hits. Distributing authority like this adds complexity and obviously leaves the door wide open for cheaters, but sometimes it's necessary. In VR, it makes sense to let clients claim and relinquish authority over interactable objects.
 
 ## Why not messaging patterns?
-The only other strategy you really see used for replication is messaging. Like RPCs or remote events. Not sure why, but it's what I most often see people try the first time.
+The only other strategy you really see used for replication is messaging. RPCs. I actually see these most often in the free asset space. (I guess it's the go-to pattern outside of games?)
 
 Take chess for example. Instead of sending polled player inputs or the state of the chessboard, you could just send the moves like "white, e2 to e4," etc.
 
@@ -58,32 +55,35 @@ for message in queue.iter() {
 // applied and applied in the right order.
 *state[n+1] = s;
 ```
-How do you even build prediction and reconciliation out of this?
-
-Messages are the right tool for when you really do want explicit request-reply interactions or for global alerts like players joining or leaving. They just don't cut it as a general tool. Even if you were to avoid littering send and receive calls everywhere (i.e., collect and send in batches), messages don't compress as well as inputs or state.
+Messages are great for when you want explicit request-reply interactions and global alerts like players joining or leaving. They just don't cut it as a replication mechanism for real-time games. Even if you avoided send and receive calls everywhere (i.e., collect and send in batches), messages don't compress as well as inputs or state.
 
 # Latency
-Networking a game simulation so that players who live in different locations can play together is an unintuitive problem. No matter how we physically connect their computers, they most likely won't be able to exchange data within one simulation step.
+Networking is hard because we want to let players who live in different countries play together *at the same time*, something that special relativity tells us is [strictly impossible][2]... unless we cheat.
 
-## Lockstep
-The simplest form of online multiplayer is lockstep. All clients simply block until they have everything needed to execute the next simulation step. This delay is fine for most turn-based games but feels awful for real-time games.
+### Lockstep
+The simplest solution is to concede to the universe with grace and have players stall until they've received whatever data they need to execute the next simulation step. Blocking is fine for most turn-based games but it just doesn't cut it for real-time games.
+                
+### Adding Local Input Delay
+The first trick we can pull is have each player delay their own input for a bit, trading responsiveness for more time to receive the incoming data.
 
-## Local Input Delay
-A partial solution is for each client to delay the local player input for some number of simulation steps, trading a small amount of responsiveness for more time to receive remote info. Doing this also reduces the perceived latency between players. Under stable network conditions, the game will run smoothly, but it still stutters when the window is missed.
+Our brains are pretty lenient about this, so we can actually *reduce* the latency between players. Two players in a 1v1 match actually could experience simultaneity if each delayed their input by half the round-trip time.
+
+This trick has powered the RTS genre for decades. With a large enough input delay and a stable connection, the game will run smoothly. However, there's still a problem because the game stutters whenever the window is missed. This leads to the next trick.
 
 > determinism + lockstep + local input delay = delay-based netcode 
 
-## Predict and Reconcile
-A more elegant way to hide the input latency is local prediction. 
+### Predict-Reconcile
+Instead of blocking, what if players just guess the missing data and keep going? Doing that would let us avoid stuttering, but then we'd have to deal with guessing incorrectly.
 
-Instead of blocking, clients can substitute any missing information with reasonable guesses (often reusing the previous value) and just run the simulation. Guessing removes the need to wait, removing perceived input lag, but what if the guesses are wrong? 
+Well, when the player finally has that missing remote data, what they can do is restore their simulation to the previous verified state, update it with the received data, and then re-predict the remaining steps.
 
-Well, what a client can do later is restore its simulation to the last verified state and redo the mispredicted steps with the correct info.
+This retroactive correction is called **rollback** or **reconciliation**, and it ensures that players never desync *too much*. Honestly, it's practically invisible with a high tick rate and good visual smoothing. (Apparently it's been around since [1996][3].)
 
-This retroactive correction is called **rollback** or **reconciliation** and with a high simulation rate and good visual smoothing, it's practically invisible. Adding local input delay reduces the amount of rollback. 
+With prediction, input delay is no longer needed, but it's still useful. Reducing latency reduces how many steps players need to re-simulate.
 
-> determinism + predict-rollback + local input delay (optional) = rollback netcode
+> determinism + predict-rollback + local input delay (optional) = rollback netcode 
 
+### Selective Prediction
 Once again, determinism is an all or nothing deal. If you predict, you predict everything. 
 
 State transfer has the flexibility to predict only *some* things, letting you offload expensive systems onto the server. Games like *Rocket League* still predict everything, including other clients (the server re-distributes their inputs along with game state so that this is more accurate). However, most games choose not to do this. It's more common for clients to predict only what they control and interact with. 
@@ -131,4 +131,8 @@ When snapshots fail or hidden information is needed, the best alternative is to 
 
 Determining relevance is often called **interest management** or **area of interest**. Each granular piece of state is given a "send priority" that accumulates over time and resets when sent. How quickly priority accumulates for different things is up to the developer, though physical proximity and visual salience usually have the most influence.
 
-Eventual consistency can be combined with delta compression, but I wouldn't recommend it. It's just too much bookkeeping. Unlike snapshots, the server would have to track the latest received state for each *item* on each client separately and create diffs for each client separately.
+Eventual consistency can be combined with delta compression, but I wouldn't recommend it. Many AAA games have done it, but IMO it's just too much bookkeeping. Unlike snapshots, the server would have to track the latest received state for each *item* on each client separately and create diffs for each client separately.
+
+[1]: https://0fps.net/2014/02/10/replication-in-networked-games-overview-part-1/
+[2]: https://en.wikipedia.org/wiki/Relativity_of_simultaneity
+[3]: https://en.wikipedia.org/wiki/Client-side_prediction

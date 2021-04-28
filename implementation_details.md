@@ -144,9 +144,7 @@ Let's consider a simpler default:
 
 3. Always rollback and re-simulate.
 
-Now, if you're thinking that's wasteful, the "if mispredicted" gives you a false sense of security. If I make a game and claim it can rollback 250ms, that basically should mean *any* 250ms, with no stuttering. If clients *always* rollback and re-sim, it'll be easier to profile and optimize for that. As a bonus, clients never need to store old predicted states.
-
-Constant rollbacks may sound too expensive, but there were games with rollback running on the original Playstation over 20 years ago.
+Now, you may think that's wasteful, but I would say "if mispredicted" gives you a false sense of security. Mispredictions can occur at any time, *especially* during long-lasting complex physics interactions. It's much easier to profile and optimize for your worst-case if clients *always* rollback and re-sim. It's also more memory-efficient, since clients never need to store old predicted states.
 
 ## Delta Compression
 TBD

@@ -213,7 +213,7 @@ I strongly doubt that fast, efficient, and transparent replication features can 
 
 | `bevy_net_replication` | `bevy_net_protocol` | `bevy_net_io` | 
 | -- | -- | -- |
-| <ul><li>save and restore</li><li>prediction</li><li>serialization</li><li>interest management</li><li>visual error correction</li><li>statistics (high-level)</li></ul> | <ul><li>(N)ACKs</li><li>reliability</li><li>virtual connections</li><li>channels</li><li>encryption</li><li>statistics (low-level)</li></ul> | <ul><li>send</li><li>recv</li><li>poll</li></ul> |
+| <ul><li>save and restore</li><li>prediction</li><li>serialization</li><li>interest management</li><li>visual error correction</li><li>lag compensation</li><li>statistics (high-level)</li></ul> | <ul><li>(N)ACKs</li><li>reliability</li><li>virtual connections</li><li>channels</li><li>encryption</li><li>statistics (low-level)</li></ul> | <ul><li>send</li><li>recv</li><li>poll</li></ul> |
 
 
 [1]: https://youtu.be/JOJP0CvpB8w "Unreal Networking Features"
