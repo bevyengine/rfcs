@@ -18,28 +18,6 @@ Explain the proposal as if it was already included in the engine and you were te
 - If applicable, provide sample error messages, deprecation warnings, or migration guidance.
 - If applicable, explain how this feature compares to similar existing features, and in what situations the user would use each one.
 
-## \[Optional\] Examples
-
-Lay out the examples that Bevy should add to either the examples folders or the doc comments to help new users discover and learn about this feature.
-These can either be completely new, or simply changes to existing examples.
-When completing this section, you can but do not have to write all of these examples yourself.
-Describing them in sufficient detail that another developer can do so is perfectly fine.
-If your examples are particularly long, please use a [collapsible section](https://gist.github.com/pierrejoubert73/902cc94d79424356a8d20be2b382e1ab) with a summary for each example.
-
-Most examples in Bevy aim to clearly demonstrate a single feature, group of closely related small features,
-or show how to accomplish a particular task (such as asset loading, creating a custom shader or how to test your app).
-In rare cases, creating new "game" examples is justified to demonstrate new features that open a complex class of functionality in a way that's hard to showcase in isolation or requires additional integration testing.
-
-Examples in Bevy should be:
-
-1. Working. They must compile and run, and should fail in obvious ways.
-2. Clear. They must use descriptive variable names, have reasonable code-quality, be formatted, and be appropriately commented.
-3. Relevant. They should use game-relevant fluff and explain why what they're demonstrating is useful.
-4. Minimal. They should be no larger or more complex than is needed to meet their other goals.
-This reduces maintenance burden and improves clarity when used as a reference.
-
-More complex demonstrations of functionality are also welcome, but for now belong in community tutorials or template games.
-
 ## Implementation strategy
 
 This is the technical portion of the RFC.
