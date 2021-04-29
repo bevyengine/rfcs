@@ -28,7 +28,7 @@ and then focus in on the tricky details so that:
 - It is reasonably clear how the feature would be implemented.
 - Corner cases are dissected by example.
 
-When necessary, this section should return to the examples given in the previous section, and explain more the details that make those examples work.
+When necessary, this section should return to the examples given in the previous section and explain the implementation details that make them work.
 
 When writing this section be mindful of the following [repo guidelines](https://github.com/bevyengine/rfcs):
 
