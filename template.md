@@ -8,7 +8,7 @@ One paragraph explanation of the feature.
 
 Why are we doing this? What use cases does it support?
 
-## Guide-level explanation
+## User-facing explanation
 
 Explain the proposal as if it was already included in the engine and you were teaching it to another Bevy user. That generally means:
 
@@ -18,15 +18,23 @@ Explain the proposal as if it was already included in the engine and you were te
 - If applicable, provide sample error messages, deprecation warnings, or migration guidance.
 - If applicable, explain how this feature compares to similar existing features, and in what situations the user would use each one.
 
-## Reference-level explanation
+## Implementation strategy
 
-This is the technical portion of the RFC. Explain the design in sufficient detail that:
+This is the technical portion of the RFC.
+Try to capture the broad implementation strategy,
+and then focus in on the tricky details so that:
 
 - Its interaction with other features is clear.
 - It is reasonably clear how the feature would be implemented.
 - Corner cases are dissected by example.
 
-The section should return to the examples given in the previous section, and explain more fully how the detailed proposal makes those examples work.
+When necessary, this section should return to the examples given in the previous section and explain the implementation details that make them work.
+
+When writing this section be mindful of the following [repo guidelines](https://github.com/bevyengine/rfcs):
+
+- **RFCs should be scoped:** Try to avoid creating RFCs for huge design spaces that span many features. Try to pick a specific feature slice and describe it in as much detail as possible. Feel free to create multiple RFCs if you need multiple features.
+- **RFCs should avoid ambiguity:** Two developers implementing the same RFC should come up with nearly identical implementations.
+- **RFCs should be "implementable":** Merged RFCs should only depend on features from other merged RFCs and existing Bevy features. It is ok to create multiple dependent RFCs, but they should either be merged at the same time or have a clear merge order that ensures the "implementable" rule is respected.
 
 ## Drawbacks
 
@@ -36,6 +44,7 @@ Why should we *not* do this?
 
 - Why is this design the best in the space of possible designs?
 - What other designs have been considered and what is the rationale for not choosing them?
+- What objections immediately spring to mind? How have you addressed them?
 - What is the impact of not doing this?
 - Why is this important to implement as a feature of Bevy itself, rather than an ecosystem crate?
 
