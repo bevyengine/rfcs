@@ -179,6 +179,10 @@ struct ObbVertices2d([Point2d; 4]);
 impl Obb2d for ObbVertices2d {} //...
 ```
 
+### Meshing
+
+While these primitives do not provide a meshing strategy, future work could build on these types so users can use something like `Sphere.mesh()` to generate meshes.
+
 ### Bounding Boxes/Volumes
 
 This section is based off of prototyping work done in [bevy_mod_bounding](https://github.com/aevyrie/bevy_mod_bounding).
@@ -239,8 +243,8 @@ It's unsurprisingly much simpler to use these types when the primitives are full
 
 ## Prior art
 
-Unity `PrimitiveObjects`: https://docs.unity3d.com/Manual/PrimitiveObjects.html
-Godot `PrimitiveMesh`: https://docs.godotengine.org/en/stable/classes/class_primitivemesh.html#class-primitivemesh
+- Unity `PrimitiveObjects`: https://docs.unity3d.com/Manual/PrimitiveObjects.html
+- Godot `PrimitiveMesh`: https://docs.godotengine.org/en/stable/classes/class_primitivemesh.html#class-primitivemesh
 
 These examples intermingle primitive geometry with the meshes themselves. This RFC makes these distinct.
 
