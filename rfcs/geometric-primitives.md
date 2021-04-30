@@ -213,31 +213,31 @@ Primitives are fully defined in space, and do not use `Transform` or `GlobalTran
 
 It's unsurprisingly much simpler to use these types when the primitives are fully defined internally, but maybe somewhat surprisingly, more efficient.
 
-#### Cache Efficiency
+### Cache Efficiency
 
 - Some primitives such as AABB and Sphere don't need a rotation to be fully defined. 
 - By using a `GlobalTransform`, not only is this an unused Quat that fills the cache line, it would also cause redundant change detection on rotations.
 - This is especially important for AABBs and Spheres, because they are fundamental to collision detection and BV(H), and as such need to be as efficient as possible.
 - I still haven't found a case where you would use a `Primitive3d` without needing this positional information that fully defines the primitive in space. If this holds true, it means that storing the positional data inside the primitive is _not_ a waste of cache, which is normally why you would want to separate the transform into a separate component.
 
-#### CPU Efficiency
+### CPU Efficiency
 
 - Storing the primitive's positional information internally serves as a form of memoization.
 - Because you need the primitive to be fully defined in world space to run useful operations, this means that with a `GlobalTransform` you would need to apply the transform to the primitive every time you need to use it.
 - By applying this transformation only once (e.g. during transform propagation), we only need to do this computation a single time.
 
-#### Ergonomics
+### Ergonomics
 
 - As I've already mentioned a few times, primitives need to be fully defined in world space to do anything useful with them.
 - By making the primitive components fully defined and standalone, computing operations is as simple as: `primitive1.some_function(primitive_2)`, instead of also having query and pass in 2 `GlobalTransform`s in the correct order.
 
-#### Use with Transforms
+### Use with Transforms
 
 - For use cases such as oriented bounding boxes, a primitive should be defined relative to its parent.
 - In this case, the primitive would still be fully defined internally, but we would need to include primitive updates analogous to the transform propagation system.
 - For example, a bounding sphere entity would be a child of a mesh, with a `Sphere` primitive and a `Transform`. On updates to the parent's `GlobalTransform`, the bounding sphere's `Transform` component would be used to update the `Sphere`'s position and radius by applying the scale and translation to a unit sphere. This could be applied to all primitives, with the update system being optimized for each primitive.
 
-## \[Optional\] Prior art
+## Prior art
 
 Unity `PrimitiveObjects`: https://docs.unity3d.com/Manual/PrimitiveObjects.html
 Godot `PrimitiveMesh`: https://docs.godotengine.org/en/stable/classes/class_primitivemesh.html#class-primitivemesh
@@ -246,7 +246,7 @@ These examples intermingle primitive geometry with the meshes themselves. This R
 
 
 ## Unresolved questions
-
+TODO: discuss unresolved questions.
 - What parts of the design do you expect to resolve through the RFC process before this gets merged?
 
 The best naming scheme, e.g., `2d::Line`/`3d::Line` vs. `Line2d`/`Line3d` vs. `Line2d`/`Line`.
