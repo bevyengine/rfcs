@@ -8,9 +8,9 @@ Lightweight geometric primitive types for use across bevy engine crates, and as 
 
 This would provide a standard way to model primitives across the bevy ecosystem to prevent ecosystem fragmentation amongst plugins.
 
-## Guide-level explanation
+## User-Facing Explanation
 
-Geometric primitives are lightweight representations of geometry that describe the type of geometry as well as fully defined dimensions. These primitives are *not* discrete meshes, but the underlying precise geometric definition. For example, a circle is:
+Geometric primitives are lightweight representations of geometry that describe the type of geometry as well as fully defined dimensions. These primitives are *not* meshes, but the underlying precise mathematical definition. For example, a circle is:
 
 ```rust
 pub struct Circle {
@@ -19,81 +19,185 @@ pub struct Circle {
 }
 ```
 
-Geometric primitives have a defined shape, size, position, and orientation. Position and orientation are **not** handled by bevy's `Transform` systems. These are fundamental geometric primitives that must be usable and comparable as-is. 
+Geometric primitives have a defined shape, size, position, and orientation. Position and orientation are **not** defined using bevy's `Transform` components. This is because these are fundamental geometric primitives that must be usable and comparable as-is
 
-TODO:
-Explain the proposal as if it was already included in the engine and you were teaching it to another Bevy user. That generally means:
+`bevy_geom` provides two main modules, `geom_2d` and `geom_3d`. Recall that the purpose of this crate is to provide lightweight types, so there are what appear to be duplicates in 2d and 3d, such as `geom_2d::Line2d` and `geom_3d::Line`. Note that the 2d version of a line is lighter weight, and is only defined in 2d. 3d geometry (or 2d with depth which is 3d) is assumed to be the default for most cases. The names of the types were chosen with this in mind, to guide you toward using Line instead of Line2d for example, unless you know why you are making this choice.
 
-- Introducing new named concepts.
-- Explaining the feature, ideally through simple examples of solutions to concrete problems.
-- Explaining how Bevy users should *think* about the feature, and how it should impact the way they use Bevy. It should explain the impact as concretely as possible.
-- If applicable, provide sample error messages, deprecation warnings, or migration guidance.
-- If applicable, explain how this feature compares to similar existing features, and in what situations the user would use each one.
+## Implementation strategy
 
-## Reference-level explanation
-
-### `bevy_geom::Shape2d`
-
-These types only exist in 2d space: their dimensions and location are only defined in `x` and `y` unlike their 3d counterparts.
-
-- `Point`: type alias of Vec2
-- `Direction`: Vec2 that is guaranteed to be normalized through its getter/setter
-
-#### Axis
-
-Line with infinite length on the x/y plane.
-
-
-```rust
-struct Axis { point: Point, normal: Direction }
-``` 
-
-#### Line
-
-- `Line`: (start: Point, end: Point) line bounded by two points
-- `Arc`: (start: Point, end: Point, radius_origin: Point) segment of a circle
-
-```rust
-struct Circle` { origin: Point, radius: f32 }
-```
-- `Triangle`
-- `AABBCentered` origin and half-extents
-- `AabbExtents` minimum and maximum extents
-- `OBB` origin, orthonormal basis, and half-extents
-
-### `bevy_geom::Shape3d`
+### 3D Geometry Types
 
 These types are fully defined in 3d space.
 
-- `Point`: type alias of Vec3
-- `Direction`: Vec3 that is guaranteed to be normalized through its getter/setter
-- `Axis` 
-- `Line`
-- `Plane`
-- `Quad`
-- `Sphere`
-- `Cylinder`
-- `Capsule`
-- `Torus`
-- `Cone`
-- `Frustum`: defined with 6 planes
-- `AabbCentered`
-- `AabbExtents`
-- `OBB`
 
-### Bounding Boxes
+```rust
+/// Point in 3D space
+struct Point(Vec3)
+
+/// Vector direction in 3D space that is guaranteed to be normalized through its getter/setter.
+struct Direction(Vec3)
+
+/// Unbounded line in 3D space with direction
+struct Axis { 
+  point: Point, 
+  normal: Direction,
+}
+
+/// Line in 3D space bounded by two points
+struct Line { 
+  start: Point, 
+  end: Point,
+}
+
+/// Segment of a circle in 3D space
+struct Arc {
+  start: Point,
+  end: Point,
+  radius_origin: Point,
+}
+
+/// A circle in 3D space
+struct Circle {
+  origin: Point, 
+  radius: f32,
+}
+
+/// A triangle in 2D space
+struct Triangle([Point; 3]);
+// impl deref so this can be iterated over
+
+/// A polygon represented by an ordered list of vertices
+struct Polygon<const N: usize>([Point; N]);
+
+// A 3d frustum used to represent the volume rendered by a camera, defined by the 6 planes that set the frustum limits.
+struct Frustum{
+  near: Plane,
+  far: Plane,
+  top: Plane,
+  bottom: Plane,
+  left: Plane,
+  right: Plane,
+}
+
+// 3D Axis Aligned Bounding Box defined by its extents, useful for fast intersection checks and frustum culling.
+struct AabbExtents {
+  min: Vec3
+  max: Vec3
+}
+impl Aabb for AabbExtents {} //...
+
+// 3D Axis Aligned Bounding Box defined by its center and half extents, easily converted into an OBB
+struct AabbCentered {
+  origin: Point,
+  half_extents: Vec3,
+}
+impl Aabb for AabbCentered {} //...
+
+// 3D Axis Aligned Bounding Box defined by its eight vertices, useful for culling or drawing
+struct AabbVertices([Point; 8]);
+impl Aabb for AabbVertices {} //...
+
+// 3D Oriented Bounding Box
+struct ObbCentered {
+  origin: Point,
+  orthonormal_basis: Mat3,
+  half_extents: Vec3,
+}
+impl Obb for ObbCentered {} //...
+
+struct ObbVertices([Point; 4]);
+impl Obb for ObbVertices {} //...
+```
+
+### 2D Geometry Types
+
+These types only exist in 2d space: their dimensions and location are only defined in `x` and `y` unlike their 3d counterparts. These types are suffixed with "2d" to disambiguate from the 3d types in user code, guide users to using 3d types by default, and remove the need for name-spacing the 2d and 3d types when used in the same scope.
+
+```rust
+/// Point in 2D space
+struct Point2d(Vec2)
+
+/// Vector direction in 2D space that is guaranteed to be normalized through its getter/setter.
+struct Direction2d(Vec2)
+
+/// Unbounded line in 2D space with direction
+struct Axis2d { 
+  point: Point2d, 
+  normal: Direction2d,
+}
+
+/// Line in 2D space bounded by two points
+struct Line2d { 
+  start: Point2d, 
+  end: Point2d,
+}
+
+/// Segment of a circle in 2D space
+struct Arc2d {
+  start: Point2d,
+  end: Point2d,
+  radius_origin: Point2d,
+}
+
+/// A circle in 2D space
+struct Circle2d {
+  origin: Point2d, 
+  radius: f32,
+}
+
+/// A triangle in 2D space
+struct Triangle2d([Point2d; 3]);
+// impl deref so this can be iterated over
+
+// 2D Axis Aligned Bounding Box defined by its extents, useful for fast intersection checks and culling with an axis-aligned viewport
+struct AabbExtents2d {
+  min: Vec2
+  max: Vec2
+}
+impl Aabb2d for AabbExtents2d {} //...
+
+// 2D Axis Aligned Bounding Box defined by its center and half extents, easily converted into an OBB
+struct AabbCentered2d {
+  origin: Point2d,
+  half_extents: Vec2,
+}
+impl Aabb2d for AabbCentered2d {} //...
+
+// 2D Axis Aligned Bounding Box defined by its four vertices, useful for culling or drawing
+struct AabbVertices2d([Point2d; 4]);
+impl Aabb2d for AabbVertices2d {} //...
+
+// 2D Oriented Bounding Box
+struct ObbCentered2d {
+  origin: Point2d,
+  orthonormal_basis: Mat2,
+  half_extents: Vec2,
+}
+impl Obb2d for ObbCentered2d {} //...
+
+struct ObbVertices2d([Point2d; 4]);
+impl Obb2d for ObbVertices2d {} //...
+```
+
+### Bounding Boxes/Volumes
 
 This section is based off of prototyping work done in [bevy_mod_bounding](https://github.com/aevyrie/bevy_mod_bounding).
 
-Because bounding boxes are fully defined in world space, this leads to the natural question of how they are kept in sync with their parent.
+A number of bounding box types are provided for 2d and 3d use cases. Some representations of a bounding box are more efficient depending on the use case. Instead of storing all possible values in a component (wasted space) or relegating this to a helper function (wasted cpu), each representation is provided as a distinct component that can be updated independently. This gives users of Bevy the flexibility to optimize for their use case without needing to write their own incompatible types from scratch. Consider the functionality built on top of bounding such as physics or collisions - because they are all built on the same fundamental types, they can interoperate.
+
+Because bounding boxes are fully defined in world space, this leads to the natural question of how they are kept in sync with their parent. The plan would be to provide a system similar to transform propagation, that would apply an OBB's precomputed `Transform` to its parent's `GlobalTransform`. Further details are more appropriate for a subsequent bounding RFC/PR. The important point to consider is how this proposal provides common types that can be used for this purpose in the future.
 
 ### Frustum Culling
 
 This section is based off of prototyping work done in [bevy_frustum_culling](https://github.com/aevyrie/bevy_frustum_culling).
 
+The provided `Frustum` type is useful for frustum culling, which is generally done on the CPU by comparing each frustum plane with each entity's bounding volume.
+
 ### Ray Casting
 
 This section is based off of prototyping work done in [bevy_mod_picking](https://github.com/aevyrie/bevy_mod_picking).
+
+The bounding volumes section covers how these types would be used for the bounding volumes which are used for accelerating ray casting. In addition, the `Axis` component can be used to represent rays.
 
 ## Drawbacks
 
@@ -133,10 +237,6 @@ It's unsurprisingly much simpler to use these types when the primitives are full
 - In this case, the primitive would still be fully defined internally, but we would need to include primitive updates analogous to the transform propagation system.
 - For example, a bounding sphere entity would be a child of a mesh, with a `Sphere` primitive and a `Transform`. On updates to the parent's `GlobalTransform`, the bounding sphere's `Transform` component would be used to update the `Sphere`'s position and radius by applying the scale and translation to a unit sphere. This could be applied to all primitives, with the update system being optimized for each primitive.
 
-- What other designs have been considered and what is the rationale for not choosing them?
-- What is the impact of not doing this?
-- Why is this important to implement as a feature of Bevy itself, rather than an ecosystem crate?
-
 ## \[Optional\] Prior art
 
 Unity `PrimitiveObjects`: https://docs.unity3d.com/Manual/PrimitiveObjects.html
@@ -148,7 +248,8 @@ These examples intermingle primitive geometry with the meshes themselves. This R
 ## Unresolved questions
 
 - What parts of the design do you expect to resolve through the RFC process before this gets merged?
-- What parts of the design do you expect to resolve through the implementation of this feature before the feature PR is merged?
+
+The best naming scheme, e.g., `2d::Line`/`3d::Line` vs. `Line2d`/`Line3d` vs. `Line2d`/`Line`.
 
 ### Out of Scope
 
@@ -159,4 +260,7 @@ These examples intermingle primitive geometry with the meshes themselves. This R
 - Bounding boxes
 - Collisions
 - Frustum Culling
+- Ray casting
+- Physics
+- SDF rendering
 - Debug Rendering
