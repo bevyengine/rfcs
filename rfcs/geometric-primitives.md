@@ -49,6 +49,12 @@ struct Line {
   end: Point,
 }
 
+// Plane in 3d space defined by a point on the plane, and the normal direction of the plane
+struct Plane {
+  point: Point,
+  normal: Direction,
+}
+
 /// Segment of a circle in 3D space
 struct Arc {
   start: Point,
