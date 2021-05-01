@@ -85,7 +85,7 @@ The naive solution is to have clients spawn dummy entities. When an update that 
 
 A better solution is for the server to assign each networked entity a global ID (`NetworkID`) that the spawning client can predict and map to its local instance.
 
-- The simplest form of this would be an incrementing generational index whose upper bits are fixed to match the spawning player's ID. This is my recommendation. Basically, reuse `Entity` and reserve some of the upper bits in the ID.
+- The simplest form of this would be an incrementing generational index whose upper bits are fixed to match the spawning player's ID. This is my recommendation. Basically, reuse `Entity` and reserve some of the upper bits in its ID.
 
 - Alternatively, PRNGs could be used to generate shared keys (called "prediction keys" in some places) for pairing global and local IDs. Rather than predict the global ID, the client would predict the shared key. Server updates that confirm the predicted entity would include both its global ID and the shared key, which the client can then use to pair the IDs. This method adds complexity but bypasses the previous method's implicit entity limit.
 
@@ -130,6 +130,8 @@ There's a lot to learn from *Overwatch* here.
 
 For clients with too-high ping, their interpolation will lag far behind their prediction. If you only compensate up to a limit (e.g. 200ms), [those clients will have to extrapolate the difference](https://youtu.be/W3aieHjyNvw?t=2347). Doing nothing is also valid, but lagging clients would abruptly have to start leading their targets.
 
+When a player is parented to another entity, which they have no control over (e.g. the player is a passenger in a vehicle), the non-predicted movement of that parent must be rewound during compensation to spawn any projectiles fired by the player in the correct location.
+
 ## Unconditional Rollbacks
 Every article on "rollback netcode" and "client-side prediction and server reconciliation" encourages having clients compare their predicted state to the authoritative state and reconciling *if* they mispredicted. But how do you actually detect a mispredict?
 
@@ -146,13 +148,25 @@ Let's consider a simpler default:
 
 Now, you may think that's wasteful, but I would say "if mispredicted" gives you a false sense of security. Mispredictions can occur at any time, *especially* during long-lasting complex physics interactions. It's much easier to profile and optimize for your worst-case if clients *always* rollback and re-sim. It's also more memory-efficient, since clients never need to store old predicted states.
 
-## Delta Compression
-TBD
+## Delta-Compressed Snapshots
+- The server keeps an incrementally updated copy of the networked state.
+  - Components are stored with their global ID instead of the local ID.
+- The server keeps a ring buffer of "patches" for the last `N` snapshots.
+- At the end of every `NetworkFixedUpdate`, the server iterates `Changed<T>` and `Removed<T>`, then:
+  - Generates the latest patch as the copy `xor` changes.
+  - Applies the changes to the copy and pushes the latest patch into the ring buffer.
+  - `Xors` older patches with the latest patch to update them.
+- The server reads the needed patches as `&[u8]` (or `&[u64]`) and compresses them using run-length encoding (RLE) or similar.
+  - No "serialization" needed. If networked DSTs are stored in their own heap allocation, we can literally send the bits. `rkyv` is a good reference (relative pointers).
+- Pass compressed payloads to protocol layer.
+- Protocol and I/O layers do whatever they do and send the packet.
 
-## Interest Management
-TBD
+## Interest Managed Updates
+TODO
 
 ## Messages
+TODO
+
 Messages are best for sending global alerts and any gameplay mechanics you explicitly want modeled as request-reply (or one-way) interactions. They can be unreliable or reliable. You can also postmark messages to be executed on a certain tick like inputs. That can only be best effort, though.
 
-TBD
+The example I'm thinking of is buying items from an in-game vendor. The server doesn't simulate UI, but ideally we can write the message transaction in the same system. A macro might end up being the most ergonomic choice.

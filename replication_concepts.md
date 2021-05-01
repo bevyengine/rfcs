@@ -25,7 +25,7 @@ Determinism has low infrastructure costs, both in terms of bandwith and server h
 
 Determinism is also tamperproof. It's impossible to do anything like speedhack or teleport as running these exploits would simply cause cheaters to desync. On the other hand, determinism inherently suffers from total information leakage.  
 
-That every client must run the *entire* world is also determinism's biggest limit. While this works well for games with thousands of micro-managed entities like *Starcraft 2*, you won't be seeing games with expansive worlds like *Genshin Impact* networked this way any time soon.
+That every client must run the *entire* world is also determinism's biggest limit. While this works well for games with thousands of micro-managed entities like *Starcraft 2*, you won't be seeing games with expansive worlds like *Genshin Impact* networked this way anytime soon.
 
 ## Why state transfer?
 Determinism is awesome when it fits but it's generally unavailable. Neither Godot nor Unity nor Unreal can make this guarantee for large parts of their engines, particularly physics.
@@ -61,7 +61,7 @@ Messages are great for when you want explicit request-reply interactions and glo
 Networking is hard because we want to let players who live in different countries play together *at the same time*, something that special relativity tells us is [strictly impossible][2]... unless we cheat.
 
 ### Lockstep
-The simplest solution is to concede to the universe with grace and have players stall until they've received whatever data they need to execute the next simulation step. Blocking is fine for most turn-based games but it just doesn't cut it for real-time games.
+The simplest solution is to concede to the universe with grace and have players stall until they've received whatever data they need to execute the next simulation step. Blocking is fine for most turn-based games but simply doesn't cut it for real-time games.
                 
 ### Adding Local Input Delay
 The first trick we can pull is have each player delay their own input for a bit, trading responsiveness for more time to receive the incoming data.
@@ -70,9 +70,9 @@ Our brains are pretty lenient about this, so we can actually *reduce* the latenc
 
 This trick has powered the RTS genre for decades. With a large enough input delay and a stable connection, the game will run smoothly. However, there's still a problem because the game stutters whenever the window is missed. This leads to the next trick.
 
-> determinism + lockstep + local input delay = delay-based netcode 
+> determinism + lockstep + local input delay = "delay-based netcode"
 
-### Predict-Reconcile
+### Predict-Rollback
 Instead of blocking, what if players just guess the missing data and keep going? Doing that would let us avoid stuttering, but then we'd have to deal with guessing incorrectly.
 
 Well, when the player finally has that missing remote data, what they can do is restore their simulation to the previous verified state, update it with the received data, and then re-predict the remaining steps.
@@ -81,16 +81,19 @@ This retroactive correction is called **rollback** or **reconciliation**, and it
 
 With prediction, input delay is no longer needed, but it's still useful. Reducing latency reduces how many steps players need to re-simulate.
 
-> determinism + predict-rollback + local input delay (optional) = rollback netcode 
+> determinism + predict-rollback + local input delay (optional) = "rollback netcode"
 
 ### Selective Prediction
-Once again, determinism is an all or nothing deal. If you predict, you predict everything. 
+Determinism is an all or nothing deal. If you predict, you predict everything. 
 
-State transfer has the flexibility to predict only *some* things, letting you offload expensive systems onto the server. Games like *Rocket League* still predict everything, including other clients (the server re-distributes their inputs along with game state so that this is more accurate). However, most games choose not to do this. It's more common for clients to predict only what they control and interact with. 
+State transfer has the flexibility to predict only *some* things, letting you offload expensive computations onto the server. There *are* client-server games like *Rocket League* who still predict everything (FWIW deterministic predict-rollback would have been a better fit), including other clients—the server redistributes inputs along with game state to reduce error. However, most often clients only predict what  they control directly.
+
 
 # Visual Consistency
-**tl;dr**: Hard snap the simulation state and subtly blend the view. Time travel if needed.
-## Smooth Rendering and Lag Compensation
+
+Real quick, always hard snap the simulation state. If clients do any blending, it's entirely visual. Yes, this does mean that entities may appear in different positions from where they should be. On the other hand, we have to honor this inaccurate view to keep players happy.
+
+### Smooth Rendering and Lag Compensation
 
 Predicting only *some* things adds implementation complexity. 
 
@@ -101,7 +104,7 @@ Gameplay-wise, not predicting everything also divides entities between two point
 Visually, we'll often have to blend between extrapolated and authoritative data. Simply interpolating between two authoritative updates is incorrect. The visual state can and will accrue errors, but that's what we want. Those can be tracked and smoothly reduced (to some near-zero threshold, then cleared).
 
 # Bandwidth
-## How much can we fit into each packet?
+### How much can we fit into each packet?
 Not a lot.
 
 You can't send arbitrarily large packets over the internet. The information superhighway has load limits. The conservative, almost universally supported "maximum transmissible unit" or MTU is 1280 bytes. Accounting for IP and UDP headers and some connection metadata, you realistically can send ~1200 bytes of game data per packet.
@@ -110,7 +113,7 @@ If you significantly exceed this, some random stop along the way will delay the 
 
 [Fragmentation](https://packetpushers.net/ip-fragmentation-in-detail/) [sucks](https://blog.cloudflare.com/ip-fragmentation-is-broken) because it multiplies the likelihood of the overall packet being lost (all fragments have to arrive to read the full packet). Getting fragmented along the way is even worse because of the added delay. It's okay if the sender manually fragments their packet (like 2 or 3) *upfront*, although the higher loss does limit simulation rate, just don't rely on the internet to do it.
 
-## Okay, but that doesn't seem like much?
+### Okay, but that doesn't seem like much?
 Well, there are two more reasons not to yeet giant 100kB packets across the network:
 - Bandwidth costs are the lion's share of hosting expenses.
 - Many players still have limited bandwidth.

@@ -81,8 +81,8 @@ fn expensive_physics_calculation(
 }
 ```
 
-```
-TODO: Message Example
+```rust
+// TODO: Message Example
 ```
 
 Bevy can configure an `App` to operate in several different network modes.
@@ -104,16 +104,17 @@ Bevy can configure an `App` to operate in several different network modes.
 ## Implementation Strategy
 [Link to more in-depth implementation details (more of an idea dump atm).](../main/implementation_details.md)
   
-### What is required?
-- In order for servers to send state to clients, `ComponentId` should be stable.
-- `World` should be able to reserve an `Entity` ID range, with separate metadata.
-  - If merged, [#16](https://github.com/bevyengine/rfcs/pull/16) can probably be used to handle this cleanly.
+### Requirements
+- `ComponentId` (and maybe the other `*Ids`) should be stable between clients and the server.
+- Must have a means to isolate networked and non-networked state.
+  - `World` should be able to reserve an `Entity` ID range, with separate storage metadata.
+    - (If merged, [#16](https://github.com/bevyengine/rfcs/pull/16) could probably be used for this).
+  - Entities must be born (non-)networked. They cannot become (non-)networked.
+  - Networked entities must have a `NetworkID` component at minimum.
+  - Networked components and resources must only contain or reference networked data.
+  - Networked components must only be mutated inside `NetworkFixedUpdate`.
 - The ECS scheduler should support nested loops.
   - (I'm pretty sure this isn't an actual blocker, but the workaround feels a little hacky.)
-- Replicable components should only be mutated inside `NetworkFixedUpdate`.
-- Networked entities should have a `NetworkID` component at minimum. Could be auto-added.
-- Adding replicable components to non-networked entities should be avoided unless client-authoritative.
-
 ### The Replicate Trait
 ```rust
 // TODO
@@ -125,15 +126,21 @@ impl Replicate for T {
 ### Specialized Change Detection
 ```rust
 // TODO
-// Predicted<T>
-// Confirmed<T>
+// Predicted<T> (+ Added<T> and Removed<T> variants)
+// Set when mutated by client. Cleared when mutated by server update.
+// Confirmed<T> (+ Added<T> and Removed<T> variants)
+// Set when mutated by server update. Cleared when mutated by client.
 // Cancelled<T>
-// Added<T> and Removed<T> variants for each also
+// ????
 ```
 
 ### Rollback via Run Criteria
 ```rust 
-// TODO
+/*
+TODO
+The "outer" loop is the number of fixed update steps as determined by the fixed timestep accumulator.
+The "inner" loop is the number of steps to re-simulate.
+*/
 ```
 
 ### NetworkFixedUpdate
@@ -153,25 +160,18 @@ Server
 
 Everything aside from the simulation steps could be auto-generated.
 ### Saving Game State
-- At the end of each fixed update, server iterates `Changed<T>` and `Removed<T>` for all replicable components and duplicates them to an isolated collection of `SparseSet<T>`.
-  - You could pass this "read-only" copy to another thread to do the remaining work.
-  - Tables would be rebuilt when restoring.
+- At the end of each fixed update, server iterates `Changed<T>` and `Removed<T>` for all replicable components and duplicates them to an isolated copy.
+  - Could pass this copy to another thread to do the serialization and compression.
+  - This copy has no `Table<T>`, those would be rebuilt by the client.
 
 ### Preparing Server Packets
-- Snapshots (full state updates) will use delta compression.
-  - Server keeps a ring buffer of patches for the last `N` snapshots.
-  - Server computes the latest patch by xor'ing the copy and the latest changes (before applying them) and pushes it into the ring buffer. The servers also updates the earlier patches by xor'ing them with the latest patch. (The xor'ing is basically a pre-compression step that produces long zero chains with high probability.)
-  - Server compresses whichever patches clients need and hands them off to the protocol layer. (The same patch can be sent to multiple clients, so it scales pretty well.)
-
-- Eventual consistency (partial state updates) will use interest management. 
-  - Entities accrue send priority over time. Maybe we can use the magnitude of component changes as the base amount to accrue. 
-  - Server runs users-defined rules for gameplay relevance.
-  - Server runs collision detection to prioritize physical entities inside each client's area of interest.
-  - Server writes the payload for each client and hands them off to the protocol layer.
+- Snapshots (full state updates) will use delta compression and manual fragmentation.
+- Eventual consistency (partial state updates) will use interest management.
+- Both will most likely use the same data structure.
 
 ### Restoring Game State
-- At the beginning of each fixed update, the client decompresses the received update and writes its changes to the appropriate `SparseSet<T>` collection (several will be buffered).
-- Client then uses this updated collection to write the prediction copy that has all the tables and non-replicable components.
+- At the beginning of each fixed update, the client decodes the received update and generates the latest authoritative state.
+- Client then uses this state to write its local prediction copy that has all the tables and non-replicable components.
 
 ## Drawbacks
 - Lots of potentially cursed macro magic.
@@ -192,28 +192,25 @@ People who want to make multiplayer games want to focus on designing their game 
 It'll only grow more difficult to add these features as time goes on. Take Unity for example. Its built-in features are too non-deterministic and its only working solutions for state transfer are paid third-party assets. Thus far, said assets cannot integrate deeply enough to be transparent (at least not without substituting parts of the engine).
 
 ### Why does this need to involve `bevy_ecs`?
-I strongly doubt that fast, efficient, and transparent replication features can be implemented without directly manipulating a `World` and its component storages.
+I strongly doubt that fast, efficient, and transparent replication features can be implemented without directly manipulating a `World` and its component storages. We may need to allocate memory for networked data separately.
 
 ## Unresolved Questions
-- What components and resources can't be serialized?
-- Is there a better way to isolate replicable and non-replicable entities?
 - Can we provide lints for undefined behavior like mutating networked state outside of `NetworkFixedUpdate`? 
-- Does rolling back break existing change detection or events?
-- When sending partial state updates, how should we deal with weird stuff like there being references to entities that haven't been spawned or have been destroyed?
-- How should UI widgets interact with networked state? Exclusively poll verified data?
-- How should we deal with correcting mispredicted events and FX? 
-- Can we replicate animations exactly without explicitly sending animation parameters?
+- Do rollbacks break change detection or events?
+- ~~When sending partial state updates, how should we deal with weird stuff like there being references to entities that haven't been spawned or have been destroyed?~~ Already solved by generational indexes.
+- How should UI widgets interact with networked state? React to events? Exclusively poll verified data?
+- How should we handle correcting mispredicted events and FX? 
+- Can we replicate animations exactly without explicitly sending animation data?
 
 ## Future Possibilities
-
 - With some tools to visualize game state diffs, these replication systems could help detect non-determinism in other parts of the engine.
 - Much like how Unreal has Fortnite, Bevy could have an official (or curated) collection of multiplayer samples to dogfood these features.
 - Bevy's future editor could automate most of the configuration and annotation.
 - Replication addresses all the underlying ECS interop, so it should be settled first. But beyond replication, Bevy need only provide one good default for protocol and I/O for the sake of completeness. I recommend dividing crates at least to the extent shown below to make it easy for developers to swap the low-level transport with [whatever][3] [alternatives][4] [they][5] [want][7].
 
-| `bevy_net_replication` | `bevy_net_protocol` | `bevy_net_io` | 
+| `bevy::net::replication` | `bevy::net::protocol` | `bevy::net::io` | 
 | -- | -- | -- |
-| <ul><li>save and restore</li><li>prediction</li><li>serialization</li><li>interest management</li><li>visual error correction</li><li>lag compensation</li><li>statistics (high-level)</li></ul> | <ul><li>(N)ACKs</li><li>reliability</li><li>virtual connections</li><li>channels</li><li>encryption</li><li>statistics (low-level)</li></ul> | <ul><li>send</li><li>recv</li><li>poll</li></ul> |
+| <ul><li>save and restore</li><li>prediction</li><li>serialization</li><li>delta compression</li><li>interest management</li><li>visual error correction</li><li>lag compensation</li><li>statistics (high-level)</li></ul> | <ul><li>(N)ACKs</li><li>reliability</li><li>virtual connections</li><li>channels</li><li>encryption</li><li>statistics (low-level)</li></ul> | <ul><li>send</li><li>recv</li><li>poll</li></ul> |
 
 
 [1]: https://youtu.be/JOJP0CvpB8w "Unreal Networking Features"
