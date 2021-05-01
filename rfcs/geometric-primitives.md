@@ -13,8 +13,8 @@ This would provide a standard way to model primitives across the bevy ecosystem 
 Geometric primitives are lightweight representations of geometry that describe the type of geometry as well as fully defined dimensions. These primitives are *not* meshes, but the underlying precise mathematical definition. For example, a circle is:
 
 ```rust
-pub struct Circle {
-  origin: Point,
+pub struct Circle2d {
+  origin: Point2d,
   radius: f32,
 }
 ```
@@ -25,10 +25,16 @@ Geometric primitives have a defined shape, size, position, and orientation. Posi
 
 ## Implementation strategy
 
+### Helper Types
+
+```rust
+/// Stores an angle in radians, and supplies builder functions to prevent errors (from_radians, from_degrees)
+struct Angle(f32);
+```
+
 ### 3D Geometry Types
 
 These types are fully defined in 3d space.
-
 
 ```rust
 /// Point in 3D space
@@ -37,8 +43,14 @@ struct Point(Vec3)
 /// Vector direction in 3D space that is guaranteed to be normalized through its getter/setter.
 struct Direction(Vec3)
 
+// Plane in 3d space defined by a point on the plane, and the normal direction of the plane
+struct Plane {
+  point: Point,
+  normal: Direction,
+}
+
 /// Unbounded line in 3D space with direction
-struct Axis { 
+struct Ray { 
   point: Point, 
   normal: Direction,
 }
@@ -49,31 +61,43 @@ struct Line {
   end: Point,
 }
 
-// Plane in 3d space defined by a point on the plane, and the normal direction of the plane
-struct Plane {
-  point: Point,
-  normal: Direction,
-}
+struct Triangle([Point; 3]);
 
-/// Segment of a circle in 3D space
-struct Arc {
-  start: Point,
-  end: Point,
-  radius_origin: Point,
-}
+struct Quad([Point; 4]);
 
-/// A circle in 3D space
-struct Circle {
-  origin: Point, 
+struct Sphere{
+  origin: Point,
   radius: f32,
 }
 
-/// A triangle in 2D space
-struct Triangle([Point; 3]);
-// impl deref so this can be iterated over
+struct Cylinder {
+  /// The bottom center of the cylinder.
+  origin: Point,
+  radius: f32,
+  /// The extent of the cylinder is the vector that extends from the origin to the opposite face of the cylinder.
+  extent: Vec3,
+}
 
-/// A polygon represented by an ordered list of vertices
-struct Polygon<const N: usize>([Point; N]);
+struct Cone{
+  /// Origin of the cone located at the center of its base.
+  origin: Point,
+  /// The extent of the cone is the vector that extends from the origin to the tip of the cone.
+  extent: Vec3,
+  base_radius: f32,
+}
+
+struct Torus{
+  origin: Point,
+  normal: Direction,
+  major_radius: f32,
+  tube_radius: f32,
+}
+
+struct Capsule {
+  origin: Point,
+  height: Vec3,
+
+}
 
 // A 3d frustum used to represent the volume rendered by a camera, defined by the 6 planes that set the frustum limits.
 struct Frustum{
@@ -127,7 +151,7 @@ struct Point2d(Vec2)
 struct Direction2d(Vec2)
 
 /// Unbounded line in 2D space with direction
-struct Axis2d { 
+struct Ray2d { 
   point: Point2d, 
   normal: Direction2d,
 }
@@ -138,22 +162,39 @@ struct Line2d {
   end: Point2d,
 }
 
-/// Segment of a circle in 2D space
-struct Arc2d {
-  start: Point2d,
-  end: Point2d,
-  radius_origin: Point2d,
+/// A line list represented by an ordered list of vertices in 2d space
+struct LineList<const N: usize>{
+  points: [Point; N],
+  /// True if the LineList is a closed loop
+  closed: bool,
 }
 
-/// A circle in 2D space
+struct Triangle2d([Point2d; 3]);
+
+struct Quad2d([Point2d; 4]);
+
+/// A regular polygon, such as a square or hexagon.
+struct RegularPolygon2d{
+  circumcircle: Circle2d,
+  /// Number of faces.
+  faces: u8,
+  /// Clockwise rotation of the polygon about the origin. At zero rotation, a point will always be located at the 12 o'clock position.
+  orientation: Angle,
+}
+
 struct Circle2d {
   origin: Point2d, 
   radius: f32,
 }
 
-/// A triangle in 2D space
-struct Triangle2d([Point2d; 3]);
-// impl deref so this can be iterated over
+/// Segment of a circle
+struct Arc2d {
+  circle: Circle,
+  /// Start of the arc, measured clockwise from the 12 o'clock position
+  start: Angle,
+  /// Angle in radians to sweep clockwise from the [start_angle]
+  sweep: Angle,
+}
 
 // 2D Axis Aligned Bounding Box defined by its extents, useful for fast intersection checks and culling with an axis-aligned viewport
 struct AabbExtents2d {
@@ -162,7 +203,7 @@ struct AabbExtents2d {
 }
 impl Aabb2d for AabbExtents2d {} //...
 
-// 2D Axis Aligned Bounding Box defined by its center and half extents, easily converted into an OBB
+// 2D Axis Aligned Bounding Box defined by its center and half extents, easily converted into an OBB.
 struct AabbCentered2d {
   origin: Point2d,
   half_extents: Vec2,
@@ -189,11 +230,21 @@ impl Obb2d for ObbVertices2d {} //...
 
 While these primitives do not provide a meshing strategy, future work could build on these types so users can use something like `Sphere.mesh()` to generate meshes.
 
+```rust
+let unit_sphere = Sphere::UNIT;
+// Some ways we could build meshes from primitives
+let sphere_mesh = Mesh::from(unit_sphere);
+let sphere_mesh = unit_sphere.mesh();
+let sphere_mesh: Mesh = unit_sphere.into();
+```
+
 ### Bounding Boxes/Volumes
 
 This section is based off of prototyping work done in [bevy_mod_bounding](https://github.com/aevyrie/bevy_mod_bounding).
 
-A number of bounding box types are provided for 2d and 3d use cases. Some representations of a bounding box are more efficient depending on the use case. Instead of storing all possible values in a component (wasted space) or relegating this to a helper function (wasted cpu), each representation is provided as a distinct component that can be updated independently. This gives users of Bevy the flexibility to optimize for their use case without needing to write their own incompatible types from scratch. Consider the functionality built on top of bounding such as physics or collisions - because they are all built on the same fundamental types, they can interoperate.
+A number of bounding box types are provided for 2d and 3d use. Some representations of a bounding box are more efficient depending on the use case. Instead of storing all possible values in a component (wasted space) or computing them with a helper function every time (wasted cpu), each representation is provided as a distinct component that can be updated independently. This gives users of Bevy the flexibility to optimize for their use case without needing to write their own incompatible types from scratch. Consider the functionality built on top of bounding such as physics or collisions - because they are all built on the same fundamental types, they can interoperate.
+
+Note that the bounding types presented in this RFC implement their respective `Obb` or `Aabb` trait. Bounding boxes can be represented by a number of different underlying types; by making these traits instead of structs, systems can easily be made generic over these types depending on the situation.
 
 Because bounding boxes are fully defined in world space, this leads to the natural question of how they are kept in sync with their parent. The plan would be to provide a system similar to transform propagation, that would apply an OBB's precomputed `Transform` to its parent's `GlobalTransform`. Further details are more appropriate for a subsequent bounding RFC/PR. The important point to consider is how this proposal provides common types that can be used for this purpose in the future.
 
@@ -203,11 +254,33 @@ This section is based off of prototyping work done in [bevy_frustum_culling](htt
 
 The provided `Frustum` type is useful for frustum culling, which is generally done on the CPU by comparing each frustum plane with each entity's bounding volume.
 
+```rust
+// What frustum culling might look like:
+for bounding_volume in bound_vol_query.iter() {
+    for plane in camera_frustum.planes().iter() {
+        if bounding_volume.outside(plane) {
+            // Cull me!
+            return;
+        }
+    }
+}
+```
+
+This data structure alone does not ensure the representation is valid; planes could be placed in nonsensical positions. To prevent this, the struct's fields should be made private, and constructors and setters should be provided to ensure `Frustum`s can only be initialized or mutated into valid arrangements.
+
+In addition, by defining the frustum as a set of planes, it is also trivial to support oblique frustums.
+
 ### Ray Casting
 
 This section is based off of prototyping work done in [bevy_mod_picking](https://github.com/aevyrie/bevy_mod_picking).
 
-The bounding volumes section covers how these types would be used for the bounding volumes which are used for accelerating ray casting. In addition, the `Axis` component can be used to represent rays.
+The bounding volumes section covers how these types would be used for the bounding volumes which are used for accelerating ray casting. In addition, the `Ray` component can be used to represent rays. Applicable 3d types could implement a `RayIntersection` trait to extend their functionality.
+
+```rust
+let ray = Ray::X;
+let sphere = Sphere::new(Point::x(5.0), 1.0);
+let intersection = ray.cast(sphere);
+```
 
 ## Drawbacks
 
@@ -256,10 +329,10 @@ These examples intermingle primitive geometry with the meshes themselves. This R
 
 
 ## Unresolved questions
-TODO: discuss unresolved questions.
-- What parts of the design do you expect to resolve through the RFC process before this gets merged?
 
-The best naming scheme, e.g., `2d::Line`/`3d::Line` vs. `Line2d`/`Line3d` vs. `Line2d`/`Line`.
+What is the best naming scheme, e.g., `2d::Line`/`3d::Line` vs. `Line2d`/`Line3d` vs. `Line2d`/`Line`.
+
+How will fully defined primitives interact with `Transforms`? Will this confuse users? How can the API be shaped to prevent this?
 
 ### Out of Scope
 
