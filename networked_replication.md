@@ -84,8 +84,8 @@ fn expensive_physics_calculation(
 }
 ```
 
-```rust
-// TODO: Message Example
+```plaintext
+TODO: Message Example
 ```
 
 Bevy can configure an `App` to operate in several different network modes.
@@ -98,8 +98,8 @@ Bevy can configure an `App` to operate in several different network modes.
 | Dedicated Server | ✗ | ✓ | ✓ |
 | Relay | ✗ | ✗ | ✓ |
 
-```rust
-// TODO: Example App configuration.
+```plaintext
+TODO: Example App configuration.
 ```
 
 ## Implementation Strategy
@@ -130,24 +130,26 @@ impl Replicate for T {
 
 ### Specialized Change Detection
 
-```rust
-// TODO
-// Predicted<T> (+ Added<T> and Removed<T> variants)
-// Set when mutated by client. Cleared when mutated by server update.
-// Confirmed<T> (+ Added<T> and Removed<T> variants)
-// Set when mutated by server update. Cleared when mutated by client.
-// Cancelled<T>
-// ????
+```plaintext
+TODO
+
+Predicted<T>
+- Set when mutated by client. Cleared when mutated by server update.
+Confirmed<T>
+- Set when mutated by server update. Cleared when mutated by client.
+Cancelled<T>
+- Set when something was predicted but not confirmed.
+
+(Also Added<T> and Removed<T> variants)
 ```
 
 ### Rollback via Run Criteria
 
-```rust
-/*
+```plaintext
 TODO
+
 The "outer" loop is the number of fixed update steps as determined by the fixed timestep accumulator.
 The "inner" loop is the number of steps to re-simulate.
-*/
 ```
 
 ### NetworkFixedUpdate
