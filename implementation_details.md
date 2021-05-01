@@ -1,9 +1,12 @@
 
 # Implementation Details
+
 ## `Connection` != `Player`
+
 I know I've been using the terms "client" and "player" somewhat interchangeably, but `Connection` and `Player` should be separate tokens. There's no benefit in forcing one player per connection. Having `Player` be its own thing makes it easier to do stuff like online splitscreen, temporarily fill team slots with bots, etc.
 
 ## "Clock" Synchronization
+
 Ideally, clients predict ahead by just enough to have their inputs reach the server right before they're needed. People often try to have clients estimate the clock time on the server (with some SNTP handshake) and use that to schedule the next simulation step, but that's overly complex.
 
 What we really care about is: How much time passes between when the server receives my input and when that input is consumed? If the server simply tells clients how long their inputs are waiting in its buffer, the clients can use that information to converge on the correct lead.
@@ -58,10 +61,12 @@ interp_time = max(interp_time, predicted_time - max_lag_comp)
 The key idea here is that simplifying the client-server relationship makes the problem easier. You *could* have the server apply inputs whenever they arrive, rolling back if necessary, but that would only complicate things. If the server never accepts late inputs and never changes its pace, no one needs to coordinate.
 
 ## Prediction <-> Interpolation
+
 Clients can't directly modify the authoritative state, but they should be able to predict whatever they want locally. One obvious implementation is to literally fork the latest authoritative state. If copying the full state ends up being too expensive, we can probably use a copy-on-write layer.
 
 My current idea to shift components between prediction and interpolation is to default to interpolated (reset upon receiving a server update) and then use specialized change detection `DerefMut` magic to flag as predicted.
-```
+
+```rust
 Predicted<T>
 PredictAdded<T>
 PredictRemoved<T>
@@ -72,6 +77,7 @@ Cancelled<T>
 CancelAdded<T>
 CancelRemoved<T>
 ```
+
 Everything is predicted by default, but users can opt-out by filtering on `Predicted<T>`. In the more conservative cases, clients would predict the entities driven by their input, the entities they spawn (until confirmed), and any entities mutated as a result of the first two. Systems with filtered queries (i.e. physics, path-planning) should typically run last.
 
 We can also use these filters to generate events that only trigger on authoritative changes and events that trigger on predicted changes to be confirmed or cancelled later. The latter are necessary for handling sounds and particle effects. Those shouldn't be duplicated during rollbacks and should be faded out if mispredicted.
@@ -79,6 +85,7 @@ We can also use these filters to generate events that only trigger on authoritat
 Should UI be allowed to reference predicted state or only verified state?
 
 ## Predicting Entity Creation
+
 This requires some special consideration.
 
 The naive solution is to have clients spawn dummy entities. When an update that confirms the result arrives, clients can simply destroy the dummy and spawn the true entity. IMO this is a poor solution because it prevents clients from smoothly blending these entities from predicted time into interpolated time. It won't look right.
@@ -92,6 +99,7 @@ A better solution is for the server to assign each networked entity a global ID 
 - A more extreme solution would be to somehow bake global IDs directly into the memory allocation. If memory layouts are mirrored, relative pointers become global IDs, which don't need to be explicitly written into packets. This would save 4-8 bytes per entity before compression.
 
 ## Smooth Rendering
+
 Rendering should come after `NetworkFixedUpdate`.
 
 Whenever clients receive an update with new remote entities, those entities shouldn't be rendered until that update is interpolated.
@@ -103,13 +111,14 @@ We'll also need to distinguish instant motion from integrated motion when interp
 Is an exponential decay enough for smooth error correction or are there better algorithms?
 
 ## Lag Compensation
+
 Lag compensation deals with colliders. To avoid weird outcomes, lag compensation needs to run after all motion and physics systems.
 
 Again, people often imagine having the server estimate what interpolated state the client was looking at based on their RTT, but we can resolve this without any guesswork.
 
 Clients can just tell the server what they were looking at by bundling the interpolated tick numbers and the blend value inside the input payloads. With this information, the server can reconstruct *exactly* what each client saw.
 
-```
+```plaintext
 <packet header>
 tick number (predicted)
 tick number (interpolated from)
@@ -119,6 +128,7 @@ interpolation blend value
 ```
 
 So there are two ways to go about the actual compensation:
+
 - Compensate upfront by bringing new projectiles into the present (similar to a rollback).
 - Compensate over time ("amortized"), constantly testing projectiles against the history buffer.
 
@@ -133,6 +143,7 @@ For clients with too-high ping, their interpolation will lag far behind their pr
 When a player is parented to another entity, which they have no control over (e.g. the player is a passenger in a vehicle), the non-predicted movement of that parent must be rewound during compensation to spawn any projectiles fired by the player in the correct location.
 
 ## Unconditional Rollbacks
+
 Every article on "rollback netcode" and "client-side prediction and server reconciliation" encourages having clients compare their predicted state to the authoritative state and reconciling *if* they mispredicted. But how do you actually detect a mispredict?
 
 I thought of two methods while I was writing this:
@@ -140,7 +151,7 @@ I thought of two methods while I was writing this:
 1. Unordered scan looking for first difference.
 2. Ordered scan to compute checksum and compare.
 
-The first option has an unpredictable speed. The second option requires a fixed walk of the game state (checksums *are* probably worth having even if only for debugging non-determinism). There may be options I didn't consider, but the point I'm trying to make is that detecting changes among large numbers of entities isn't cheap. 
+The first option has an unpredictable speed. The second option requires a fixed walk of the game state (checksums *are* probably worth having even if only for debugging non-determinism). There may be options I didn't consider, but the point I'm trying to make is that detecting changes among large numbers of entities isn't cheap.
 
 Let's consider a simpler default:  
 
@@ -149,6 +160,7 @@ Let's consider a simpler default:
 Now, you may think that's wasteful, but I would say "if mispredicted" gives you a false sense of security. Mispredictions can occur at any time, *especially* during long-lasting complex physics interactions. It's much easier to profile and optimize for your worst-case if clients *always* rollback and re-sim. It's also more memory-efficient, since clients never need to store old predicted states.
 
 ## Delta-Compressed Snapshots
+
 - The server keeps an incrementally updated copy of the networked state.
   - Components are stored with their global ID instead of the local ID.
 - The server keeps a ring buffer of "patches" for the last `N` snapshots.
@@ -161,10 +173,12 @@ Now, you may think that's wasteful, but I would say "if mispredicted" gives you 
 - Pass compressed payloads to protocol layer.
 - Protocol and I/O layers do whatever they do and send the packet.
 
-## Interest Managed Updates
+## Interest-Managed Updates
+
 TODO
 
 ## Messages
+
 TODO
 
 Messages are best for sending global alerts and any gameplay mechanics you explicitly want modeled as request-reply (or one-way) interactions. They can be unreliable or reliable. You can also postmark messages to be executed on a certain tick like inputs. That can only be best effort, though.
