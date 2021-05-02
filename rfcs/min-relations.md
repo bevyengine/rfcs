@@ -175,7 +175,7 @@ fn debts_come_due(
     mut debt_query: Query<(Entity, &Relation<Owes>)>,
     mut money_query: Query<&mut Money>,
 ) {
-    for (debtor, debt) in debt.query() {
+    for (debtor, debt) in debt_query.iter() {
         for (lender, amount_owed) in debt {
             *money_query
                 .get(debtor)
