@@ -112,8 +112,8 @@ TODO: refresh.
 
 Widgets can be wired to each other and the game state in two common ways:
 
-1. Directly reading the state of our widget's components.
-2. Using events emitted by interacting with the widgets.
+1. **Level-triggered:** directly reading the state of our widget's components.
+2. **Edge-triggered:** using events emitted by interacting with the widgets.
 
 Read the component's state when you care about its current state, use event channels when you want to detect events being fired off.
 
