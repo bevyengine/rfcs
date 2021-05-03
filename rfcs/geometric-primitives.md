@@ -19,7 +19,7 @@ pub struct Circle2d {
 }
 ```
 
-Geometric primitives have a defined shape, size, position, and orientation. Position and orientation are **not** defined using bevy's `Transform` components. This is because these are fundamental geometric primitives that must be usable and comparable as-is
+Geometric primitives have a defined shape, size, position, and orientation. Position and orientation are **not** defined using bevy's `Transform` components. This is because these are fundamental geometric primitives that must be usable and comparable as-is.
 
 `bevy_geom` provides two main modules, `geom_2d` and `geom_3d`. Recall that the purpose of this crate is to provide lightweight types, so there are what appear to be duplicates in 2d and 3d, such as `geom_2d::Line2d` and `geom_3d::Line`. Note that the 2d version of a line is lighter weight, and is only defined in 2d. 3d geometry (or 2d with depth which is 3d) is assumed to be the default for most cases. The names of the types were chosen with this in mind, to guide you toward using Line instead of Line2d for example, unless you know why you are making this choice.
 
