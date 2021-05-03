@@ -22,7 +22,7 @@ What I hope to explore in this RFC is:
 
 ## User-facing Explanation
 
-[Link to my explanation of important replication concepts.](../main/replication_concepts.md)
+[Recommended reading on replication concepts.](../main/replication_concepts.md)
 
 Bevy's aim here is to make writing local and networked multiplayer games indistinguishable, with minimal added boilerplate. Having an exact simulation timeline simplifies this problem, thus the core of this unified approach is a fixed timestep—`NetworkFixedUpdate`.
 
@@ -104,7 +104,7 @@ TODO: Example App configuration.
 
 ## Implementation Strategy
 
-[Link to more in-depth implementation details (more of an idea dump atm).](../main/implementation_details.md)
+[See more in-depth implementation details (more of an idea dump atm).](../main/implementation_details.md)
   
 ### Requirements
 
