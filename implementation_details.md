@@ -7,9 +7,11 @@ I know I've been using the terms "client" and "player" somewhat interchangeably,
 
 ## "Clock" Synchronization
 
-Ideally, clients predict ahead by just enough to have their inputs reach the server right before they're needed. People often try to have clients estimate the clock time on the server (with some SNTP handshake) and use that to schedule the next simulation step, but that's overly complex.
+Using a fixed rate, tick-based simulation simplifies how we need to think about time. It's like scrubbing a timeline, from one "frame" to the next. The key point is that everyone follows the same sequence. Clients may be simulating different points on the timeline, but tick 480 refers is the same simulation step for everyone.
 
-What we really care about is: How much time passes between when the server receives my input and when that input is consumed? If the server simply tells clients how long their inputs are waiting in its buffer, the clients can use that information to converge on the correct lead.
+Ideally, clients predict ahead by just enough to have their inputs reach the server right before they're needed. People often try to have clients estimate the clock time on the server (with some SNTP handshake) and use that to schedule the next simulation step, but that's too indirect IMO.
+
+What we really care about is: How much time passes between when the server receives my input and when that input is consumed? If the server just tells me—in its update for tick N—how long my input for tick N sat in its buffer, I can use that information to converge on the correct lead.
 
 ```rust
 if received_newer_server_update:
@@ -108,7 +110,7 @@ Cameras need a little special treatment. Inputs to the view rotation need to be 
 
 We'll also need to distinguish instant motion from integrated motion when interpolating. Moving an entity by modifying `transform.translation` and `rigidbody.velocity` should look different.
 
-Is an exponential decay enough for smooth error correction or are there better algorithms?
+We'll need a special blending for predicted entities and entities transitioning between prediction and interpolation. "Projective velocity blending" seems to be a common way to smooth extrapolation errors, but I've also seen a simple exponential decay recommended. Are there better smoothing algorithms? (Any econ grads good with time-series?)
 
 ## Lag Compensation
 
