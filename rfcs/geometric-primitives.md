@@ -189,7 +189,7 @@ struct Circle2d {
 
 /// Segment of a circle
 struct Arc2d {
-  circle: Circle,
+  circle: Circle2d,
   /// Start of the arc, measured clockwise from the 12 o'clock position
   start: Angle,
   /// Angle in radians to sweep clockwise from the [start_angle]
