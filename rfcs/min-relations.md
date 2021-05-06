@@ -632,6 +632,7 @@ Likely implemented using archetype invariants.
 This would enable the `Styles` proposal from #1 to use relations.
 11. Compound relation filters, letting you nest logic arbitrarily deep. These are just sugar / perf for very advanced users, and can wait for a while.
 12. \[Controversial\] A full graph constraint solver DSL ala [Flecs](https://github.com/SanderMertens/flecs) for advanced querying.
+13. Entity-to-entity event channels using relations (blocked on [bevy #2116](https://github.com/bevyengine/bevy/pull/2116)
 
 Relation applications in the engine:
 
