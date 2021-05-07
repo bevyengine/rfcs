@@ -327,7 +327,6 @@ It's unsurprisingly much simpler to use these types when the primitives are full
 
 These examples intermingle primitive geometry with the meshes themselves. This RFC makes these distinct.
 
-
 ## Unresolved questions
 
 What is the best naming scheme, e.g., `2d::Line`/`3d::Line` vs. `Line2d`/`Line3d` vs. `Line2d`/`Line`.
