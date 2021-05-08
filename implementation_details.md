@@ -136,7 +136,7 @@ So there are two ways to go about the actual compensation:
 
 There's a lot to learn from *Overwatch* here.
 
-*Overwatch* shows that [time is just another collision dimension](https://youtu.be/W3aieHjyNvw?t=2226). Basically, you can broadphase test against the entire collider history at once (with the amortized method).
+*Overwatch* shows that [we can treat time as another spatial dimension](https://youtu.be/W3aieHjyNvw?t=2226), so we can put the entire collider history in something like a BVH and test it all at once (with the amortized method).
 
 *Overwatch* [allows defensive abilities to mitigate compensated projectiles](https://youtu.be/W3aieHjyNvw?t=2492). AFAIK this is simple to do. If a player activates any defensive bonus, just apply it to all their buffered hitboxes.
 
@@ -150,16 +150,16 @@ Every article on "rollback netcode" and "client-side prediction and server recon
 
 I thought of two methods while I was writing this:
 
-1. Unordered scan looking for first difference.
-2. Ordered scan to compute checksum and compare.
+- Unordered scan looking for first difference.
+- Ordered scan to compute checksum and compare.
 
 The first option has an unpredictable speed. The second option requires a fixed walk of the game state (checksums *are* probably worth having even if only for debugging non-determinism). There may be options I didn't consider, but the point I'm trying to make is that detecting changes among large numbers of entities isn't cheap.
 
 Let's consider a simpler default:  
 
-3. Always rollback and re-simulate.
+- Always rollback and re-simulate.
 
-Now, you may think that's wasteful, but I would say "if mispredicted" gives you a false sense of security. Mispredictions can occur at any time, *especially* during long-lasting complex physics interactions. It's much easier to profile and optimize for your worst-case if clients *always* rollback and re-sim. It's also more memory-efficient, since clients never need to store old predicted states.
+Now, you may think that's wasteful, but I would say "if mispredicted" gives you a false sense of security. Mispredictions can occur at any time, *especially* during long-lasting complex physics interactions. Those would show up as CPU spikes. Instead, it's much easier to profile and optimize for your worst-case if clients *always* rollback and re-sim. It's also more memory-efficient, since clients never need to store old predicted states.
 
 ## Delta-Compressed Snapshots
 
@@ -171,13 +171,17 @@ Now, you may think that's wasteful, but I would say "if mispredicted" gives you 
   - Applies the changes to the copy and pushes the latest patch into the ring buffer.
   - `Xors` older patches with the latest patch to update them.
 - The server reads the needed patches as `&[u8]` (or `&[u64]`) and compresses them using run-length encoding (RLE) or similar.
-  - No "serialization" needed. If networked DSTs are stored in their own heap allocation, we can literally send the bits. `rkyv` is a good reference (relative pointers).
+  - No "serialization" needed. If networked DSTs (dynamically-sized types) are stored in their own heap allocation, we can literally send the bits. `rkyv` is a good reference (relative pointers).
 - Pass compressed payloads to protocol layer.
 - Protocol and I/O layers do whatever they do and send the packet.
 
 ## Interest-Managed Updates
 
-TODO
+- Uses the same latest copy + delta buffer data structure, but with additional metadata and filter "components" to track priority and relevance per-*player*.
+- Changing components (note: `Transform` is special) adds to the send priority of their entities. Existing send priority doubles every tick. Importantly, entities that haven't changed won't accumulate priority.
+- Server writes the entities relevant to each client in priority order, until the packet is full or all entities are written. The send priority of written entities are reset for that client.
+- If the server is notified of packet loss, it checks the patch of the update that was lost and re-prioritizes its changed entities for that client. If the patch no longer exists, everything is prioritized.
+- (Again, handling networked DSTs needs more consideration.)
 
 ## Messages
 

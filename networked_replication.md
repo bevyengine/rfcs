@@ -98,6 +98,8 @@ Bevy can configure an `App` to operate in several different network modes.
 | Dedicated Server | ✗ | ✓ | ✓ |
 | Relay | ✗ | ✗ | ✓ |
 
+We'll also need a mode similar to listen server for deterministic peers.
+
 ```plaintext
 TODO: Example App configuration.
 ```
@@ -128,19 +130,18 @@ impl Replicate for T {
 }
 ```
 
-### Specialized Change Detection
+### Special Query Filters
 
 ```plaintext
 TODO
 
 Predicted<T>
-- Set when mutated by client. Cleared when mutated by server update.
+- Set when locally mutated. Cleared when mutated by authoritative update.
 Confirmed<T>
-- Set when mutated by server update. Cleared when mutated by client.
-Cancelled<T>
-- Set when something was predicted but not confirmed.
+- Set when mutated by authoritative update. Cleared when locally mutated.
 
-(Also Added<T> and Removed<T> variants)
+Predicting non-synchronized state such as sounds and particles is probably best realized through dispatching events, with follow-up confirmation / cancellation.
+How to uniquely identify them is another question, though.
 ```
 
 ### Rollback via Run Criteria
@@ -219,7 +220,7 @@ I strongly doubt that fast, efficient, and transparent replication features can 
 
 - Can we provide lints for undefined behavior like mutating networked state outside of `NetworkFixedUpdate`?
 - Do rollbacks break change detection or events?
-- ~~When sending partial state updates, how should we deal with weird stuff like there being references to entities that haven't been spawned or have been destroyed?~~ Already solved by generational indexes.
+- ~~When sending interest-managed updates, how should we deal with weird stuff like there being references to entities that haven't been spawned or have been destroyed?~~ Already solved by generational indexes.
 - How should UI widgets interact with networked state? React to events? Exclusively poll verified data?
 - How should we handle correcting mispredicted events and FX?
 - Can we replicate animations exactly without explicitly sending animation data?
