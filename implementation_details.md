@@ -66,23 +66,14 @@ The key idea here is that simplifying the client-server relationship makes the p
 
 Clients can't directly modify the authoritative state, but they should be able to predict whatever they want locally. One obvious implementation is to literally fork the latest authoritative state. If copying the full state ends up being too expensive, we can probably use a copy-on-write layer.
 
-My current idea to shift components between prediction and interpolation is to default to interpolated (reset upon receiving a server update) and then use specialized change detection `DerefMut` magic to flag as predicted.
-
-```rust
-Predicted<T>
-PredictAdded<T>
-PredictRemoved<T>
-Confirmed<T>
-ConfirmAdded<T>
-ConfirmRemoved<T>
-Cancelled<T>
-CancelAdded<T>
-CancelRemoved<T>
-```
+My current idea to shift components between prediction and interpolation is to default to interpolated (reset upon receiving a server update) and then use specialized `Predicted<T>` and `Confirmed<T>` query filters that piggyback off of reliable change detection.
 
 Everything is predicted by default, but users can opt-out by filtering on `Predicted<T>`. In the more conservative cases, clients would predict the entities driven by their input, the entities they spawn (until confirmed), and any entities mutated as a result of the first two. Systems with filtered queries (i.e. physics, path-planning) should typically run last.
 
-We can also use these filters to generate events that only trigger on authoritative changes and events that trigger on predicted changes to be confirmed or cancelled later. The latter are necessary for handling sounds and particle effects. Those shouldn't be duplicated during rollbacks and should be faded out if mispredicted.
+Since sounds and particles require special consideration, they're probably best realized through dispatching events to be handled *outside* `NetworkFixedUpdate`. We can use these query filters to generate events that only trigger on authoritative changes and events that trigger on predicted changes to be confirmed or cancelled later. 
+
+How to uniquely identify these events is another question, though.
+
 
 Should UI be allowed to reference predicted state or only verified state?
 

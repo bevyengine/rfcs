@@ -140,10 +140,7 @@ Predicted<T>
 Confirmed<T>
 - Set when mutated by authoritative update. Cleared when locally mutated.
 
-Predicting non-synchronized state such as sounds and particles is probably best realized through dispatching events, with follow-up confirmation / cancellation.
-How to uniquely identify them is another question, though.
 ```
-
 ### Rollback via Run Criteria
 
 ```plaintext
