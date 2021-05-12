@@ -10,15 +10,37 @@ This would provide a standard way to model primitives across the bevy ecosystem 
 
 ## User-Facing Explanation
 
-Geometric primitives are lightweight representations of geometry that describe the type of geometry as well as fully defined dimensions. These primitives are *not* meshes, but the underlying precise mathematical definition. For example, a circle is:
+Geometric primitives are lightweight representations of geometry that describe the type of geometry as well as its dimensions. These primitives are *not* meshes, but the underlying precise mathematical definition. For example, a circle is:
 
 ```rust
 pub struct Circle2d {
-  origin: Point2d,
   radius: f32,
 }
 ```
 
+| Shape     | Mesh | Bounding | Collision |
+|---        |---|---|---|
+| Sphere    | ✔ | ✔ Sphere + Pos | ✔ Sphere + Pos |
+| Cuboid    | ✔ | ✔ Cuboid + Pos + Rot (OBB) | ✔ Cuboid + Pos + Rot |
+| Capsule   | ✔ | ❌ | ✔ Capsule + Pos + Rot |
+| Cylinder  | ✔ | ❌ | ✔ Cylinder + Pos + Rot |
+| Cone      | ✔ | ❌ | ✔ Cone + Pos + Rot |
+| Ramp      | ✔ | ❌ | ✔ Ramp + Pos + Rot |
+| Plane     | ✔ | ❌ | ✔ Plane |
+| Torus     | ✔ | ❌ | ❌ |
+
+### Meshing
+
+Both 2d and 3d primitives can implement the `Meshable` trait to provide the ability to generate a mesh from the primitive's definition.
+
+```rust
+let circle_mesh: Mesh = Circle2d::new(2.0).mesh();
+```
+The base primitive types only define the shape and size of the geometry about the origin. From there, the mesh generated from the primitive can have a transform applied to it like any other mesh.
+
+## Bounding
+
+For use in physics, spatial queries, collisions, raycast, or other similar use cases, `BoundVol` and `BoundArea` traits are provided. These traits are implemented for primitive types that define position and orientation in addition to the shape and size defined in the base types. For example, a 
 Geometric primitives have a defined shape, size, position, and orientation. Position and orientation are **not** defined using bevy's `Transform` components. This is because these are fundamental geometric primitives that must be usable and comparable as-is.
 
 `bevy_geom` provides two main modules, `geom_2d` and `geom_3d`. Recall that the purpose of this crate is to provide lightweight types, so there are what appear to be duplicates in 2d and 3d, such as `geom_2d::Line2d` and `geom_3d::Line`. Note that the 2d version of a line is lighter weight, and is only defined in 2d. 3d geometry (or 2d with depth which is 3d) is assumed to be the default for most cases. The names of the types were chosen with this in mind, to guide you toward using Line instead of Line2d for example, unless you know why you are making this choice.
@@ -31,10 +53,26 @@ Geometric primitives have a defined shape, size, position, and orientation. Posi
 /// Stores an angle in radians, and supplies builder functions to prevent errors (from_radians, from_degrees)
 struct Angle(f32);
 ```
+### Traits
+
+```rust
+/// A trait for types that can be used to generate a [Mesh].
+trait Meshable{
+  fn mesh(&self, subdivisions: u8) -> Mesh;
+};
+
+/// Convex geometric primitives that are fully defined in 3D space, and can be used to bound entities within their volume. [BoundingVolume]s are useful for raycasting, collision detection, physics, and building BVHs.
+trait BoundingVolume {
+  fn raycast(&self, ray: Ray) -> Option(Point);
+}
+
+/// Convex geometric primitives that are fully defined in 2D space, and can be used to bound entities within their area. Similar to [BoundingVolumes] but for 2D instead of 3D space.
+trait BoundingArea {
+  fn raycast(&self, ray: Ray2d) -> Option(Point2d);
+}
+```
 
 ### 3D Geometry Types
-
-These types are fully defined in 3d space.
 
 ```rust
 /// Point in 3D space
@@ -48,36 +86,50 @@ struct Plane {
   point: Point,
   normal: Direction,
 }
+impl Meshable for Plane {}
 
-/// Unbounded line in 3D space with direction
-struct Ray { 
+/// Unbounded line in 3D space with directionality
+struct Axis { 
   point: Point, 
   normal: Direction,
 }
 
-/// Line in 3D space bounded by two points
+/// A newtype that differentiates an axis from a ray, where an axis in infinite and a ray is directional half-line, although their underlying representation is the same.
+struct Ray(Axis);
+
+/// A line segment bounded by two points
 struct Line { 
   start: Point, 
   end: Point,
 }
+impl Meshable for Line {}
+
+/// A line drawn along a path of points
+struct PolyLine {
+  points: Vec<Point>,
+}
+impl Meshable for PolyLine {}
 
 struct Triangle([Point; 3]);
+impl Meshable for Triangle {}
 
 struct Quad([Point; 4]);
+impl Meshable for Quad {}
 
+/// A sphere centered on the origin
 struct Sphere{
-  origin: Point,
   radius: f32,
 }
+impl Meshable for Sphere {}
 
+/// A cylinder with its origin at the center of the volume
 struct Cylinder {
-  /// The bottom center of the cylinder.
-  origin: Point,
   radius: f32,
-  /// The extent of the cylinder is the vector that extends from the origin to the opposite face of the cylinder.
-  extent: Vec3,
+  height: f32,
 }
+impl Meshable for Cylinder {}
 
+/// A cone with the origin located at the center of the circular base
 struct Cone{
   /// Origin of the cone located at the center of its base.
   origin: Point,
@@ -85,19 +137,19 @@ struct Cone{
   extent: Vec3,
   base_radius: f32,
 }
+impl Meshable for Cone {}
 
 struct Torus{
-  origin: Point,
-  normal: Direction,
   major_radius: f32,
   tube_radius: f32,
 }
+impl Meshable for Torus {}
 
 struct Capsule {
-  origin: Point,
   height: Vec3,
-
+  radius: f32,
 }
+impl Meshable for Capsule {}
 
 // A 3d frustum used to represent the volume rendered by a camera, defined by the 6 planes that set the frustum limits.
 struct Frustum{
@@ -108,35 +160,48 @@ struct Frustum{
   left: Plane,
   right: Plane,
 }
+impl Meshable for Frustum {}
+
+```
+
+### 3D Bounding Volumes
+
+```rust
+
+/// A spherical bounding volume fully defined in space
+struct SphereBV {
+  sphere: Sphere,
+  origin: Point,
+}
+impl BoundingVolume for SphereBV ()
+
+struct CylinderBV {
+  cylinder: Cylinder,
+  origin: Point,
+  rotation: Quat,
+}
+impl BoundingVolume for CylinderBV {}
+
+struct CapsuleBV {
+  capsule: Capsule,
+  origin: Point,
+}
+impl BoundingVolume for CapsuleBV {}
 
 // 3D Axis Aligned Bounding Box defined by its extents, useful for fast intersection checks and frustum culling.
-struct AabbExtents {
+struct Aabb {
   min: Vec3
   max: Vec3
 }
-impl Aabb for AabbExtents {} //...
-
-// 3D Axis Aligned Bounding Box defined by its center and half extents, easily converted into an OBB
-struct AabbCentered {
-  origin: Point,
-  half_extents: Vec3,
-}
-impl Aabb for AabbCentered {} //...
-
-// 3D Axis Aligned Bounding Box defined by its eight vertices, useful for culling or drawing
-struct AabbVertices([Point; 8]);
-impl Aabb for AabbVertices {} //...
+impl Meshable for Aabb {}
 
 // 3D Oriented Bounding Box
-struct ObbCentered {
+struct Obb {
   origin: Point,
   orthonormal_basis: Mat3,
   half_extents: Vec3,
 }
-impl Obb for ObbCentered {} //...
-
-struct ObbVertices([Point; 4]);
-impl Obb for ObbVertices {} //...
+impl Meshable for Obb {}
 ```
 
 ### 2D Geometry Types
@@ -150,20 +215,24 @@ struct Point2d(Vec2)
 /// Vector direction in 2D space that is guaranteed to be normalized through its getter/setter.
 struct Direction2d(Vec2)
 
+
 /// Unbounded line in 2D space with direction
-struct Ray2d { 
+struct Line2d { 
   point: Point2d, 
   normal: Direction2d,
 }
 
+/// A newtype that differentiates a line from a ray, where a line is an infinite axis and a ray is directional half-line.
+struct Ray2d(Line2d);
+
 /// Line in 2D space bounded by two points
-struct Line2d { 
+struct LineSegment2d { 
   start: Point2d, 
   end: Point2d,
 }
 
 /// A line list represented by an ordered list of vertices in 2d space
-struct LineList<const N: usize>{
+struct LineList2d<const N: usize>{
   points: [Point; N],
   /// True if the LineList is a closed loop
   closed: bool,
@@ -173,6 +242,11 @@ struct Triangle2d([Point2d; 3]);
 
 struct Quad2d([Point2d; 4]);
 
+struct Circle2d {
+  origin: Point2d, 
+  radius: f32,
+}
+
 /// A regular polygon, such as a square or hexagon.
 struct RegularPolygon2d{
   circumcircle: Circle2d,
@@ -180,11 +254,6 @@ struct RegularPolygon2d{
   faces: u8,
   /// Clockwise rotation of the polygon about the origin. At zero rotation, a point will always be located at the 12 o'clock position.
   orientation: Angle,
-}
-
-struct Circle2d {
-  origin: Point2d, 
-  radius: f32,
 }
 
 /// Segment of a circle
@@ -268,7 +337,7 @@ for bounding_volume in bound_vol_query.iter() {
 
 This data structure alone does not ensure the representation is valid; planes could be placed in nonsensical positions. To prevent this, the struct's fields should be made private, and constructors and setters should be provided to ensure `Frustum`s can only be initialized or mutated into valid arrangements.
 
-In addition, by defining the frustum as a set of planes, it is also trivial to support oblique frustums.
+In addition, by defining the frustum as a set of planes, it is also trivial to support oblique frustums. Oblique frustums are useful for 2d projections used in CAD, as well as in games to take advantage of projection distortion to do things like emphasizing the feeling of speed in a driving game. See the Unity docs: https://docs.unity3d.com/Manual/ObliqueFrustum.html
 
 ### Ray Casting
 
@@ -325,7 +394,9 @@ It's unsurprisingly much simpler to use these types when the primitives are full
 - Unity `PrimitiveObjects`: https://docs.unity3d.com/Manual/PrimitiveObjects.html
 - Godot `PrimitiveMesh`: https://docs.godotengine.org/en/stable/classes/class_primitivemesh.html#class-primitivemesh
 
-These examples intermingle primitive geometry with the meshes themselves. This RFC makes these distinct.
+These examples intermingle primitive geometry with the meshes themselves. This RFC makes these
+distinct.
+
 
 ## Unresolved questions
 
