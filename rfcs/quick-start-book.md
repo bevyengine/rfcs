@@ -49,7 +49,13 @@ Users following the example-first path will tend to take the following route:
    4. Various community support forums.
    5. Streams, YouTube channels and blogs.
 
-TODO: explain what each quick start example looks like.
+Each quick start game should:
+
+1. Assume zero existing knowledge of Bevy.
+3. Begin with a initial high-level explanation of what we're trying to build, and what it can be adapted to.
+4. Introduce commented code first, then explain what each of the critical terms means as they come up.
+5. Be broken into compilable, playable sections: one per page of the guide.
+6. Gradually refactor the game to add more functionality.
 
 This path should prioritize:
 
