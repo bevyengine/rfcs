@@ -55,7 +55,7 @@ Each quick start game should:
 2. Begin with a initial high-level explanation of what we're trying to build.
 3. Introduce commented code first, then explain what each of the critical terms means as they come up.
 4. Be broken into compilable, playable sections: one per page of the guide.
-5. Gradually refactor the game to add more functionality.
+5. Gradually refactor the code to add more functionality.
 6. End with a list of suggestions (with appropriate links) on how you could extend the game in interesting ways.
 
 This path should prioritize:
