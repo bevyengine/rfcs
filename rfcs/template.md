@@ -7,12 +7,6 @@ The [Bevy book](https://bevyengine.org/learn/book/introduction/) will be extende
 ## Motivation
 
 The Bevy book has fallen behind the pace of Bevy's features, leaving newcomers a bit baffled and worried about the state of the documentation.
-Examples, in-line documentation and community tutorials are great, but:
-
-- aren't as visible
-- aren't as approachable
-- vary significantly in quality and freshness
-- do a poor job at providing high-level explanations of how all of the pieces of Bevy fit together
 
 ## User-facing explanation
 
@@ -53,6 +47,7 @@ Users following the example-first path will tend to take the following route:
    2. The Bevy book.
    3. Community tutorials and template games.
    4. Various community support forums.
+   5. Streams, YouTube channels and blogs.
 
 This path should prioritize:
 
@@ -114,6 +109,25 @@ This path should prioritize:
 ## Rationale and alternatives
 
 ### Why can't this live in community-provided documentation?
+
+Community documentation is great, but it:
+
+- isn't as visible
+- isn't as approachable
+- community content varies significantly in quality and freshness
+- scattered resources are poorly equipped to provide high-level explanations of how all of the pieces of Bevy fit together
+- relying on community content as the only solution creates an untenable maintenance burden on critical ecosystem members and restricts their creative control
+
+### Why can't we just write more examples?
+
+Examples are great! They're quick to reference, easy to keep up to date, and can be extensively commented.
+However, they struggle with two main issues:
+
+1. They lack the context required to make them truly useful to beginners. The order they should be read in, how features relate to each other and so on.
+2. Making examples more useful to beginners makes them less useful to intermediate and advanced users as their verbosity increases.
+
+The [Diátaxis Framework](https://diataxis.fr/) model of documentation makes it clear that examples belong in the `How-To-Guides` quadrant.
+Beginners need `Tutorials` (the Quick Start) and `Explanations` (the Bevy Book) to complement our `Reference` material found on [docs.rs](https://docs.rs/bevy/).
 
 ### Why do we need two paths?
 
