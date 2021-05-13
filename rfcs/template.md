@@ -155,7 +155,7 @@ When writing and reviewing learning material for the Bevy Book and Quick Start G
 
 ### Why can't this live in community-provided documentation?
 
-Community documentation is great, but it:
+Community documentation is hugely important, but it:
 
 - isn't as visible
 - isn't as approachable
@@ -165,7 +165,8 @@ Community documentation is great, but it:
 
 ### Why can't we just write more examples?
 
-Examples are great! They're quick to reference, easy to keep up to date, and can be extensively commented.
+Examples are great!
+They're quick to reference, easy to keep up to date, and can be extensively commented.
 However, they struggle with two main issues:
 
 1. They lack the context required to make them truly useful to beginners. The order they should be read in, how features relate to each other and so on.
