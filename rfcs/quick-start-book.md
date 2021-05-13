@@ -52,10 +52,11 @@ Users following the example-first path will tend to take the following route:
 Each quick start game should:
 
 1. Assume zero existing knowledge of Bevy.
-3. Begin with a initial high-level explanation of what we're trying to build, and what it can be adapted to.
-4. Introduce commented code first, then explain what each of the critical terms means as they come up.
-5. Be broken into compilable, playable sections: one per page of the guide.
-6. Gradually refactor the game to add more functionality.
+2. Begin with a initial high-level explanation of what we're trying to build.
+3. Introduce commented code first, then explain what each of the critical terms means as they come up.
+4. Be broken into compilable, playable sections: one per page of the guide.
+5. Gradually refactor the game to add more functionality.
+6. End with a list of suggestions (with appropriate links) on how you could extend the game in interesting ways.
 
 This path should prioritize:
 
@@ -82,7 +83,14 @@ Users following the definition-first path will tend to take the following route:
    4. Release notes.
    5. The engine development channels on Discord.
 
-TODO: explain what each chapter / section of the book looks like.
+Each chapter of the Bevy Book should:
+
+1. Have a clear topic, and give a high-level overview of the subtopics it is going to cover and how they fit together.
+2. Be broken down into several sections / pages to focus on detailed topics.
+   1. These should have simple, minimal examples explaining how that functionality works.
+3. Conclude with a compilable and playable example game in a **Bringing it together: {GAME NAME}** section that integrates these topics in a cohesive way.
+   1. This can and should build on previous chapters, but not future ones.
+   2. These should be distinct from the examples in the Quick Start to provide more learning examples and meet different needs.
 
 This path should prioritize:
 
@@ -214,8 +222,6 @@ The closer the first example they explore is to the genre they have in mind, the
 
 ## Unresolved questions
 
-1. Should we aim to have one continuous example for the Book, or several smaller ones?
-2. Which examples are we using?
-3. Which features must be taught in an MVP?
-4. Which order do we want to teach this in?
-5. Which style rules do we want to use to ensure a consistent tone?
+1. Which examples are we using?
+2. Which features must be taught in an MVP?
+3. Which order do we want to teach this in?
