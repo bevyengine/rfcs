@@ -49,6 +49,8 @@ Users following the example-first path will tend to take the following route:
    4. Various community support forums.
    5. Streams, YouTube channels and blogs.
 
+TODO: explain what each quick start example looks like.
+
 This path should prioritize:
 
 1. Rapid time-to-fun.
@@ -73,6 +75,8 @@ Users following the definition-first path will tend to take the following route:
    3. CONTRIBUTING.md, GitHub issues and pull requests.
    4. Release notes.
    5. The engine development channels on Discord.
+
+TODO: explain what each chapter / section of the book looks like.
 
 This path should prioritize:
 
@@ -144,6 +148,16 @@ When writing and reviewing learning material for the Bevy Book and Quick Start G
 5. Once this RFC is merged, work should begin on a separate branch of `bevy-website` repo to create a new book.
 6. For the launch of 0.6 (or perhaps sooner), this branch is merged and becomes the new `main`.
 7. A persistent `bevy-main` branch of the repo is maintained and with a dependency on the `main` branch of `bevy` to ensure that we can test out new changes and refine the code before new features and breaking changes go live and reduce release crunch.
+
+### Quick Start examples
+
+TODO: decide on which Quick Start examples we want to target initially.
+
+### Bevy Book concepts
+
+TODO: decide which concepts we want to ensure we teach initially
+
+TODO: decide which order we want to teach these concepts
 
 ## Drawbacks
 
