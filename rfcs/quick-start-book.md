@@ -236,10 +236,10 @@ Create devious puzzles for your players to solve as they navigate a 3D world.
    2. Stand-alone `bevy_ecs`
    3. Bringing it together: Bevy in the command-line
 9.  Coordinating Systems
-   4. Events
-   5. Understanding the Scheduler: Stages and System Ordering
-   6. System chaining
-   7. Bringing it together: Text-Only Turn-Based Battler
+   1. Events
+   2. Understanding the Scheduler: Stages and System Ordering
+   3. System chaining
+   4. Bringing it together: Text-Only Turn-Based Battler
 10. Code organization and other development practices
     1. Rust module refresh
     2. Plugins
