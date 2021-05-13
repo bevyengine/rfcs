@@ -152,6 +152,8 @@ When writing and reviewing learning material for the Bevy Book and Quick Start G
    4. Showing how (and why!) to refactor your code is a very powerful teaching tool.
 6. Stick to a consistent style (e.g. for loops vs map) within each example.
 7. If you need to give advice that will only matter to some of your audience (e.g. how to handle an edge case, or support a specific platform), do so in a clearly marked aside or list.
+8. Examples should not use or rely on any third-party crates.
+These may be appropriate to link in "next steps" however at the end of the examples.
 
 ## Implementation strategy
 
@@ -165,7 +167,17 @@ When writing and reviewing learning material for the Bevy Book and Quick Start G
 
 ### Quick Start examples
 
-TODO: decide on which Quick Start examples we want to target initially.
+### Breakout: 2D, Realtime, basic physics
+
+TODO: describe.
+
+### Falling Sand: Simulation-heavy ECS
+
+TODO: describe.
+
+### 3D Puzzle Game: 3D, custom rules
+
+TODO: describe.
 
 ### Bevy Book concepts
 
@@ -220,8 +232,26 @@ A user trying to adapt a chess tutorial to a first-person shooter will be just a
 We *cannot* tell these users to "just read the docs" and build up their game from first-principles: this isn't how they want to learn, and they generally won't have strong enough conceptual models to do so effectively!
 The closer the first example they explore is to the genre they have in mind, the better their experience will be (as long as we are careful to avoid overwhelming them with similar options).
 
+### Why don't we include an FPS or platformer in our Quick Start games?
+
+These are popular and well-known genres, and would make a great addition to our guides!
+
+Unfortunately, Bevy isn't very *good* at making them yet.
+Both require a physics engine, and we don't have a native physics engine yet.
+First person games in general *also* want nice mouse picking functionality, which is not yet integrated.
+
+Linking to third-party plugins risks the entire example breaking if the plugin is not maintained and shapes the ecosystem in somewhat uncomfortable ways.
+For now, these are better suited to community tutorials.
+
+### Why don't we include a turn-based game in our Quick Start games?
+
+A ~~JRPG~~ sparkling turn-based battler would be a great fit, as would a classic board game.
+They're popular, simple, and not entirely obvious how to do in a real-time-focused ECS engine.
+
+Unfortunately, this style of game tends to be be very UI-heavy, and our design patterns for writing good turn-based games are not very mature.
+More fodder for the future!
+
 ## Unresolved questions
 
-1. Which examples are we using?
-2. Which features must be taught in an MVP?
-3. Which order do we want to teach this in?
+1. Which features must be taught in an MVP?
+2. Which order do we want to teach this in?
