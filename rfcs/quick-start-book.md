@@ -152,8 +152,9 @@ When writing and reviewing learning material for the Bevy Book and Quick Start G
    4. Showing how (and why!) to refactor your code is a very powerful teaching tool.
 6. Stick to a consistent style (e.g. for loops vs map) within each example.
 7. If you need to give advice that will only matter to some of your audience (e.g. how to handle an edge case, or support a specific platform), do so in a clearly marked aside or list.
-8. Examples should not use or rely on any third-party crates.
+8. Examples should not use or rely on third-party plugins.
 These may be appropriate to link in "next steps" however at the end of the examples.
+   1. Third-party crates should be limited to the most essential, such as `rand`.
 
 ## Implementation strategy
 
@@ -188,11 +189,65 @@ Simulate the interactions between different materials as you build your own crea
 
 Create devious puzzles for your players to solve as they navigate a 3D world.
 
-### Bevy Book concepts
+### Bevy Book chapters
 
-TODO: decide which concepts we want to ensure we teach initially
-
-TODO: decide which order we want to teach these concepts
+1. Getting Started
+   1. Installing Rust and Bevy
+   2. App, AppBuilder and World
+   3. Bringing it together: Hello Bevy!
+2. Entities, Components and Systems
+   1. Entities have Components
+   2. Systems access data through Queries
+   3. Resources are global singletons
+   4. Bundles collect related components
+   5. Spawning, despawning and modifying entities with Commands
+   6. Bringing it together: A Simple Ecological Model
+3. Graphics and Asset Basics
+   1. Sprites and Cameras
+   2. The `Transform` component controls position
+   3. The Parent-Child hierarchy and GlobalTransforms
+   4. Loading assets and working with Handles
+   5. Bringing it together: A Bevy of Birds
+4. Input
+   1. Input Basics
+   2. Keyboard Input
+   3. Mouse and Touchpad Input
+   4. Gamepad Input
+   5. Bringing it together: 2D Puzzle Game
+5. Time and Timers
+   1. Time
+   2. Timers
+   3. Fixed timestep
+   4. Bringing it together: Bevy Clicker
+6. ECS: Beyond the Basics
+   1. Query filters
+   2. Change detection
+   3. The "Index" pattern
+   4. Custom Commands
+   5. Exclusive Systems and NonSend Resources
+   6. Bringing it together: Game of Life
+7. Rendering
+   1. Meshes
+   2. Camera control
+   3. Physically-based rendering
+   4. Bringing it together: Walking Simulator
+8. Modular Bevy
+   1. Custom runners
+   2. Stand-alone `bevy_ecs`
+   3. Bringing it together: Bevy in the command-line
+9.  Coordinating Systems
+   4. Events
+   5. Understanding the Scheduler: Stages and System Ordering
+   6. System chaining
+   7. Bringing it together: Text-Only Turn-Based Battler
+10. Code organization and other development practices
+    1. Rust module refresh
+    2. Plugins
+    3. System Sets and Run Criteria
+    4. States
+    5. Fast compiles
+    6. Testing with Bevy
+    7. Bringing it together: Creating your own game template!
 
 ## Drawbacks
 
@@ -260,7 +315,11 @@ They're popular, simple, and not entirely obvious how to do in a real-time-focus
 Unfortunately, this style of game tends to be be very UI-heavy, and our design patterns for writing good turn-based games are not very mature.
 More fodder for the future!
 
-## Unresolved questions
+### Why doesn't the Bevy Book have more chapters?
 
-1. Which features must be taught in an MVP?
-2. Which order do we want to teach this in?
+There are two main reasons for this:
+
+1. Scope: we want to keep the scope small to have a polished, useful product in time for 0.6.
+2. Stability: many useful features (such as rendering, audio or UI) are not sufficiently stable or mature to document in this way.
+
+We can (and should!) add more chapters later and extend the chapters we do have.
