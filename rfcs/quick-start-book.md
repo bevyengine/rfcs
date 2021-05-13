@@ -158,7 +158,7 @@ These may be appropriate to link in "next steps" however at the end of the examp
 
 ## Implementation strategy
 
-1. The guide-level explanation above should live in `CONTRIBUTING.md` of the [`bevy-website` repo](https://github.com/bevyengine/bevy-website).
+1. The user-facing explanation above should live in `CONTRIBUTING.md` of the [`bevy-website` repo](https://github.com/bevyengine/bevy-website).
 2. This should be linked to from the website, likely under a "Contributing" tab.
 3. Per [bevy-website #143](https://github.com/bevyengine/bevy-website/issues/143),the website will need to be revamped somewhat.
 4. Automatic compilation of code snippets is the critical feature from the above, ensuring that we can keep the examples current in a reliable way.
