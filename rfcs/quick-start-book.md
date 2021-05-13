@@ -167,17 +167,26 @@ These may be appropriate to link in "next steps" however at the end of the examp
 
 ### Quick Start examples
 
-### Breakout: 2D, Realtime, basic physics
+### Breakout
 
-TODO: describe.
+**Genres:** arcade
+**Focus:** basic physics, keyboard controls, sprites
 
-### Falling Sand: Simulation-heavy ECS
+Control a paddle with your keyboard to smash bricks and score points in this classic arcade game!
 
-TODO: describe.
+### Falling Sand
 
-### 3D Puzzle Game: 3D, custom rules
+**Genres:** simulation, RTS, factory-builder
+**Focus:** advanced ECS patterns, pixel graphics, handling mouse input
 
-TODO: describe.
+Simulate the interactions between different materials as you build your own creation.
+
+### 3D Puzzle Game
+
+**Genres:** puzzle, 3rd person platformer
+**Focus:** camera controls, rule checking, level creation, 3D graphics
+
+Create devious puzzles for your players to solve as they navigate a 3D world.
 
 ### Bevy Book concepts
 
