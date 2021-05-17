@@ -1,4 +1,4 @@
-# Feature Name: `geometric-primitives`
+# Feature Name: `primitive-shapes`
 
 ## Summary
 
@@ -20,12 +20,13 @@ pub struct Circle2d {
 
 | Shape     | Mesh | Bounding | Collision |
 |---        |---|---|---|
-| Sphere    | ✔ | ✔ Sphere + Pos | ✔ Sphere + Pos |
-| Cuboid    | ✔ | ✔ Cuboid + Pos + Rot (OBB) | ✔ Cuboid + Pos + Rot |
-| Capsule   | ✔ | ❌ | ✔ Capsule + Pos + Rot |
-| Cylinder  | ✔ | ❌ | ✔ Cylinder + Pos + Rot |
-| Cone      | ✔ | ❌ | ✔ Cone + Pos + Rot |
-| Ramp      | ✔ | ❌ | ✔ Ramp + Pos + Rot |
+| Sphere    | ✔ | ✔ Sphere + Translation | ✔ Sphere + Translation |
+| Cuboid    | ✔ | ✔ (OBB) Cuboid + Translation + Rotation | ✔ Cuboid + Translation + Rotation |
+| Capsule   | ✔ | ❌ | ✔ Capsule + Translation + Rotation |
+| Cylinder  | ✔ | ❌ | ✔ Cylinder + Translation + Rotation |
+| Cone      | ✔ | ❌ | ✔ Cone + Translation + Rotation |
+| Pyramid   | ✔ | ❌ | ✔ Pyramid + Translation + Rotation |
+| Wedge     | ✔ | ❌ | ✔ Ramp + Translation + Rotation |
 | Plane     | ✔ | ❌ | ✔ Plane |
 | Torus     | ✔ | ❌ | ❌ |
 
