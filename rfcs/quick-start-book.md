@@ -312,7 +312,7 @@ For now, these are better suited to community tutorials.
 A ~~JRPG~~ sparkling turn-based battler would be a great fit, as would a classic board game.
 They're popular, simple, and not entirely obvious how to do in a real-time-focused ECS engine.
 
-Unfortunately, this style of game tends to be be very UI-heavy, and our design patterns for writing good turn-based games are not very mature.
+Unfortunately, this style of game tends to be very UI-heavy, and our design patterns for writing good turn-based games are not very mature.
 More fodder for the future!
 
 ### Why doesn't the Bevy Book have more chapters?
