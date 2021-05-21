@@ -88,9 +88,7 @@ Each chapter of the Bevy Book should:
 1. Have a clear topic, and give a high-level overview of the subtopics it is going to cover and how they fit together.
 2. Be broken down into several sections / pages to focus on detailed topics.
    1. These should have simple, minimal examples explaining how that functionality works.
-3. Conclude with a compilable and playable example game in a **Bringing it together: {GAME NAME}** section that integrates these topics in a cohesive way.
-   1. This can and should build on previous chapters, but not future ones.
-   2. These should be distinct from the examples in the Quick Start to provide more learning examples and meet different needs.
+3. Link to appropriate sections of quick start guides that demonstrate the ideas being taught in a more coherent way.
 
 This path should prioritize:
 
@@ -207,39 +205,32 @@ Create devious puzzles for your players to solve as they navigate a 3D world.
    2. The `Transform` component controls position
    3. The Parent-Child hierarchy and GlobalTransforms
    4. Loading assets and working with Handles
-   5. Bringing it together: A Bevy of Birds
 4. Input
    1. Input Basics
    2. Keyboard Input
    3. Mouse and Touchpad Input
    4. Gamepad Input
-   5. Bringing it together: 2D Puzzle Game
 5. Time and Timers
    1. Time
    2. Timers
    3. Fixed timestep
-   4. Bringing it together: Bevy Clicker
 6. ECS: Beyond the Basics
    1. Query filters
    2. Change detection
    3. The "Index" pattern
    4. Custom Commands
    5. Exclusive Systems and NonSend Resources
-   6. Bringing it together: Game of Life
 7. Rendering
    1. Meshes
    2. Camera control
    3. Physically-based rendering
-   4. Bringing it together: Walking Simulator
 8. Modular Bevy
    1. Custom runners
    2. Stand-alone `bevy_ecs`
-   3. Bringing it together: Bevy in the command-line
-9.  Coordinating Systems
+9. Coordinating Systems
    1. Events
    2. Understanding the Scheduler: Stages and System Ordering
    3. System chaining
-   4. Bringing it together: Text-Only Turn-Based Battler
 10. Code organization and other development practices
     1. Rust module refresh
     2. Plugins
@@ -247,7 +238,6 @@ Create devious puzzles for your players to solve as they navigate a 3D world.
     4. States
     5. Fast compiles
     6. Testing with Bevy
-    7. Bringing it together: Creating your own game template!
 
 ## Drawbacks
 
