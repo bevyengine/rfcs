@@ -34,6 +34,11 @@ Bevy intentionally aims to be inclusive of both complete beginners who have neve
 
 Each of these requires their own complementary learning paths that branch as soon as they get to the [Learn page](https://bevyengine.org/learn/) to ensure that the first experience that they have with Bevy matches what they need.
 
+Once users have completed the introductory learning materials in their path of choice, they can move on to more advanced learning material:
+
+1. Advanced book chapters.
+2. Advanced examples.
+
 ### Bevy Quick Start: the example-first path
 
 Users following the example-first path will tend to take the following route:
@@ -48,6 +53,7 @@ Users following the example-first path will tend to take the following route:
    3. Community tutorials and template games.
    4. Various community support forums.
    5. Streams, YouTube channels and blogs.
+   6. Advanced examples.
 
 Each quick start game should:
 
@@ -82,6 +88,7 @@ Users following the definition-first path will tend to take the following route:
    3. CONTRIBUTING.md, GitHub issues and pull requests.
    4. Release notes.
    5. The engine development channels on Discord.
+   6. Advanced examples to see how everything comes together.
 
 Each chapter of the Bevy Book should:
 
@@ -89,6 +96,8 @@ Each chapter of the Bevy Book should:
 2. Be broken down into several sections / pages to focus on detailed topics.
    1. These should have simple, minimal examples explaining how that functionality works.
 3. Link to appropriate sections of quick start guides that demonstrate the ideas being taught in a more coherent way.
+4. Be marked as **Advanced** if it contains topics that are mostly irrelevant to beginners.
+   1. These chapters may assume arbitrary prior knowledge, provided they link to the appropriate section of the book.
 
 This path should prioritize:
 
@@ -192,14 +201,12 @@ Create devious puzzles for your players to solve as they navigate a 3D world.
 1. Getting Started
    1. Installing Rust and Bevy
    2. App, AppBuilder and World
-   3. Bringing it together: Hello Bevy!
 2. Entities, Components and Systems
    1. Entities have Components
    2. Systems access data through Queries
    3. Resources are global singletons
    4. Bundles collect related components
    5. Spawning, despawning and modifying entities with Commands
-   6. Bringing it together: A Simple Ecological Model
 3. Graphics and Asset Basics
    1. Sprites and Cameras
    2. The `Transform` component controls position
@@ -238,6 +245,29 @@ Create devious puzzles for your players to solve as they navigate a 3D world.
     4. States
     5. Fast compiles
     6. Testing with Bevy
+
+### Advanced examples
+
+### Breakout
+
+**Genres:** arcade
+**Focus:** basic physics, keyboard controls, sprites
+
+Control a paddle with your keyboard to smash bricks and score points in this classic arcade game!
+
+### Breakout
+
+**Genres:** arcade
+**Focus:** basic physics, keyboard controls, sprites
+
+Control a paddle with your keyboard to smash bricks and score points in this classic arcade game!
+
+### Breakout
+
+**Genres:** arcade
+**Focus:** basic physics, keyboard controls, sprites
+
+Control a paddle with your keyboard to smash bricks and score points in this classic arcade game!
 
 ## Drawbacks
 
