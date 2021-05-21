@@ -268,26 +268,19 @@ Advanced chapters are skippable, rely on prior knowledge and are not useful for 
 
 ### Advanced examples
 
-### Breakout
+### Text adventure
 
-**Genres:** arcade
-**Focus:** basic physics, keyboard controls, sprites
+**Genres:** rpg, rogue-like, adventure
+**Focus:** custom runners, terminal integration
 
-Control a paddle with your keyboard to smash bricks and score points in this classic arcade game!
+Explore a dungeon from the command line in this old school roleplaying game.
 
-### Breakout
+### Sudoku
 
-**Genres:** arcade
-**Focus:** basic physics, keyboard controls, sprites
+**Genres:** puzzle
+**Focus:** ui, polish
 
-Control a paddle with your keyboard to smash bricks and score points in this classic arcade game!
-
-### Breakout
-
-**Genres:** arcade
-**Focus:** basic physics, keyboard controls, sprites
-
-Control a paddle with your keyboard to smash bricks and score points in this classic arcade game!
+Play Sudoku in this polished, all-UI game.
 
 ## Drawbacks
 
@@ -359,7 +352,7 @@ More fodder for the future!
 
 There are two main reasons for this:
 
-1. Scope: we want to keep the scope small to have a polished, useful product in time for 0.6.
+1. Scope: we want to keep the scope *reasonably* small to have a polished, useful product in time for 0.6.
 2. Stability: many useful features (such as rendering, audio or UI) are not sufficiently stable or mature to document in this way.
 
 We can (and should!) add more chapters later and extend the chapters we do have.
