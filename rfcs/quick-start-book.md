@@ -198,53 +198,73 @@ Create devious puzzles for your players to solve as they navigate a 3D world.
 
 ### Bevy Book chapters
 
+Advanced chapters are skippable, rely on prior knowledge and are not useful for beginners.
+
 1. Getting Started
    1. Installing Rust and Bevy
-   2. App, AppBuilder and World
+   2. `App`, `AppBuilder` and `World`
+   3. Advanced: Fast compiles
 2. Entities, Components and Systems
-   1. Entities have Components
-   2. Systems access data through Queries
+   1. Entities have components
+   2. Systems access data through queries
    3. Resources are global singletons
    4. Bundles collect related components
-   5. Spawning, despawning and modifying entities with Commands
-3. Graphics and Asset Basics
-   1. Sprites and Cameras
-   2. The `Transform` component controls position
-   3. The Parent-Child hierarchy and GlobalTransforms
-   4. Loading assets and working with Handles
-4. Input
-   1. Input Basics
-   2. Keyboard Input
-   3. Mouse and Touchpad Input
-   4. Gamepad Input
-5. Time and Timers
-   1. Time
-   2. Timers
-   3. Fixed timestep
-6. ECS: Beyond the Basics
-   1. Query filters
-   2. Change detection
-   3. The "Index" pattern
-   4. Custom Commands
-   5. Exclusive Systems and NonSend Resources
-7. Rendering
-   1. Meshes
-   2. Camera control
-   3. Physically-based rendering
-8. Modular Bevy
-   1. Custom runners
-   2. Stand-alone `bevy_ecs`
-9. Coordinating Systems
+   5. Spawning, despawning and modifying entities with `Commands`
+   6. Reliable change detection
+   7. Advanced: generic systems
+   8. Advanced: async tasks
+   9. Advanced: parallel iteration
+   10. Advanced: custom commands
+   11. Advanced: custom system parameters
+   12. Advanced: exclusive systems
+   13. Advanced: optimizing component storage
+   14. Advanced: `QuerySet` can be used to work around ownership rules
+   15. Advanced: the "index" pattern
+   16. Advanced: `NonSend` resources
+   17. Advanced: `bevy_ecs` as a standalone crate
+3. Game logic
    1. Events
-   2. Understanding the Scheduler: Stages and System Ordering
-   3. System chaining
-10. Code organization and other development practices
-    1. Rust module refresh
-    2. Plugins
-    3. System Sets and Run Criteria
-    4. States
-    5. Fast compiles
-    6. Testing with Bevy
+   2. Time and timers
+   3. Run criteria and fixed timesteps
+   4. States
+   5. Advanced: Understanding the Scheduler: Stages and System Ordering
+   6. Advanced: System chaining
+   7. Advanced: Custom runners and headless operation
+4. Graphics
+   1. The `Transform` component controls position
+   2. 2D sprites
+   3. 3D meshes
+   4. Cameras
+   5. The `Parent`-`Child` hierarchy and `GlobalTransform`
+   6. Configuring your window(s)
+   7. Advanced: physically-based rendering
+   8. Advanced: wireframe rendering
+   9. Advanced: rendering to a texture
+   10. Advanced: writing your own shaders
+5. Assets
+   1. Loading assets
+   2. Working with handles
+   3. Advanced: custom asset types
+   4. Advanced: hot reloading
+   5. Advanced: scenes and reflection
+6. Input
+   1. Input basics
+   2. Keyboard input
+   3. Mouse and touchpad input
+   4. Gamepad input
+7. Audio
+   1. Audio basics
+8. UI
+   1. UI basics
+9. Development practices
+   1. Rust module refresh
+   2. Plugins
+   3. Testing with Bevy
+   4. Advanced: diagnostics and benchmarking
+10. Platforms
+    1. Advanced: development on Android
+    2. Advanced: development on iOS
+    3. Advanced: development on the web with WebAssembly
 
 ### Advanced examples
 
