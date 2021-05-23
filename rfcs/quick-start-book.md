@@ -209,11 +209,11 @@ Sections within each chapter increase in difficulty and obscurity; this book is 
    8. Exclusive `World` access
    9. `bevy_ecs` as a standalone crate
 3. Game logic
-   1. Events
-   2. Time and timers
-   3. Run criteria and fixed timesteps
-   4. States
-   5. Stages and system ordering
+   1. Stages and system ordering
+   2. Events
+   3. States
+   4. Time and timers
+   5. Run criteria and fixed timesteps
    6. Async tasks
    7. Custom runners and headless operation
 4. Graphics
