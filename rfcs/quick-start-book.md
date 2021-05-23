@@ -212,35 +212,24 @@ Advanced chapters are skippable, rely on prior knowledge and are not useful for 
    5. Spawning, despawning and modifying entities with `Commands`
    6. Reliable change detection
    7. Advanced: generic systems
-   8. Advanced: async tasks
-   9. Advanced: parallel iteration
-   10. Advanced: custom commands
-   11. Advanced: custom system parameters
-   12. Advanced: exclusive systems
-   13. Advanced: optimizing component storage
-   14. Advanced: `QuerySet` can be used to work around ownership rules
-   15. Advanced: the "index" pattern
-   16. Advanced: `NonSend` resources
-   17. Advanced: `bevy_ecs` as a standalone crate
+   8. Advanced: exclusive `World` access
+   9. Advanced: `bevy_ecs` as a standalone crate
 3. Game logic
    1. Events
    2. Time and timers
    3. Run criteria and fixed timesteps
    4. States
-   5. Advanced: Understanding the Scheduler: Stages and System Ordering
-   6. Advanced: System chaining
-   7. Advanced: Custom runners and headless operation
+   5. Advanced: stages and system ordering
+   6. Advanced: async tasks
+   7. Advanced: custom runners and headless operation
 4. Graphics
    1. The `Transform` component controls position
    2. 2D sprites
    3. 3D meshes
    4. Cameras
-   5. The `Parent`-`Child` hierarchy and `GlobalTransform`
-   6. Configuring your window(s)
-   7. Advanced: physically-based rendering
-   8. Advanced: wireframe rendering
-   9. Advanced: rendering to a texture
-   10. Advanced: writing your own shaders
+   5. `Parent`-`Child` hierarchy
+   6. Configuring window(s)
+   7. Advanced: writing shaders
 5. Assets
    1. Loading assets
    2. Working with handles
@@ -254,14 +243,19 @@ Advanced chapters are skippable, rely on prior knowledge and are not useful for 
    4. Gamepad input
 7. Audio
    1. Audio basics
-8. UI
-   1. UI basics
+8. User interfaces
+   1. User interface basics
 9. Development practices
    1. Rust module refresh
    2. Plugins
    3. Testing with Bevy
-   4. Advanced: diagnostics and benchmarking
-10. Platforms
+   4. Advanced: custom system parameters
+10. Performance optimizations
+    1. Diagnostics and benchmarking
+    2. Parallel iteration
+    3. Custom "indexing" patterns
+    4. Advanced: component storage types
+11. Platforms
     1. Advanced: development on Android
     2. Advanced: development on iOS
     3. Advanced: development on the web with WebAssembly
