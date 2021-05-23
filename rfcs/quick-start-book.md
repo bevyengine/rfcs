@@ -218,12 +218,17 @@ Sections within each chapter increase in difficulty and obscurity; this book is 
    7. Custom runners and headless operation
 4. Graphics
    1. The `Transform` component controls position
-   2. 2D sprites
-   3. 3D meshes
-   4. Cameras
-   5. `Parent`-`Child` hierarchy
-   6. Configuring window(s)
-   7. Writing shaders
+   2. Cameras
+   3. `Parent`-`Child` hierarchy
+   4. Configuring window(s)
+   5. 2D
+      1. Sprites
+      2. Sprite sheets
+   6. 3D
+      1. Meshes
+      2. Physically-based rendering
+   7. Rendering internals
+      1. Shader basics
 5. Assets
    1. Loading assets
    2. Working with handles
