@@ -34,10 +34,7 @@ Bevy intentionally aims to be inclusive of both complete beginners who have neve
 
 Each of these requires their own complementary learning paths that branch as soon as they get to the [Learn page](https://bevyengine.org/learn/) to ensure that the first experience that they have with Bevy matches what they need.
 
-Once users have completed the introductory learning materials in their path of choice, they can move on to more advanced learning material:
-
-1. Advanced book chapters.
-2. Advanced examples.
+Once users have completed the introductory learning materials in their path of choice, they can begin creating their own games or move on to our advanced examples to see how everything comes together in a realistic way.
 
 ### Bevy Quick Start: the example-first path
 
@@ -96,8 +93,6 @@ Each chapter of the Bevy Book should:
 2. Be broken down into several sections / pages to focus on detailed topics.
    1. These should have simple, minimal examples explaining how that functionality works.
 3. Link to appropriate sections of quick start guides that demonstrate the ideas being taught in a more coherent way.
-4. Be marked as **Advanced** if it contains topics that are mostly irrelevant to beginners.
-   1. These chapters may assume arbitrary prior knowledge, provided they link to the appropriate section of the book.
 
 This path should prioritize:
 
@@ -198,12 +193,11 @@ Create devious puzzles for your players to solve as they navigate a 3D world.
 
 ### Bevy Book chapters
 
-Advanced chapters are skippable, rely on prior knowledge and are not useful for beginners.
+Sections within each chapter increase in difficulty and obscurity; this book is not particularly intended to be read from cover-to-cover.
 
 1. Getting Started
    1. Installing Rust and Bevy
    2. `App`, `AppBuilder` and `World`
-   3. Advanced: Fast compiles
 2. Entities, Components and Systems
    1. Entities have components
    2. Systems access data through queries
@@ -211,17 +205,17 @@ Advanced chapters are skippable, rely on prior knowledge and are not useful for 
    4. Bundles collect related components
    5. Spawning, despawning and modifying entities with `Commands`
    6. Reliable change detection
-   7. Advanced: generic systems
-   8. Advanced: exclusive `World` access
-   9. Advanced: `bevy_ecs` as a standalone crate
+   7. Generic systems
+   8. Exclusive `World` access
+   9. `bevy_ecs` as a standalone crate
 3. Game logic
    1. Events
    2. Time and timers
    3. Run criteria and fixed timesteps
    4. States
-   5. Advanced: stages and system ordering
-   6. Advanced: async tasks
-   7. Advanced: custom runners and headless operation
+   5. Stages and system ordering
+   6. Async tasks
+   7. Custom runners and headless operation
 4. Graphics
    1. The `Transform` component controls position
    2. 2D sprites
@@ -229,13 +223,13 @@ Advanced chapters are skippable, rely on prior knowledge and are not useful for 
    4. Cameras
    5. `Parent`-`Child` hierarchy
    6. Configuring window(s)
-   7. Advanced: writing shaders
+   7. Writing shaders
 5. Assets
    1. Loading assets
    2. Working with handles
-   3. Advanced: custom asset types
-   4. Advanced: hot reloading
-   5. Advanced: scenes and reflection
+   3. Custom asset types
+   4. Hot reloading
+   5. Scenes and reflection
 6. Input
    1. Input basics
    2. Keyboard input
@@ -248,17 +242,18 @@ Advanced chapters are skippable, rely on prior knowledge and are not useful for 
 9. Development practices
    1. Rust module refresh
    2. Plugins
-   3. Testing with Bevy
-   4. Advanced: custom system parameters
+   3. Fast compiles
+   4. Testing with Bevy
+   5. Custom system parameters
 10. Performance optimizations
     1. Diagnostics and benchmarking
     2. Parallel iteration
     3. Custom "indexing" patterns
-    4. Advanced: component storage types
+    4. Component storage types
 11. Platforms
-    1. Advanced: development on Android
-    2. Advanced: development on iOS
-    3. Advanced: development on the web with WebAssembly
+    1. Android
+    2. iOS
+    3. Web
 
 ### Advanced examples
 
