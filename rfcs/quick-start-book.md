@@ -202,8 +202,8 @@ Sections within each chapter increase in difficulty and obscurity; this book is 
    1. Entities have components
    2. Systems access data through queries
    3. Resources are global singletons
-   4. Bundles collect related components
-   5. Spawning, despawning and modifying entities with `Commands`
+   4. Spawning, despawning and modifying entities with `Commands`
+   5. Filtering queries
    6. Reliable change detection
    7. Generic systems
    8. Exclusive `World` access
