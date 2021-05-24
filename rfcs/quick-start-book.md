@@ -196,8 +196,11 @@ Create devious puzzles for your players to solve as they navigate a 3D world.
 Sections within each chapter increase in difficulty and obscurity; this book is not particularly intended to be read from cover-to-cover.
 
 1. Getting Started
-   1. Installing Rust and Bevy
-   2. `App`, `AppBuilder` and `World`
+   1. Why Bevy?
+   2. Installing Rust and Bevy
+   3. `App`, `AppBuilder` and `World`
+   4. Plugins as modular building blocks
+   5. The Bevy community
 2. Entities, Components and Systems
    1. Entities have components
    2. Systems access data through queries
@@ -207,7 +210,6 @@ Sections within each chapter increase in difficulty and obscurity; this book is 
    6. Reliable change detection
    7. Generic systems
    8. Exclusive `World` access
-   9. `bevy_ecs` as a standalone crate
 3. Game logic
    1. Stages and system ordering
    2. Events
