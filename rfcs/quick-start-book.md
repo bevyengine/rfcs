@@ -250,8 +250,9 @@ Sections within each chapter increase in difficulty and obscurity; this book is 
    1. Rust module refresh
    2. Plugins
    3. Fast compiles
-   4. Testing with Bevy
-   5. Custom system parameters
+   4. Testing
+   5. Error handling
+   6. Boilerplate reduction tools
 10. Performance optimizations
     1. Diagnostics and benchmarking
     2. Parallel iteration
