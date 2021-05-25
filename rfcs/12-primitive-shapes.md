@@ -25,7 +25,7 @@ Note that a `Circle2d` does not contain any information about the position of th
 | Shape     | Mesh | Bounding | Collision |
 |---        |---|---|---|
 | Sphere    | ✔ | ✔  + Trans | ✔ + Trans |
-| Box    | ✔ | ✔ (AABB) | ✔ + Trans + Rot (OBB) |
+| Box    | ✔ | ✔ + Trans (AABB) | ✔ + Trans + Rot (OBB) |
 | Capsule   | ✔ | ❌ | ✔ + Trans + Rot |
 | Cylinder  | ✔ | ❌ | ✔ + Trans + Rot |
 | Cone      | ✔ | ❌ | ✔ + Trans + Rot |
