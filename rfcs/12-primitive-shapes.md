@@ -428,9 +428,10 @@ Primitives colliders and bounding volumes are fully defined in space, and do not
 
 #### Cache Efficiency
 
-- Some primitives such as AABB and Sphere don't need a rotation to be fully defined. 
-- By using a `GlobalTransform`, not only is this an unused Quat that fills the cache line, it would also cause redundant change detection on rotations.
+- Some primitives such as AABB and Sphere don't need a rotation (or scale) to be fully defined. 
+- Using a `GlobalTransform` adds an unused Quat and Vec3 to the cache line.
 - This is especially important for AABBs and Spheres, because they are fundamental to broad phase collision detection and BV(H), and as such need to be as efficient as possible.
+- This also applies to all other primitives, which don't use the `scale` field of the `GlobalTransform`.
 
 #### Ergonomics
 
