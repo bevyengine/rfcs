@@ -398,7 +398,7 @@ type Aabb2d = BoundingBox2d;
 struct BoxCollider2d {
   box: Box2d,
   translation: Vec2,
-  rotation: Mat3,
+  rotation: Mat2,
 }
 impl Meshable for BoxCollider2d {}
 impl Collider2d for BoxCollider2d {}
@@ -416,7 +416,7 @@ impl Meshable for Capsule2d {}
 struct CapsuleCollider2d {
   capsule: Capsule2d,
   translation: Vec2,
-  rotation: Mat3,
+  rotation: Mat2,
 }
 impl Meshable for CapsuleCollider2d {}
 impl Collider2d for CapsuleCollider2d {}
