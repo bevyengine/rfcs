@@ -35,8 +35,8 @@ They don't need to be perfect, complete, or even very good when you submit them.
 4. [Create a pull request](https://docs.github.com/en/github/collaborating-with-issues-and-pull-requests/creating-a-pull-request) in this repo. The first comment should include:
    1. A one-sentence description of what the RFC is about.
    2. A link to the "rendered" form of the `my_feature.md` file. To do so, link directly to the file on your own branch, so then the link stays up to date as the file's contents changes. See #1 for an example of what this looks like.
-5. With your PR created, note the PR number assigned to your RFC. Rename your file to `PR_number-my_feature.md`, and make sure to update the link to your rendered file.
-6. Help us discuss and refine the RFC. Bevy contributors and @cart (Bevy's project lead) will leave comments and suggestions. Ideally at some point relative consensus will be reached. Your RFC is "accepted" if your pull request is merged. If your RFC is accepted, move on to step 6. A closed RFC indicates that the design cannot be accepted in its current form.
+5. With your PR created, note the PR number assigned to your RFC. Rename your file to `PR_NUMBER-my_feature.md` (ex: `7-visual_scripting.md`), and make sure to update the link to your rendered file.
+6. Help us discuss and refine the RFC. Bevy contributors and @cart (Bevy's project lead) will leave comments and suggestions. Ideally at some point relative consensus will be reached. Your RFC is "accepted" if your pull request is merged. If your RFC is accepted, move on to step 7. A closed RFC indicates that the design cannot be accepted in its current form.
 7. Bevy contributors are now free to implement (or resume implementing) the RFC in a PR in the [main Bevy repo](https://github.com/bevyengine/bevy), and an associated tracking issue is created in that repo. You are _not_ required to provide an implementation for your RFC, nor are you _entitled_ to be the one that implements the RFC.
 
 ## Collaborating
