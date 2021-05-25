@@ -2,7 +2,7 @@
 
 ## Summary
 
-These geometric primitives, or "primitive shapes", are lightweight types for use across bevy engine crates and as interoperability types for plugins and libraries. The goal is to provide an API that considers ergonomics for the common use cases, such as meshing, bounding, and collision, without sacrificing performance.
+These geometric primitives, or "primitive shapes", are lightweight types for use across Bevy engine crates and as interoperability types for plugins and libraries. The goal is to provide an API that considers ergonomics for the common use cases, such as meshing, bounding, and collision, without sacrificing performance.
 
 ## Motivation
 
@@ -72,8 +72,6 @@ Colliders can provide intersection checks against other colliders, as well as ch
 
 This RFC provides independent 2d and 3d primitives. Recall that the purpose of this is to provide lightweight types, so there are what appear to be duplicates in 2d and 3d, such as `Line` and `Line2d`. Note that the 2d version of a line is smaller than its 3d counterpart because it is only defined in 2d. 3d geometry (or 2d with depth) is assumed to be the default for most cases. The names of the types were chosen with this in mind.
 
-...
-
 ## Implementation strategy
 
 ### Helper Types
@@ -119,6 +117,7 @@ struct Point(Vec3)
 
 /// Vector direction in 3D space that is guaranteed to be normalized through its getter/setter.
 struct Direction(Vec3)
+impl Meshable for Direction {}
 
 struct Plane {
   point: Point,
@@ -131,6 +130,7 @@ struct Ray(
   point: Point, 
   direction: Direction,
 );
+impl Meshable for Ray {}
 
 // Line types
 
@@ -139,6 +139,7 @@ struct Line {
   point: Point, 
   direction: Direction,
 }
+impl Meshable for Line {}
 
 /// A line segment bounded by two points
 struct LineSegment { 
@@ -193,8 +194,8 @@ struct BoundingBox {
   box: Box,
   translation: Vec3,
 }
-impl Meshable for BoundingBox
-impl Bounding for BoundingBox
+impl Meshable for BoundingBox {}
+impl Bounding for BoundingBox {}
 type Aabb = BoundingBox;
 
 struct BoxCollider {
@@ -202,8 +203,8 @@ struct BoxCollider {
   translation: Vec3,
   rotation: Quat,
 }
-impl Meshable for BoxCollider
-impl Collider for BoxCollider
+impl Meshable for BoxCollider {}
+impl Collider for BoxCollider {}
 type Obb = BoxCollider;
 
 // Cylinder Types
@@ -365,15 +366,15 @@ struct BoundingCircle2d {
   circle: Circle2d,
   translation: Vec2,
 }
-impl Meshable2d for BoundingCircle2d
-impl Bounding2d for BoundingCircle2d
+impl Meshable2d for BoundingCircle2d {}
+impl Bounding2d for BoundingCircle2d {}
 
 struct CircleCollider2d {
   sphere: Circle2d,
   translation: Vec2,
 }
-impl Meshable2d for CircleCollider2d
-impl Collider2d for CircleCollider2d
+impl Meshable2d for CircleCollider2d {}
+impl Collider2d for CircleCollider2d {}
 
 // Box Types
 
@@ -386,8 +387,8 @@ struct BoundingBox2d {
   box: Box2d,
   translation: Vec2,
 }
-impl Meshable2d for BoundingBox2d
-impl Bounding2d for BoundingBox2d
+impl Meshable2d for BoundingBox2d {}
+impl Bounding2d for BoundingBox2d {}
 type Aabb2d = BoundingBox2d;
 
 struct BoxCollider2d {
@@ -395,8 +396,8 @@ struct BoxCollider2d {
   translation: Vec2,
   rotation: Mat3,
 }
-impl Meshable2d for BoxCollider2d
-impl Collider2d for BoxCollider2d
+impl Meshable2d for BoxCollider2d {}
+impl Collider2d for BoxCollider2d {}
 type Obb2d = BoxCollider2d;
 
 // Capsule Types
