@@ -173,15 +173,15 @@ struct BoundingSphere {
   sphere: Sphere,
   translation: Vec3,
 }
-impl Meshable for BoundingSphere
-impl Bounding for BoundingSphere
+impl Meshable for BoundingSphere {}
+impl Bounding for BoundingSphere {}
 
 struct SphereCollider {
   sphere: Sphere,
   translation: Vec3,
 }
-impl Meshable for BoundingSphere
-impl Collider for BoundingSphere
+impl Meshable for BoundingSphere {}
+impl Collider for BoundingSphere {}
 
 // Box Types
 
@@ -278,14 +278,14 @@ impl Collider for WedgeCollider {}
 
 // Other Types
 
-struct Torus{
+struct Torus {
   major_radius: f32,
   tube_radius: f32,
 }
 impl Meshable for Torus {}
 
 // A 3d frustum used to represent the volume rendered by a camera, defined by the 6 planes that set the frustum limits.
-struct Frustum{
+struct Frustum {
   near: Plane,
   far: Plane,
   top: Plane,
