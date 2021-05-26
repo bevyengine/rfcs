@@ -513,7 +513,7 @@ An argument could be made to use an external crate for shape primitives, however
 - Godot `PrimitiveMesh`: https://docs.godotengine.org/en/stable/classes/class_primitivemesh.html#class-primitivemesh
 - The popular *Shapes* plugin for Unity https://acegikmo.com/shapes/docs/#line
 
-Proir art was used to select the most common types of shape primitive, naming conventions, as well as sensible data structures for bounding, collision, and culling.
+Prior art was used to select the most common types of shape primitive, naming conventions, as well as sensible data structures for bounding, collision, and culling.
 
 Many game engine docs appear to have oddly-named and disconnected shape primitive types that are completely unrelated. This RFC aims to ensure Bevy doesn't go down this path, and instead derives functionality from common types to take advantage of the composability of components in the ECS.
 
