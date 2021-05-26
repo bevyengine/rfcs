@@ -475,6 +475,30 @@ let sphere = SphereCollider::new{Sphere{1.0}, Point::x(5.0));
 let intersection = sphere.raycast(ray);
 ```
 
+### Direction Normalization
+
+The notes for `Direction` mention it is gauranteed to be normalized through its getter and setter. There are a few ways to do this, but I'd like to propose a zero-cost implementation using the typestate pattern. To absolutely minimize the use of `normalize` on the contained `Vec3`, we can memoize the result _only when accessed_. We don't want to make `Direction` an enum, as that will add a discriminant, and we don't want to have normalized and unnormalized types for of all our primitives. So instead, we could use the typestate pattern to do something like:
+
+```rust
+struct Plane {
+  point: Point,
+  normal: Direction,
+}
+
+struct Direction {
+  direction: impl Normalizable,
+}
+
+struct UncheckedDir(Vec3);
+impl Normalizable for UncheckedDir {}
+
+struct NormalizedDir(Vec3);
+impl Normalizable for NormalizedDir {}
+
+```
+
+When a `Direction` is mutated or built, the direction will be an `UncheckedDir`. Once it is accessed, the `Directions`s getter method will normalize the direction, and swap it out with a `NormalizedDir`. Now the normalized direction is memoized in the `Direction` without increasing the size of the type. This complexity can be completely hidden to users.
+
 ## Drawbacks
 
 Adding primitives invariably adds to the maintenance burden. However, this cost seems worth the benefits of the needed engine functionality that can be built on top of it.
