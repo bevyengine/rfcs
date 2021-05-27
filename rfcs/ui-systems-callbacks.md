@@ -1,4 +1,4 @@
-# Feature Name: `one-shot-callbacks`
+# Feature Name: `ui-systems-callbacks`
 
 ## Summary
 
@@ -280,6 +280,7 @@ This proposal's functionality depends on:
 
 - How do we serialize and deserialize callback components?
 - How can we ergonomically control the order in which callback commands are executed?
+- Should we special-case UI callbacks for now, or create a generalized `Hook` trait from the very beginning?
 
 ## Future work
 
@@ -287,6 +288,35 @@ This proposal's functionality depends on:
 2. The `EntityCommand` variant of `Callback` may be better handled using `Relations` in some form in the future.
 3. The ergonomics and performance of the callback pattern will be improved with other possible improvements to commands, namely more immediate processing, parallel execution and better control over execution order.
 
-### Scripting-like gameplay code using callbacks
+### A generalized hook framework
 
-TODO: discuss `CallbackWrapper` trait and its use to make scripting-like hooks with `callback_hook::<C>` system
+The callback pattern, once established for UI (or immediately, if there's appetite for it), can be easily extended to create powerful and expressive **entity hooks**.
+This allows for the ad-hoc creation of safe and performant APIs for scripting-like one-off behavior without a huge proliferation of systems in our schedule.
+
+To do so, all we need is a simple trait that wraps our `Callback` component and a trivial generic system.
+
+```rust
+pub trait Hook {
+	pub fn callback(&self) -> &Callback {}
+}
+
+// This system could be added for `H = ActionHook` instead of implementing `callback_system` in the core plugins to avoid special-casing
+pub fn add_hook<H: Hook + Component>(mut query: Query<&mut EventReader<H>, mut commands: Commands>){
+	// Operates on all entities with an `Events<H>` component
+	for hook_events in query.iter_mut(){
+		for hook_event in hook_event{
+			match hook_event.callback() {
+				Callback::Command(command) => commands.apply(command),
+				EntityCommand::EntityCommand(e, e_command) => commands.entity(e).apply(e_command),
+				Callback::SelfCommand(e_command) => commands.entity(self_e).apply(e_command),
+			}
+		}
+	}
+}
+```
+
+Hooks might be "whenever this entity dies", "when damage is taken", "when a unit is at full health" or whatever else is relevant to the specific game or application.
+Each of these event queues would be populated in their own game-logic specific system,
+and then these hooks could be exposed as an API to various scripting-like parts of the game.
+
+This pattern allows us to customize behavior in arbitrarily complex ways in a more efficient fashion (using one system per hook, rather than per behavior), and opens the door to programming flexible behaviors without having to write them directly as Rust code.
