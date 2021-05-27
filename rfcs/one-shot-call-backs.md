@@ -238,9 +238,18 @@ commands.spawn_bundle(ButtonBundle::default())
 
 ### Reacting to UI
 
+Once your UI has responded to actions, you may want to respond to its consequences in a downstream fashion.
+There are three good tools to do so:
 
+1. **Change detection:** Using `Changed<T>` query filters (or `.is_changed()` for resources), respond to changes in the data.
+2. **Global events:** Emit and then listen for an event as a resource using `EventWriter` and `EventReader` as system parameters.
+3. **Entity-specific events:** Emit and then listen for an event as a component using `EventWriter` and `EventReader` as query parameters.
 
-TODO: discuss change detection, global events, and entity-specific events
+Change detection should be your default tool for simple cases: it is fast, perfectly reliable and does not involve the creation of any new types.
+Simply read the new value of the data and respond accordingly.
+
+Events are useful when you need to store more than one possible event, or want to encode additional data.
+Use entity-specific events when the effects of your action are well-localized to a single entity, and global events otherwise.
 
 ## Implementation strategy
 
