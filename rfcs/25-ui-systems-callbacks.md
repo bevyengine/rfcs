@@ -318,6 +318,7 @@ we can make complex user interfaces dramatically easier to reason about, refacto
 2. The `EntityCommand` variant of `Callback` may be better handled using `Relations` in some form in the future.
 3. The ergonomics and performance of the callback pattern will be improved with other possible improvements to commands, namely more immediate processing, parallel execution and better control over execution order.
 4. Accessing and modifying the behavior of other entities within a UI hierarchy *can* be done as is, but will be much more ergonomic with advanced relations features like the ability to query for data on the target entity.
+5. Create a `QueryCommands` type (which applies the command to every entity matching a given query), and then extend callbacks to support this use as well.
 
 ### A generalized hook framework
 
