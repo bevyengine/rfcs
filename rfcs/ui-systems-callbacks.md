@@ -269,12 +269,43 @@ This proposal's functionality depends on:
 
 ## Rationale and alternatives
 
-### Dataflow desiderata
+### Why is it helpful to use the ECS for our UI logic?
 
-1. No special-casing.
-2. Flexible.
-3. Opinionated.
-4. Efficient.
+1. Familiar to Bevy programmers.
+2. Trivially integrated with game logic.
+3. Incredibly expressive.
+4. Benefits from other engine improvements and reduces maintenance burden.
+
+### Why do we need to add this as an engine feature?
+
+While very little code will need to be added *specifically* for this pattern,
+it is vitally important to demonstrate complex patterns in an opinionated way to users.
+
+This allows for the creation of a standardized, interoperable ecosystem,
+and guides users towards a sensible, performant and maintainable set of patterns when building their own user interfaces.
+
+### Why do we want callbacks?
+
+UI, much like scripting, tends to involve a large number of special-cased behaviors, in direct opposition to the natural patterns promoted by the ECS architecture.
+The callback pattern (and more generally, hooks) allows us to express this logic in a sane and maintainable fashion.
+
+Theoretically, everything that users could do with the callback pattern could be done with one-off systems.
+However, this clutters our scheduler (possibly hurting performance), reduces clarity and hurts compile times due to a huge number of one-off types.
+Furthermore, by storing specialized logic as data directly on UI entities it makes it dramatically easier to debug and reason about customized behavior.
+
+### Why don't we need a more complex reactivity model?
+
+Most reaction chains in UI are shockingly short.
+The most complex patterns are:
+
+1. Changing UI appearance en-masse: styles and themes should be used for this.
+2. Changing which UI elements are displayed (e.g. swapping tabs, pulling up a menu): this is precisely what `on_enter` and `on_exit` system sets in `States` are intended to solve.
+3. Handling layout changes: this should be done automatically in a single system (or group of systems) that runs in `CoreStage::PostUpdate`, rather than being scatter across our logic.
+
+For everything else, change detection and events should be more than adequate.
+
+By sticking to a straightforward imperative model of UI behavior combined with decoupled reactivity,
+we can make complex user interfaces dramatically easier to reason about, refactor and debug.
 
 ## Unresolved questions
 
@@ -287,6 +318,7 @@ This proposal's functionality depends on:
 1. We may want to loop over UI in some way to ensure that everything is resolved properly.
 2. The `EntityCommand` variant of `Callback` may be better handled using `Relations` in some form in the future.
 3. The ergonomics and performance of the callback pattern will be improved with other possible improvements to commands, namely more immediate processing, parallel execution and better control over execution order.
+4. Accessing and modifying the behavior of other entities within a UI hierarchy *can* be done as is, but will be much more ergonomic with advanced relations features like the ability to query for data on the target entity.
 
 ### A generalized hook framework
 
