@@ -2,8 +2,7 @@
 
 ## Summary
 
-When combined with ordinary systems, one-shot systems stored as components on UI entities offer a powerful and expressive callback-like paradigm for one-off UI behavior.
-In order to reduce the importance of system ordering and avoid data integrity bugs, these systems run within a dedicated looping substage.
+When combined with ordinary systems, commands stored as components on UI entities offer a powerful and expressive callback-like paradigm for one-off UI behavior.
 
 ## Motivation
 
