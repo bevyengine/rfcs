@@ -83,7 +83,7 @@ use bevy::input::SystemLabels;
 fn main(){
 	App::build()
 		.add_system_to_stage(CoreStage::PreUpdate, 
-			verify_cooldowns.system().after(InputDispatch))
+			verify_cooldowns.system().after(SystemLabels::InputDispatch))
 		.run();
 }
 
@@ -130,7 +130,7 @@ fn ability_buttons(mut query: Query<(&mut EventReader<Action>, &mut Timer<Cooldo
 We can extend this pattern further, with the use of **generic systems**, allowing us to quickly create systems for new types of interactable UI elements.
 
 ```rust
-use bevy::Prelude::*;
+use bevy::prelude::*;
 
 fn main(){
 	App::build()
@@ -224,7 +224,7 @@ For moderately complex, one-off cases though, you may prefer to combine `Callbac
 
 ```rust
 /// Powers up all of our towers when this system runs
-fn supercharge_towers(mut query: Query<&mut Damage, &mut AttackSpeed, With<Tower>>){
+fn supercharge_towers(mut query: Query<(&mut Damage, &mut AttackSpeed), With<Tower>>){
 	for mut damage, mut attack_speed in query.iter_mut(){
 		*damage *= 2.0;
 		*attack_speed *= 2.0; 
@@ -238,6 +238,8 @@ commands.spawn_bundle(ButtonBundle::default())
 
 ### Reacting to UI
 
+
+
 TODO: discuss change detection, global events, and entity-specific events
 
 ## Implementation strategy
@@ -246,7 +248,8 @@ This proposal's functionality depends on:
 
 1. Per-entity events: [PR](https://github.com/bevyengine/bevy/pull/2116), [perf improvements](https://github.com/bevyengine/bevy/pull/2073)
 2. Implementing a command chaining API.
-3. \[Optional\] One-shot systems stored as commands: [issue](https://github.com/bevyengine/bevy/issues/2192), [PR](https://github.com/bevyengine/bevy/pull/2234).
+3. A standardized label for input dispatch that's used by core and community plugins.
+4. \[Optional\] The ability to run one-shot systems with commands: [issue](https://github.com/bevyengine/bevy/issues/2192), [PR](https://github.com/bevyengine/bevy/pull/2234).
 
 In addition, we should aim to solve the **UI loop problem** as part of this proposal.
 
