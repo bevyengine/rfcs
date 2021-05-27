@@ -166,25 +166,75 @@ fn puzzle_button<T: Component + Clone>(
 ### Specializing behavior
 
 In certain cases though, you may need to have a very large number of UI elements, each with entirely custom behavior.
-Rather than running one (or more!) system per button, you can use a more advanced **callback pattern** using `Callback` components which store a one-shot system that triggers each time an `Action` event is received by your entities.
+Rather than running one (or more!) system per button, you can use a more advanced **callback pattern** using `Callback` components which store a command.
+This command is applied once for each time an `Action` event is received by your entity, taking effect at the end of the current stage.
 
-Under the hood, these are processed by the `callback_system` function found in `CoreStage::Ui`. This built-in system is *remarkably* simple:
+Under the hood, these are processed by the `callback_system` function found in `CoreStage::Ui`. The `Callback` type and this built-in system are *remarkably* simple:
 
 ```rust
-fn callback_system(mut commands: Commands, mut query: Query<&mut EventReader<Action>, &Callback>){
-	for (mut actions, callback) in query.iter_mut(){
+/// `Callback` components are automatically run as commands when 
+enum Callback {
+	/// Commands that affecting the global state broadly
+	Command(Commands),
+	/// Commands that affect a single entity, stored in this enum
+	EntityCommand(Entity, EntityCommands),
+	/// Commands that affect only the entity that has this component
+	SelfCommand(EntityCommands),
+}
+
+/// Applies the `Callback` component of entities once for each `Action` event that they have
+fn callback_system(mut commands: Commands, mut query: Query<(Entity, &mut EventReader<Action>, &Callback)>){
+	for (self_e, mut actions, callback) in query.iter_mut(){
 		// For each Action (triggered by inputs) that our entity receives
 		for _ in actions {
-			// Runs the system referenced in the `Callback` component of our entity at the end of the current stage
-			commands.run_system(callback.system);
+			// Run the command referenced in the `Callback` component of our entity
+			// at the end of the current stage
+			match Callback {
+				Callback::Command(command) => commands.apply(command),
+				EntityCommand::EntityCommand(e, e_command) => commands.entity(e).apply(e_command),
+				Callback::SelfCommand(e_command) => commands.entity(self_e).apply(e_command),
+			}
 		}
 	}
 }
 ```
 
-TODO: demonstrate using callbacks
+Adding callbacks to your UI elements is straightforward: simply add the appropriate `Callback` struct as a component.
 
-TODO: discuss passing data into callbacks
+```rust
+// This button will spawn a new unit when pressed
+commands.spawn_bundle(ButtonBundle::default())
+	.with(Callback::Command(Commands::new().spawn_bundle(UnitBundle::default())));
+
+// This button will overwrite the value of the `GameDifficulty` resource when pressed
+commands.spawn_bundle(ButtonBundle::default())
+	.with(Callback::Command(Commands::new().insert_resource(GameDifficulty::Hard));
+
+// This button will add the `InCombat` marker component to the `player_entity` Entity when pressed
+commands.spawn_bundle(ButtonBundle::default())
+	.with(Callback::EntityCommand(player_entity, EntityCommands::new().insert(InCombat)));
+
+// This button will despawn itself when pressed
+commands.spawn_bundle(ButtonBundle::d, efault())
+	.with(Callback::SelfCommand(EntityCommands::new().despawn()));
+```
+
+Remember that you can create your own **custom commands**, giving you the ability to express arbitrary logic using callbacks.
+For moderately complex, one-off cases though, you may prefer to combine `Callback` with the `run_system` command to quickly execute systems of your own design in a one-shot fashion when UI elements are activated.
+
+```rust
+/// Powers up all of our towers when this system runs
+fn supercharge_towers(mut query: Query<&mut Damage, &mut AttackSpeed, With<Tower>>){
+	for mut damage, mut attack_speed in query.iter_mut(){
+		*damage *= 2.0;
+		*attack_speed *= 2.0; 
+	}
+}
+
+/// Runs the supercharge_towers system once when this button is activated
+commands.spawn_bundle(ButtonBundle::default())
+	.with(Callback::Command(Commands::new().run_system(supercharge_towers.system())));
+```
 
 ### Reacting to UI
 
@@ -195,17 +245,24 @@ TODO: discuss change detection, global events, and entity-specific events
 This proposal's functionality depends on:
 
 1. Per-entity events: [PR](https://github.com/bevyengine/bevy/pull/2116), [perf improvements](https://github.com/bevyengine/bevy/pull/2073)
-2. One-shot systems stored as commands: [issue](https://github.com/bevyengine/bevy/issues/2192), [PR](https://github.com/bevyengine/bevy/pull/2234). We would likely need a follow-up PR to improve
+2. Implementing a command chaining API.
+3. \[Optional\] One-shot systems stored as commands: [issue](https://github.com/bevyengine/bevy/issues/2192), [PR](https://github.com/bevyengine/bevy/pull/2234).
 
 In addition, we should aim to solve the **UI loop problem** as part of this proposal.
+
+### Command chaining
+
+TODO: explain exactly how this API should work.
+
+### UI loop
 
 TODO: discuss UI loop problem, and propose substage solution.
 
 ## Drawbacks
 
 1. Callbacks have arbitrary power. If not carefully managed, this could create terrible spaghetti.
-2. Callbacks operate in sequence. This is pro
-3. There are several equivalent ways to achieve the same outcome; the choice of which is mostly dictated by ergonomics and subtle (and typically irrelevant) perf considerations.
+2. Callbacks, like other commands, operate sequentially. This is problematic for high performance applications.
+3. There are several equivalent ways to achieve the same outcome. This choice is mostly dictated by ergonomics and subtle (but typically irrelevant) perf considerations.
 4. Serialization of callback components is likely to be challenging.
 5. A looping UI-specific substage will reduce parallelism, and force opinions on end-user code.
 6. Looping stages expose weaknesses in the `State` dataflow model: a state's run criteria might have returned `No` by the time the UI is ready to switch.
@@ -226,4 +283,10 @@ TODO: discuss UI loop problem, and propose substage solution.
 
 ## Future work
 
-The UI loop problem may be better addressed by multiple worlds and schedules, see #16.
+1. The UI loop problem may be better addressed by multiple worlds and schedules, see #16.
+2. The `EntityCommand` variant of `Callback` may be better handled using `Relations` in some form in the future.
+3. The ergonomics and performance of the callback pattern will be improved with other possible improvements to commands, namely more immediate processing, parallel execution and better control over execution order.
+
+### Scripting-like gameplay code using callbacks
+
+TODO: discuss `CallbackWrapper` trait and its use to make scripting-like hooks with `callback_hook::<C>` system
