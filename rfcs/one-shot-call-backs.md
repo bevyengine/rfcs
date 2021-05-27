@@ -73,6 +73,30 @@ fn my_button(mut query: Query<(&mut EventReader<Action>, &mut Counter), With<MyB
 As you can see, decoupling inputs and actions in this way makes our code more robust (since it can handle multiple inputs in a single frame), and dramatically more extensible, without adding any extra boilerplate.
 If we wanted to, we could add another system that read the same `Events<Action>` component on our `MyButton` entity, reading these events completely independently to perform new behavior each time either the button was clicked or "K" was pressed.
 
+Finally, we can use this decoupling to ensure that only valid inputs get turned into actions, by making sure that our systems runs after the `bevy::input::SystemLabels::InputDispatch` system label during the `CoreStage::PreUpdate` stage.
+Input is converted to actions during systems with those labels, so we can intercept it before it is seen by any systems in our `Update` or `Input` stages.
+
+```rust
+use bevy::prelude::*;
+use bevy::input::SystemLabels;
+
+fn main(){
+	App::build()
+		.add_system_to_stage(CoreStage::PreUpdate, 
+			verify_cooldowns.system().after(InputDispatch))
+		.run();
+}
+
+/// Ignores all inputs to Cooldown-containing entities that are not ready
+fn verify_cooldowns(mut query: Query<&Cooldown, &mut Events<Action>>){
+	for cooldown, mut actions in query.iter_mut(){
+		if !cooldown.finished{
+			actions.clear();
+		}
+	}
+}
+```
+
 ### Generalizing behavior
 
 Of course, we don't *really* want to make a separate system and marker component for every single button that we create.
