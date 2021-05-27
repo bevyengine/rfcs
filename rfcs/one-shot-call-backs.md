@@ -255,20 +255,10 @@ Use entity-specific events when the effects of your action are well-localized to
 
 This proposal's functionality depends on:
 
-1. Per-entity events: [PR](https://github.com/bevyengine/bevy/pull/2116), [perf improvements](https://github.com/bevyengine/bevy/pull/2073)
-2. Implementing a command chaining API.
-3. A standardized label for input dispatch that's used by core and community plugins.
+1. Per-entity events: [PR](https://github.com/bevyengine/bevy/pull/2116), [perf improvements](https://github.com/bevyengine/bevy/pull/2073). This is essential to achieving nice ergonomics around input mapping and action responses.
+2. Implementing a command chaining API. This should be fairly simple: it just requires implementing a `.apply` method on both `Commands` and `EntityCommands` which appends the second list of commands to the first.
+3. A standardized label for input dispatch that's used by core and community plugins, and a new `CoreStage::Input`. These are essential to help reduce system ordering headaches.
 4. \[Optional\] The ability to run one-shot systems with commands: [issue](https://github.com/bevyengine/bevy/issues/2192), [PR](https://github.com/bevyengine/bevy/pull/2234).
-
-In addition, we should aim to solve the **UI loop problem** as part of this proposal.
-
-### Command chaining
-
-TODO: explain exactly how this API should work.
-
-### UI loop
-
-TODO: discuss UI loop problem, and propose substage solution.
 
 ## Drawbacks
 
@@ -276,8 +266,6 @@ TODO: discuss UI loop problem, and propose substage solution.
 2. Callbacks, like other commands, operate sequentially. This is problematic for high performance applications.
 3. There are several equivalent ways to achieve the same outcome. This choice is mostly dictated by ergonomics and subtle (but typically irrelevant) perf considerations.
 4. Serialization of callback components is likely to be challenging.
-5. A looping UI-specific substage will reduce parallelism, and force opinions on end-user code.
-6. Looping stages expose weaknesses in the `State` dataflow model: a state's run criteria might have returned `No` by the time the UI is ready to switch.
 
 ## Rationale and alternatives
 
@@ -295,7 +283,7 @@ TODO: discuss UI loop problem, and propose substage solution.
 
 ## Future work
 
-1. The UI loop problem may be better addressed by multiple worlds and schedules, see #16.
+1. We may want to loop over UI in some way to ensure that everything is resolved properly.
 2. The `EntityCommand` variant of `Callback` may be better handled using `Relations` in some form in the future.
 3. The ergonomics and performance of the callback pattern will be improved with other possible improvements to commands, namely more immediate processing, parallel execution and better control over execution order.
 
