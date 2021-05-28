@@ -246,7 +246,7 @@ Messages are good for sending global alerts and any gameplay mechanics you expli
 The example I'm thinking of is buying items from an in-game vendor. The server doesn't simulate UI, but ideally we can write the message transaction in the same system. A macro might end up being the most ergonomic choice.
 
 [1]: https://github.com/bevyengine/rfcs/pull/16
-[2]: https://github.com/lemire/FastPFor/blob/master/headers/simple8b_rle.
+[2]: https://github.com/lemire/FastPFor/blob/master/headers/simple8b_rle.h
 [3]: https://developer.valvesoftware.com/wiki/Source_Multiplayer_Networking
 [4]: https://www.ea.com/games/apex-legends/news/servers-netcode-developer-deep-dive
 [5]: https://youtu.be/W3aieHjyNvw?t=2226 "Tim Ford explains Overwatch's hit registration"
