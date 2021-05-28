@@ -26,11 +26,11 @@ What I hope to explore in this RFC is:
 
 Bevy's aim here is to make writing local and networked multiplayer games indistinguishable, with minimal added boilerplate. Having an exact simulation timeline simplifies this problem, thus the core of this unified approach is a fixed timestep—`NetworkFixedUpdate`.
 
-As a user, you only have to annotate your gameplay-related components and systems, add those systems to `NetworkFixedUpdate` (currently would be an `AppState`), and configure a few simulation settings to get up and running. That's it! Bevy will transparently handle separating, reconciling, serializing, and compressing the networked state for you. (Those systems can be exposed for advanced users, but non-interested users need not concern themselves.)
+As a user, you only have to annotate your gameplay-related components and systems, add those systems to `NetworkFixedUpdate`, and configure a few simulation settings to get up and running. That's it! Bevy will transparently handle separating, reconciling, serializing, and compressing the networked state for you. (Those systems can be exposed for advanced users, but non-interested users need not concern themselves.)
 
 > Game design should (mostly) drive networking choices. Future documentation could feature a questionnaire to guide users to the correct configuration options for their game. Genre and player count are generally enough to decide.
 
-The core primitive here is the `Replicate` trait. All instances of components and resources that implement this trait will be automatically detected and synchronized over the network. Simply adding a `#[derive(Replicate)]` should be enough in most cases.
+The core primitive here is the `Replicate` trait. All instances of components and resources that implement this trait will be automatically registered and synchronized over the network. Simply adding a `#[derive(Replicate)]` should be enough in most cases.
 
 ```rust
 #[derive(Replicate)]
@@ -45,7 +45,6 @@ struct Transform {
 
 #[derive(Replicate)]
 struct Health {
-    #[replicate(range=(0, 1000))]
     hp: u32,
 }
 ```
@@ -105,93 +104,14 @@ TODO: Example App configuration.
 ```
 
 ## Implementation Strategy
-
-[See more in-depth implementation details (more of an idea dump atm).](../main/implementation_details.md)
   
-### Requirements
-
-- `ComponentId` (and maybe the other `*Ids`) should be stable between clients and the server.
-- Must have a means to isolate networked and non-networked state.
-  - `World` should be able to reserve an `Entity` ID range, with separate storage metadata.
-    - (If merged, [#16](https://github.com/bevyengine/rfcs/pull/16) could probably be used for this).
-  - Entities must be born (non-)networked. They cannot become (non-)networked.
-  - Networked entities must have a `NetworkID` component at minimum.
-  - Networked components and resources must only contain or reference networked data.
-  - Networked components must only be mutated inside `NetworkFixedUpdate`.
-- The ECS scheduler should support nested loops.
-  - (I'm pretty sure this isn't an actual blocker, but the workaround feels a little hacky.)
-
-### The Replicate Trait
-
-```rust
-// TODO
-impl Replicate for T {
-    ...
-}
-```
-
-### Special Query Filters
-
-```plaintext
-TODO
-
-Predicted<T>
-- Set when locally mutated. Cleared when mutated by authoritative update.
-Confirmed<T>
-- Set when mutated by authoritative update. Cleared when locally mutated.
-
-```
-### Rollback via Run Criteria
-
-```plaintext
-TODO
-
-The "outer" loop is the number of fixed update steps as determined by the fixed timestep accumulator.
-The "inner" loop is the number of steps to re-simulate.
-```
-
-### NetworkFixedUpdate
-
-Clients
-
-1. Iterate received server updates.
-2. Update simulation and interpolation timescales.
-3. Sample inputs and push them to send buffer.
-4. Rollback and re-sim *if* a new update was received.
-5. Simulate predicted tick.
-
-Server
-
-1. Iterate received client inputs.
-2. Sample buffered inputs.
-3. Simulate authoritative tick.
-4. Duplicate state changes to copy.
-5. Push client updates to send buffer.
-
-Everything aside from the simulation steps could be auto-generated.
-
-### Saving Game State
-
-- At the end of each fixed update, server iterates `Changed<T>` and `Removed<T>` for all replicable components and duplicates them to an isolated copy.
-  - Could pass this copy to another thread to do the serialization and compression.
-  - This copy has no `Table<T>`, those would be rebuilt by the client.
-
-### Preparing Server Packets
-
-- Snapshots (full state updates) will use delta compression and manual fragmentation.
-- Eventual consistency (partial state updates) will use interest management.
-- Both will most likely use the same data structure.
-
-### Restoring Game State
-
-- At the beginning of each fixed update, the client decodes the received update and generates the latest authoritative state.
-- Client then uses this state to write its local prediction copy that has all the tables and non-replicable components.
+[See here for a big idea dump.](../main/implementation_details.md) (Hopefully, I can clean this up later.)
 
 ## Drawbacks
 
-- Lots of potentially cursed macro magic.
-- Direct writes to `World`.
-- Seemingly limited to components that implement `Clone` and `Serialize`.
+- Serialization strategy is `unsafe` (might be possible to do it entirely with safe Rust, idk).
+- Macros might be gnarly.
+- At first, only POD components and resources will be supported. DST support will come later.
 
 ## Rationale and Alternatives
 
@@ -211,12 +131,12 @@ It'll only grow more difficult to add these features as time goes on. Take Unity
 
 ### Why does this need to involve `bevy_ecs`?
 
-I strongly doubt that fast, efficient, and transparent replication features can be implemented without directly manipulating a `World` and its component storages. We may need to allocate memory for networked data separately.
+For better encapsulation, I'd prefer if multiple world functionality and nested loops were standard ECS features. Nesting an outer fixed timestep loop and an inner rollback loop doesn't seem possible without a custom stage or scheduler right now.
 
 ## Unresolved Questions
 
 - Can we provide lints for undefined behavior like mutating networked state outside of `NetworkFixedUpdate`?
-- Do rollbacks break change detection or events?
+- ~~Do rollbacks break change detection or events?~~ As long as we're careful to update the appropriate change ticks, it should be okay.
 - ~~When sending interest-managed updates, how should we deal with weird stuff like there being references to entities that haven't been spawned or have been destroyed?~~ Already solved by generational indexes.
 - How should UI widgets interact with networked state? React to events? Exclusively poll verified data?
 - How should we handle correcting mispredicted events and FX?
