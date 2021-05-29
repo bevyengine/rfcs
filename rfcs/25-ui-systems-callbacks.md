@@ -340,7 +340,7 @@ pub trait Hook {
 
 // This system could be added for `H = ActionHook` instead of implementing `callback_system` in the core plugins to avoid special-casing
 // HookReader (and HookWriter) is just a simple variation on the standard EventReader parameters to allow us to store additional data on one component
-pub fn add_hook<H: Hook + Component>(mut query: Query<&mut HookReader<H>, mut commands: Commands>){
+pub fn new_hook<H: Hook + Component>(mut query: Query<&mut HookReader<H>, mut commands: Commands>){
  // Operates on all entities with an `Events<H>` component
  for hook_events in query.iter_mut(){
   for hook_event in hook_event{
@@ -368,10 +368,12 @@ use bevy::prelude::*;
 fn main(){
  App::build()
   // Runs the commands cached in the OnDeath component of each entity during CoreStage::update()
+  // by adding the `new_hook::<OnDeath>` system to the schedule
   .add_hook::<OnDeath>()
   // Adds some slimes to our world
   .add_startup_system(spawn_slimes.system())
   // Set the OnDeath component before the hook is checked to avoid frame delays
+  // HookLabel(H) system labels are automatically generated for each hook
   .add_system(change_life.system().before(HookLabel(OnDeath)))
 }
 
