@@ -388,7 +388,7 @@ impl Default for OnDeath{
 	}
 } 
 
-struct(Life(isize))
+struct Life(isize);
 
 /// Shared bundle type for all of the creatures in our game
 #[derive(Bundle)]
