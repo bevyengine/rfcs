@@ -15,6 +15,11 @@
 - Ideally, `World` could reserve and split off a range of entities, with separate component storages. ([#16][1] could potentially be used for this).
 - The ECS scheduler should support arbitrary cycles in the stage graph (or equivalent). Want ergonomic support for nested loops.
 
+
+## `Connection` != `Player`
+
+I know I've been using the terms "client" and "player" somewhat interchangeably, but `Connection` and `Player` should be separate tokens. There's no benefit in forcing one player per connection. Having `Player` be its own thing makes it easier to do stuff like online splitscreen, temporarily substituting vacancies with bots, etc.
+
 ## Storage
 
 The server maintains a storage resource containing a full copy of the latest networked state as well as a ring buffer of deltas (for the last `N` snapshots). Both are updated lazily using Bevy's built-in change detection.
@@ -50,11 +55,11 @@ For delta-compression, the server just compresses whichever deltas clients need 
 
 (a.k.a. eventual consistency)
 
-Eventual consistency isn't inherently reliant on prioritization and filtering, but they're essential for the optimal player experience.
+Eventual consistency isn't inherently reliant on prioritization and filtering, but they're essential for an optimal player experience.
 
 If we can't send everything, we should prioritize what players want to know. They want live updates on objects that are close or occupy a big chunk of their FOV. They want to know about their teammates or projectiles they've fired, even if those are far away. The server has to make the most of each packet.
 
-Similarly, game designers often want to hide certain information from certain players. Limiting the amount of hidden information that can be exploited by cheaters is often crucial to a game's long-term health. Battle royale players, for example, don't need and probably shouldn't even have their opponents' inventory data. In practice, the guards aren't be perfect (e.g. *Valorant's* Fog of War not preventing wallhacks), but something is better than nothing.
+Similarly, game designers often want to hide certain information from certain players. Limiting the amount of hidden information that gets leaked and exploited by cheaters is often crucial to a game's long-term health. Battle royale players, for example, don't need and probably shouldn't even have their opponents' inventory data. In practice, the guards are never perfect (e.g. *Valorant's* Fog of War not preventing wallhacks), but something is better than nothing.
 
 Anyway, to do all this interest management, the server needs to track some extra metadata.
 
@@ -67,17 +72,17 @@ struct InterestMetadata<const P: usize> {
 }
 ```
 
-This metadata tracks a few things:
+This metadata contains a few things:
 
 - the age of each entity's oldest undelivered change, per player
 
-This is used as the send priority value so that the server only sends something when it changes. I think it's a better core idea than assigning entities arbitrary update frequencies.
+This is used as the send priority value. I think having the server only send something when it has changed is better than assigning entities arbitrary update frequencies.
 
 - the relevance of each component, per entity, per player
 
-This controls which components are sent. By default, change detection will mark a component as relevant for everybody, and then some form of rule-based filtering (maybe [entity relations][10]) can be used to selectively omit or force delivery.
+This controls which components are sent. By default, change detection will mark components as relevant for everybody, and then some form of rule-based filtering (maybe [entity relations][10]) can be used to selectively omit or force-include them.
 
-(Might need second age value that accounts for irrelevant changes.)
+(Might need a second age value that accounts for irrelevant changes.)
 
 - the position of every networked entity (if available)
 
@@ -87,13 +92,13 @@ Alternatives like grids and potentially visible sets (PVS) can be explored and a
 
 - results of the AOI intersection tests, per player
 
-Self-explanatory. Once the other metadata has been updated, the server sorts this array in priority order and writes the relevant components of these entities until the packet is full or all relevant entities have been written.
+Self-explanatory. Once the other metadata has been updated, the server sorts this array in priority order and writes the relevant data until the player's packet is full or everything gets written.
 
 *So what do we do if packets are lost?*
 
-Whenever the server sends a packet, it remembers the priorities of the included entities (well, of their row indexes), then zeroes their priority and relevance. Later, if the server is notified that some previously sent packets were probably lost, it can pull this info and restore all the priorities (plus the however many ticks have passed).
+Whenever the server sends a packet, it remembers the priorities of the included entities (actually their row indexes), then resets their priority and relevance. Later, if the server is notified that some previously sent packets were probably lost, it can pull this info and restore the priorities (plus the however many ticks have passed).
 
-For restoring the relevance of an entity's components, there are two cases. If the delta matching the entity's age still exists, the server can use that as a reference and only flag its changed components. All get flagged otherwise.
+For restoring the relevance of an entity's components, there are two cases. If the delta matching the entity's age still exists, the server can use that as a reference and only flag its changed components. Otherwise, they all get flagged.
 
 *So how 'bout those edge cases?*
 
@@ -138,10 +143,6 @@ Let's consider a simpler default:
 - Always rollback and re-simulate when you receive a new update.
 
 This might seem wasteful, but think about it. If-then just hides performance problems from you. Heavy rollback scenarios will exist regardless. You can't prevent clients from running into them. Mispredictions are *especially* likely during heavier computations like physics. Just have clients always rollback and re-sim. It's easier to profile and optimize your worst-case. It's also more memory-efficient, since clients never need to store old predicted states.
-
-## `Connection` != `Player`
-
-I know I've been using the terms "client" and "player" somewhat interchangeably, but `Connection` and `Player` should be separate tokens. There's no benefit in forcing one player per connection. Having `Player` be its own thing makes it easier to do stuff like online splitscreen, temporarily substituting vacancies with bots, etc.
 
 ## "Clock" Synchronization
 

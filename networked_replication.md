@@ -105,7 +105,7 @@ TODO: Example App configuration.
 
 ## Implementation Strategy
   
-[See here for a big idea dump.](../main/implementation_details.md) (Hopefully, I can clean this up later.)
+[See here for a big idea dump.](../main/implementation_details.md) (Hopefully I can clean this up later.)
 
 ## Drawbacks
 
