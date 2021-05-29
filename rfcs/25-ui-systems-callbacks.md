@@ -214,7 +214,7 @@ commands.spawn_bundle(ButtonBundle::default())
 	.with(Callback::EntityCommand(player_entity, EntityCommands::new().insert(InCombat)));
 
 // This button will despawn itself when pressed
-commands.spawn_bundle(ButtonBundle::d, efault())
+commands.spawn_bundle(ButtonBundle::default())
 	.with(Callback::SelfCommand(EntityCommands::new().despawn()));
 ```
 
@@ -330,6 +330,9 @@ To do so, all we need is a simple trait that wraps our `Callback` component and 
 ```rust
 pub trait Hook {
 	pub fn callback(&self) -> &Callback {}
+
+	// Convenience function for creating new Hooks component
+	pub fn new(Callback) -> Events<Self> {}
 }
 
 // This system could be added for `H = ActionHook` instead of implementing `callback_system` in the core plugins to avoid special-casing
@@ -352,3 +355,141 @@ Each of these event queues would be populated in their own game-logic specific s
 and then these hooks could be exposed as an API to various scripting-like parts of the game.
 
 This pattern allows us to customize behavior in arbitrarily complex ways in a more efficient fashion (using one system per hook, rather than per behavior), and opens the door to programming flexible behaviors without having to write them directly as Rust code.
+
+Let's take a look at a more complete example of how this might look.
+
+```rust
+use bevy::prelude::*;
+
+fn main(){
+	App::build()
+		// Runs the commands cached in the OnDeath component of each entity during CoreStage::update()
+		.add_hook::<OnDeath>()
+		// Adds some slimes to our world
+		.add_startup_system(spawn_slimes.system())
+		// Set the OnDeath component before the hook is checked to avoid frame delays
+		.add_system(change_life.system().before(HookLabel(OnDeath)))
+}
+
+// This derive just creates a quick-and-easy .callback() method from the named field
+#[derive(Hook)]
+struct OnDeath{
+	callback: Callback
+};
+
+struct(Life(isize))
+
+/// Shared bundle type for all of the creatures in our game
+#[derive(Bundle)]
+struct CreatureBundle {
+	sprite: Sprite,
+	transform: Transform,
+	life: Life,
+	life_events: Events<Life>
+	/*
+		Many other useful fields go here
+	*/
+}
+
+struct LittleSlime;
+const LITTLE_SLIME_LIFE: isize = 100;
+
+#[derive(Bundle)]
+stuct LittleSlimeBundle {
+	marker: LittleSlime,
+	on_death: Events<OnDeath>,
+	#[bundle]
+	creature_bundle: CreatureBundle
+}
+
+impl LittleSlimeBundle {
+	fn new(x: f32, y: f32, sprite: Handle<ColorMaterial>) -> Self {
+		let commands = EntityCommands::new().despawn();
+		let on_death = OnDeath::new(Callback::SelfCommand(commands));
+
+		LittleSlimeBundle{
+			marker: LittleSlime,
+			on_death,
+			creature_bundle: CreatureBundle {
+				sprite,
+				transform: Transform::from_xyz(x, y, 1.0),
+				life: LITTLE_SLIME_LIFE,
+				..Default::default()
+			}
+		}
+	}
+}
+
+struct BigSlime;
+const BIG_SLIME_LIFE: isize = 100;
+
+#[derive(Bundle)]
+stuct BigSlimeBundle {
+	marker: BigSlime,
+	on_death: OnDeath,
+	#[bundle]
+	creature_bundle: CreatureBundle
+}
+
+impl BigSlimeBundle {
+	fn new(x: f32, y: f32, sprite: Handle<ColorMaterial>) -> Self {
+		let mut commands = EntityCommands::new();
+		commands.remove::<BigSlime>();
+		commands.insert(LittleSlime);
+		// Overwrites old value of Life component
+		commands.insert(Life(LITTLE_SLIME_LIFE));
+		let on_death = OnDeath::new(Callback::SelfCommand(command));
+		
+		BigSlimeBundle{
+			marker: LittleSlime,
+			on_death,
+			creature_bundle: CreatureBundle {
+				sprite,
+				transform: Transform::from_xyz(x, y, 1.0),
+				life: BIG_SLIME_LIFE,
+				..Default::default()
+			}
+		}
+	}
+}
+
+/// Marker component for big slimes
+struct BigSlime;
+
+impl BigSlime {
+	fn on_death() -> OnDeath {
+		let mut commands = EntityCommands::new();
+		commands.remove::<BigSlime>();
+		commands.insert(LittleSlime);
+		// Overwrites old value of Life component
+		commands.insert(Life(LITTLE_SLIME_LIFE))
+		OnDeath(Callback::SelfCommand(command))
+	}
+}
+
+fn spawn_slimes(mut commands: Commands, asset_server: ResMut<AssetServer>){
+	/*
+		Eliding tedious asset loading logic
+	*/
+
+	commands.spawn_bundle(LittleSlimeBundle::new(0.0, 1.0, little_slime_handle));
+	commands.spawn_bundle(BigSlimeBundle::new(3.0, 5.0, big_slime_handle));
+}
+
+/// Applies damage and healing to each creature
+fn change_life(mut query: Query<&mut Life, &mut EventReader<Life>, &mut EventWriter<OnDeath>>){
+	for life, life_events, on_death {
+		for event in life_events {
+			life.0 += event.0;
+		}
+
+		if life <= 0 {
+			// This event queue will almost always have exactly 0 or 1 events, 
+			// because creatures should only be dying once
+			// However this would be quite different for an OnHit hook
+			on_death.send(OnDeath);
+		}
+	}
+}
+
+```
