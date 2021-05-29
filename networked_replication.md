@@ -136,8 +136,9 @@ For better encapsulation, I'd prefer if multiple world functionality and nested 
 ## Unresolved Questions
 
 - Can we provide lints for undefined behavior like mutating networked state outside of `NetworkFixedUpdate`?
-- ~~Do rollbacks break change detection or events?~~ As long as we're careful to update the appropriate change ticks, it should be okay.
-- ~~When sending interest-managed updates, how should we deal with weird stuff like there being references to entities that haven't been spawned or have been destroyed?~~ Already solved by generational indexes.
+- ~~Will rollbacks break change detection?~~ As long as we're careful to update the appropriate change ticks, it should be okay.
+- Will rollbacks break events?
+- ~~When sending interest-managed updates, how should we deal with weird stuff like there being references to entities that haven't been spawned or have been destroyed?~~ I believe this is solved by using generational indexes for the network IDs.
 - How should UI widgets interact with networked state? React to events? Exclusively poll verified data?
 - How should we handle correcting mispredicted events and FX?
 - Can we replicate animations exactly without explicitly sending animation data?

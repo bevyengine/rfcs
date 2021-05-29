@@ -24,51 +24,84 @@ The server maintains a storage resource containing a full copy of the latest net
                            v                                  v
 [(0^8), (1^8), (2^8), (3^8), (4^8), (5^8), (6^8), (7^8)]     [8]
                                                     ^         
-                                               latest delta 
+                                               newest delta 
 ```
+
+This structure is pre-allocated when the resource is initialized and is the same for both full and interest-managed updates.
 
 At the end of every tick, the server zeroes the space for the newest delta, then iterates `Changed<T>` and `Removed<T>`:
 
-- Generate the newest delta by xor'ing the changes with the stored copy.
-- Update the rest of the ring buffer by xor'ing the older deltas with the newest.
-- Write the changes to the stored copy.
+- Generating the newest delta by xor'ing the changes with the stored copy.
+- Updating the rest of the ring buffer by xor'ing the older deltas with the newest.
+- Writing the changes to the stored copy.
 
-This structure is the same for both delta-compressed snapshots and interest-managed updates. It's all pre-allocated when the resource is initialized.
+TODO
 
-**TODO**: Components and resources that allocate on the heap (DSTs) won't be supported at first. The solution is most likely going to be backing this resource with its own memory region (something like `bumpalo` but smarter).
+- See if we can store data in the snapshots without struct padding.
+- Support components and resources that allocate on the heap (DSTs). Won't be possible at first but the solution most likely will be backing this resource with its own memory region (something like `bumpalo` but smarter). That will be important for deterministic desync detection as well.
 
-### Full Updates 
+### Full Updates
 
 (a.k.a. delta-compressed snapshots)
 
-For delta-compression, the server just compresses whichever deltas clients need using some variant of run-length encoding, such as [this Simple8b + RLE variant][2] (licensed under Apache 2.0). If the compressed payload is too large, the server chops it into fragments. No unnecessary work. The server only compresses deltas that are going to be sent and the same compressed payload can be sent to any number of clients.
+For delta-compression, the server just compresses whichever deltas clients need using some variant of run-length encoding (currently looking at [Simple8b + RLE][2]). If the compressed payload is too large, the server will split it into fragments. There's no unnecessary work either. The server only compresses deltas that are going to be sent and the same compressed payload can be sent to any number of clients.
 
 ### Interest-Managed Updates
 
 (a.k.a. eventual consistency)
 
-For interest management, the server needs some extra metadata to know what to send each player.
+Eventual consistency isn't inherently reliant on prioritization and filtering, but they're essential for the optimal player experience.
+
+If we can't send everything, we should prioritize what players want to know. They want live updates on objects that are close or occupy a big chunk of their FOV. They want to know about their teammates or projectiles they've fired, even if those are far away. The server has to make the most of each packet.
+
+Similarly, game designers often want to hide certain information from certain players. Limiting the amount of hidden information that can be exploited by cheaters is often crucial to a game's long-term health. Battle royale players, for example, don't need and probably shouldn't even have their opponents' inventory data. In practice, the guards aren't be perfect (e.g. *Valorant's* Fog of War not preventing wallhacks), but something is better than nothing.
+
+Anyway, to do all this interest management, the server needs to track some extra metadata.
 
 ```rust
 struct InterestMetadata<const P: usize> {
     priority: [Vec<usize>; P],    
     relevance: SparseSet<ComponentId, [Vec<bool>; P]>,
-    location: Vec<MortonIndex>,
-    within_aoi: [Vec<Option(usize, f32)>; P],
+    position: Vec<Option<SpatialIndex>>,
+    within_scope: [Vec<Option(usize, f32)>; P],
 }
 ```
 
-Each entity has a per-player send priority that's just the age of its oldest undelivered change. Entities that don't change won't accumulate priority.
+This metadata tracks a few things:
 
-For checking if an entity is within a player's area of interest, I'm looking into a sort-and-sweep (sweep-and-prune) using Morton-encoded coordinates as the broad-phase algorithm, followed by a simple sphere radius test. Results will be stored in an array for each player. Alternatives like grids and potentially visible sets (PVS) can be added later.
+- the age of each entity's oldest undelivered change, per player
 
-Relevance will be tracked per component (per player). Relevance will be set by changed detection and certain rules, while other rules can clear the relevance (TBD). This rule-based filtering seems likely to involve relations.
+This is used as the send priority value so that the server only sends something when it changes. I think it's a better core idea than assigning entities arbitrary update frequencies.
 
-Once the metadata has been updated, the server sorts each results array in priority order and writes the relevant components of those entities until the packet is full or all relevant entities have been written.
+- the relevance of each component, per entity, per player
 
-When the server sends a packet, it remembers the priorities for each included entity (well, for their indexes). Their current priority and relevances are then cleared. Later, if the server is notified that some previously sent packets were probably lost, it can restore all their priorities (plus the number of ticks since they were first sent).
+This controls which components are sent. By default, change detection will mark a component as relevant for everybody, and then some form of rule-based filtering (maybe [entity relations][10]) can be used to selectively omit or force delivery.
 
-For restoring the relevance of an entity's components, there are two cases. If the relevant patch matching its age is still around, the server will use it as a reference and only mark the changed components as relevant. If not, the server will mark all of its components as relevant.
+(Might need second age value that accounts for irrelevant changes.)
+
+- the position of every networked entity (if available)
+
+Checking if an entity is inside someone's area of interest is just an application of collision detection. "Intangible" entities that lack a transform will auto-pass this check. I don't see a need for ray, distance, and shape queries where BVH or spatial partitioning structures excel, so I'm looking into doing something like a [sweep-and-prune][9] with Morton-encoding that might have better performance, since it's basically just sorting this array.
+
+Alternatives like grids and potentially visible sets (PVS) can be explored and added later.
+
+- results of the AOI intersection tests, per player
+
+Self-explanatory. Once the other metadata has been updated, the server sorts this array in priority order and writes the relevant components of these entities until the packet is full or all relevant entities have been written.
+
+*So what do we do if packets are lost?*
+
+Whenever the server sends a packet, it remembers the priorities of the included entities (well, of their row indexes), then zeroes their priority and relevance. Later, if the server is notified that some previously sent packets were probably lost, it can pull this info and restore all the priorities (plus the however many ticks have passed).
+
+For restoring the relevance of an entity's components, there are two cases. If the delta matching the entity's age still exists, the server can use that as a reference and only flag its changed components. All get flagged otherwise.
+
+*So how 'bout those edge cases?*
+
+Unfortunately, the most generalized strategy comes with its own headaches.
+
+- What do should client do when it loses the first update for an entity?
+
+TBD
 
 ## Replicate Trait
 
@@ -77,7 +110,7 @@ pub unsafe trait Replicate {
     fn quantize(&mut self);
 }
 
-unsafe impl Replicate for NetworkTransform {}
+unsafe impl Replicate for T {}
 ```
 
 ## How to rollback?
@@ -189,23 +222,25 @@ The naive solution is to have clients spawn dummy entities so that when an updat
 
 A better solution is for the server to assign each networked entity a global ID that the spawning client can predict and map to its local instance. There are 3 variants that I know of:
 
-1. Use an incrementing generational index (reuse `Entity`) and fix its upper bits to match the ID of the spawning player. This is the simplest method and my recommendation.
+1. Use an incrementing generational index (reuse `Entity`) and fix its upper bits to match the ID of the spawning player.
 
 2. Use PRNGs to generate shared keys (I've seen these dubbed "prediction keys") for pairing local and global IDs. Rather than predict the global ID directly, clients predict the shared keys. Server updates that confirm a predicted entity would include both its global ID and the shared key. Once acknowledged, later updates can include just the global ID. This method is more complicated but does not share the previous method's implicit entity limit.
 
-3. Bake it into the memory layout. If the layout and order of the snapshot storage is identical on all machines, array indexes and relative pointers can double as global IDs. They wouldn't need to be explicitly written into packets, potentially reducing packet size by 4-8 bytes per entity (before compression). However, we'd probably end up separately including a generation anyway to not confuse destroyed entities with new ones.
+3. Bake it into the memory layout. If the layout and order of the snapshot storage is identical on all machines, array indexes and relative pointers can double as global IDs. They wouldn't need to be explicitly written into packets, potentially reducing packet size by 4-8 bytes per entity (before compression). However, we'd probably end up wanting generations anyway to not confuse destroyed entities with new ones.
+
+I recommend 1 as it's the simplest method. Bandwidth and CPU resources would run out long before the reduced entity ranges does. My current strategy is a mix of 1 and 3.
 
 ## Smooth Rendering
 
-Rendering should come after `NetworkFixedUpdate`.
+Rendering should happen after `NetworkFixedUpdate`.
 
-Whenever clients receive an update with new remote entities, those entities shouldn't be rendered until that update is interpolated, likely done through adding a marker component.
+Whenever clients receive an update with new remote entities, those entities shouldn't be rendered until that update is interpolated. We can do this through a marker component or with a field in the render transform.
 
-Cameras need a little special treatment. Look inputs need to be accumulated at the render rate and re-applied to the camera just before rendering.
+Cameras need some special treatment. Look inputs need to be accumulated at the render rate and re-applied to the predicted camera rotation just before rendering.
 
-We'll also need to distinguish instant motion from integrated motion when interpolating. Moving an entity by modifying `transform.translation` should teleport and moving by integrating `rigidbody.velocity` should look smooth.
+We'll also need some way for developers to declare their intent that a motion should be instant instead of smoothly interpolated. Since it needs to work for remote entities as well, maybe this just has to be a bool on the networked transform.
 
-We'll need a special blending for predicted entities and entities transitioning between prediction and interpolation. "Projective velocity blending" seems to be a common way to smooth extrapolation errors, but I've also seen a simple exponential decay recommended. There may be better smoothing filters.
+We'll need a special blending for predicted entities and entities transitioning between prediction and interpolation. [Projective velocity blending][11] seems like the de facto standard method for smoothing extrapolation errors, but I've also seen simple exponential decays used. There may be better smoothing filters.
 
 ## Lag Compensation
 
@@ -253,3 +288,6 @@ The example I'm thinking of is buying items from an in-game vendor. The server d
 [6]: https://youtu.be/W3aieHjyNvw?t=2347 "Tim Ford explains Overwatch's lag comp. limits"
 [7]: https://youtu.be/W3aieHjyNvw?t=2492 "Tim Ford explains Overwatch's lag comp. mitigation"
 [8]: https://alontavor.github.io/AdvancedLatencyCompensation/
+[9]: https://github.com/mattleibow/jitterphysics/wiki/Sweep-and-Prune
+[10]: https://github.com/bevyengine/rfcs/pull/18
+[11]: https://www.researchgate.net/publication/293809946_Believable_Dead_Reckoning_for_Networked_Games
