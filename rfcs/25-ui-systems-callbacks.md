@@ -406,7 +406,7 @@ struct LittleSlime;
 const LITTLE_SLIME_LIFE: isize = 100;
 
 #[derive(Bundle)]
-stuct LittleSlimeBundle {
+struct LittleSlimeBundle {
 	marker: LittleSlime,
 	on_death: Events<OnDeath>,
 	#[bundle]
@@ -432,7 +432,7 @@ struct BigSlime;
 const BIG_SLIME_LIFE: isize = 100;
 
 #[derive(Bundle)]
-stuct BigSlimeBundle {
+struct BigSlimeBundle {
 	marker: BigSlime,
 	on_death: OnDeath,
 	#[bundle]
