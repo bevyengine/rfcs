@@ -473,8 +473,8 @@ fn spawn_slimes(mut commands: Commands, asset_server: ResMut<AssetServer>){
 }
 
 /// Applies damage and healing to each creature
-fn change_life(mut query: Query<&mut Life, &mut EventReader<Life>, &mut HookWriter<OnDeath>>){
-	for life, life_events, on_death {
+fn change_life(mut query: Query<(&mut Life, &mut EventReader<Life>, &mut HookWriter<OnDeath>)>){
+	for (mut life, mut life_events, mut on_death) in query.iter_mut() {
 		for event in life_events {
 			life.0 += event.0;
 		}
