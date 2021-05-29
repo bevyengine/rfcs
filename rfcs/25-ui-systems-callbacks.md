@@ -339,7 +339,8 @@ pub trait Hook {
 }
 
 // This system could be added for `H = ActionHook` instead of implementing `callback_system` in the core plugins to avoid special-casing
-pub fn add_hook<H: Hook + Component>(mut query: Query<&mut EventReader<H>, mut commands: Commands>){
+// HookReader (and HookWriter) is just a simple variation on the standard EventReader parameters to allow us to store additional data on one component
+pub fn add_hook<H: Hook + Component>(mut query: Query<&mut HookReader<H>, mut commands: Commands>){
 	// Operates on all entities with an `Events<H>` component
 	for hook_events in query.iter_mut(){
 		for hook_event in hook_event{
@@ -472,7 +473,7 @@ fn spawn_slimes(mut commands: Commands, asset_server: ResMut<AssetServer>){
 }
 
 /// Applies damage and healing to each creature
-fn change_life(mut query: Query<&mut Life, &mut EventReader<Life>, &mut EventWriter<OnDeath>>){
+fn change_life(mut query: Query<&mut Life, &mut EventReader<Life>, &mut HookWriter<OnDeath>>){
 	for life, life_events, on_death {
 		for event in life_events {
 			life.0 += event.0;
