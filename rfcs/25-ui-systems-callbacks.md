@@ -27,13 +27,13 @@ The simplest way to do this would be to listen to the input events yourself, and
 ```rust
 // This system is added to CoreStage::Ui to ensure that it runs at the appropriate time
 fn my_button(mut query: Query<(&Interaction, &mut Counter), 
-			                  (With<MyButton>, Changed<Interaction>)>){
-	// Extract the components on the button in question
-	// and see if it was clicked in the last frame
-	let (interaction, mut counter) = query.single_mut().unwrap();
-	if *interaction == Interaction::Clicked {
-		*counter += 1;
-	}
+                     (With<MyButton>, Changed<Interaction>)>){
+ // Extract the components on the button in question
+ // and see if it was clicked in the last frame
+ let (interaction, mut counter) = query.single_mut().unwrap();
+ if *interaction == Interaction::Clicked {
+  *counter += 1;
+ }
 }
 ```
 
@@ -51,21 +51,21 @@ Instead, the better approach is to separate inputs from actions, and use the bui
 // with an Interaction component when they are clicked on
 // Here, we're adding a second route to the same end, triggering when "K" is pressed
 fn my_button_hotkey(mut query: Query<&mut EventWriter<Actions>, With<MyButton>>, keyboard_input: Res<KeyboardInput>){
-	if keyboard_input.just_pressed(KeyCode::K){
-		let button_action_writer = query.single_mut().unwrap();
-		// Sends a single, dataless event to our MyButton entity
-		button_action_writer.send(Action);
-	}
+ if keyboard_input.just_pressed(KeyCode::K){
+  let button_action_writer = query.single_mut().unwrap();
+  // Sends a single, dataless event to our MyButton entity
+  button_action_writer.send(Action);
+ }
 }
 
 // We can use the EventReader<Action> sugar to ergonomically read the events stored on our buttons
 fn my_button(mut query: Query<(&mut EventReader<Action>, &mut Counter), With<MyButton>>){
-	// Extract the components on the button in question
-	// and see if it was clicked in the last frame
-	let (actions, mut counter) = query.single_mut().unwrap();
-	for _ in actions {
-		*counter += 1;
-	}
+ // Extract the components on the button in question
+ // and see if it was clicked in the last frame
+ let (actions, mut counter) = query.single_mut().unwrap();
+ for _ in actions {
+  *counter += 1;
+ }
 }
 ```
 
@@ -80,19 +80,19 @@ use bevy::prelude::*;
 use bevy::input::SystemLabels;
 
 fn main(){
-	App::build()
-		.add_system_to_stage(CoreStage::PreUpdate, 
-			verify_cooldowns.system().after(SystemLabels::InputDispatch))
-		.run();
+ App::build()
+  .add_system_to_stage(CoreStage::PreUpdate, 
+   verify_cooldowns.system().after(SystemLabels::InputDispatch))
+  .run();
 }
 
 /// Ignores all inputs to Cooldown-containing entities that are not ready
 fn verify_cooldowns(mut query: Query<&Cooldown, &mut Events<Action>>){
-	for cooldown, mut actions in query.iter_mut(){
-		if !cooldown.finished{
-			actions.clear();
-		}
-	}
+ for cooldown, mut actions in query.iter_mut(){
+  if !cooldown.finished{
+   actions.clear();
+  }
+ }
 }
 ```
 
@@ -109,20 +109,20 @@ In this way, we can use a single system to differentiate behavior.
 ```rust
 // Operates over any ability buttons we may have in a single system
 fn ability_buttons(mut query: Query<(&mut EventReader<Action>, &mut Timer<Cooldown>, &Ability)>, time: Res<Time>, mut ability_events: EventWriter<Ability>){
-	for actions, cooldown, ability in query.iter_mut(){
-		// Tick down our cooldown timers
-		cooldown.tick(time.delta());
-		
-		for _ in actions {
-			// You can only use abilities that are off cooldown!
-			if cooldown.finished(){
-				// Creates a global ability event using the data for other systems to handle
-				// This should include the originating `Entity` as a field of `Ability`, 
-				// along with other data about its effects
-				ability_events.send(ability);
-			}
-		}
-	}
+ for actions, cooldown, ability in query.iter_mut(){
+  // Tick down our cooldown timers
+  cooldown.tick(time.delta());
+  
+  for _ in actions {
+   // You can only use abilities that are off cooldown!
+   if cooldown.finished(){
+    // Creates a global ability event using the data for other systems to handle
+    // This should include the originating `Entity` as a field of `Ability`, 
+    // along with other data about its effects
+    ability_events.send(ability);
+   }
+  }
+ }
 }
 ```
 
@@ -132,14 +132,14 @@ We can extend this pattern further, with the use of **generic systems**, allowin
 use bevy::prelude::*;
 
 fn main(){
-	App::build()
-		.add_event::<NewPuzzle>()
-		.add_system_to_stage(CoreStage::Input, puzzle_button::<NewPuzzle>.system())
-		.add_event::<ResetPuzzle>()
-		.add_system_to_stage(CoreStage::Input, puzzle_button::<ResetPuzzle>.system())		
-		.add_event::<WriteNumber>()
-		.add_system_to_stage(CoreStage::Input, puzzle_button::<WriteNumber>.system())
-		.run()
+ App::build()
+  .add_event::<NewPuzzle>()
+  .add_system_to_stage(CoreStage::Input, puzzle_button::<NewPuzzle>.system())
+  .add_event::<ResetPuzzle>()
+  .add_system_to_stage(CoreStage::Input, puzzle_button::<ResetPuzzle>.system())  
+  .add_event::<WriteNumber>()
+  .add_system_to_stage(CoreStage::Input, puzzle_button::<WriteNumber>.system())
+  .run()
 }
 
 // Dataless structs that double as components and events
@@ -173,28 +173,28 @@ Under the hood, these are processed by the `callback_system` function found in `
 ```rust
 /// `Callback` components are automatically run as commands when 
 enum Callback {
-	/// Commands that affecting the global state broadly
-	Command(Commands),
-	/// Commands that affect a single entity, stored in this enum
-	EntityCommand(Entity, EntityCommands),
-	/// Commands that affect only the entity that has this component
-	SelfCommand(EntityCommands),
+ /// Commands that affecting the global state broadly
+ Command(Commands),
+ /// Commands that affect a single entity, stored in this enum
+ EntityCommand(Entity, EntityCommands),
+ /// Commands that affect only the entity that has this component
+ SelfCommand(EntityCommands),
 }
 
 /// Applies the `Callback` component of entities once for each `Action` event that they have
 fn callback_system(mut commands: Commands, mut query: Query<(Entity, &mut EventReader<Action>, &Callback)>){
-	for (self_e, mut actions, callback) in query.iter_mut(){
-		// For each Action (triggered by inputs) that our entity receives
-		for _ in actions {
-			// Run the command referenced in the `Callback` component of our entity
-			// at the end of the current stage
-			match Callback {
-				Callback::Command(command) => commands.apply(command),
-				EntityCommand::EntityCommand(e, e_command) => commands.entity(e).apply(e_command),
-				Callback::SelfCommand(e_command) => commands.entity(self_e).apply(e_command),
-			}
-		}
-	}
+ for (self_e, mut actions, callback) in query.iter_mut(){
+  // For each Action (triggered by inputs) that our entity receives
+  for _ in actions {
+   // Run the command referenced in the `Callback` component of our entity
+   // at the end of the current stage
+   match Callback {
+    Callback::Command(command) => commands.apply(command),
+    EntityCommand::EntityCommand(e, e_command) => commands.entity(e).apply(e_command),
+    Callback::SelfCommand(e_command) => commands.entity(self_e).apply(e_command),
+   }
+  }
+ }
 }
 ```
 
@@ -203,19 +203,19 @@ Adding callbacks to your UI elements is straightforward: simply add the appropri
 ```rust
 // This button will spawn a new unit when pressed
 commands.spawn_bundle(ButtonBundle::default())
-	.with(Callback::Command(Commands::new().spawn_bundle(UnitBundle::default())));
+ .with(Callback::Command(Commands::new().spawn_bundle(UnitBundle::default())));
 
 // This button will overwrite the value of the `GameDifficulty` resource when pressed
 commands.spawn_bundle(ButtonBundle::default())
-	.with(Callback::Command(Commands::new().insert_resource(GameDifficulty::Hard));
+ .with(Callback::Command(Commands::new().insert_resource(GameDifficulty::Hard));
 
 // This button will add the `InCombat` marker component to the `player_entity` Entity when pressed
 commands.spawn_bundle(ButtonBundle::default())
-	.with(Callback::EntityCommand(player_entity, EntityCommands::new().insert(InCombat)));
+ .with(Callback::EntityCommand(player_entity, EntityCommands::new().insert(InCombat)));
 
 // This button will despawn itself when pressed
 commands.spawn_bundle(ButtonBundle::default())
-	.with(Callback::SelfCommand(EntityCommands::new().despawn()));
+ .with(Callback::SelfCommand(EntityCommands::new().despawn()));
 ```
 
 Remember that you can create your own **custom commands**, giving you the ability to express arbitrary logic using callbacks.
@@ -224,15 +224,15 @@ For moderately complex, one-off cases though, you may prefer to combine `Callbac
 ```rust
 /// Powers up all of our towers when this system runs
 fn supercharge_towers(mut query: Query<(&mut Damage, &mut AttackSpeed), With<Tower>>){
-	for mut damage, mut attack_speed in query.iter_mut(){
-		*damage *= 2.0;
-		*attack_speed *= 2.0; 
-	}
+ for mut damage, mut attack_speed in query.iter_mut(){
+  *damage *= 2.0;
+  *attack_speed *= 2.0; 
+ }
 }
 
 /// Runs the supercharge_towers system once when this button is activated
 commands.spawn_bundle(ButtonBundle::default())
-	.with(Callback::Command(Commands::new().run_system(supercharge_towers.system())));
+ .with(Callback::Command(Commands::new().run_system(supercharge_towers.system())));
 ```
 
 ### Reacting to UI
@@ -329,28 +329,28 @@ To do so, all we need is a simple trait that wraps our `Callback` component and 
 
 ```rust
 pub trait Hook {
-	pub fn callback(&self) -> &Callback {}
+ pub fn callback(&self) -> &Callback {}
 
-	pub fn events(&mut self) -> Events<Self> {}
+ pub fn events(&mut self) -> Events<Self> {}
 
-	// Convenience function for creating new component with this trait
-	// That automatically initializes the Events field
-	pub fn new(Callback) -> Self {}
+ // Convenience function for creating new component with this trait
+ // That automatically initializes the Events field
+ pub fn new(Callback) -> Self {}
 }
 
 // This system could be added for `H = ActionHook` instead of implementing `callback_system` in the core plugins to avoid special-casing
 // HookReader (and HookWriter) is just a simple variation on the standard EventReader parameters to allow us to store additional data on one component
 pub fn add_hook<H: Hook + Component>(mut query: Query<&mut HookReader<H>, mut commands: Commands>){
-	// Operates on all entities with an `Events<H>` component
-	for hook_events in query.iter_mut(){
-		for hook_event in hook_event{
-			match hook_event.callback() {
-				Callback::Command(command) => commands.apply(command),
-				EntityCommand::EntityCommand(e, e_command) => commands.entity(e).apply(e_command),
-				Callback::SelfCommand(e_command) => commands.entity(self_e).apply(e_command),
-			}
-		}
-	}
+ // Operates on all entities with an `Events<H>` component
+ for hook_events in query.iter_mut(){
+  for hook_event in hook_event{
+   match hook_event.callback() {
+    Callback::Command(command) => commands.apply(command),
+    EntityCommand::EntityCommand(e, e_command) => commands.entity(e).apply(e_command),
+    Callback::SelfCommand(e_command) => commands.entity(self_e).apply(e_command),
+   }
+  }
+ }
 }
 ```
 
@@ -366,26 +366,26 @@ Let's take a look at a more complete example of how this might look.
 use bevy::prelude::*;
 
 fn main(){
-	App::build()
-		// Runs the commands cached in the OnDeath component of each entity during CoreStage::update()
-		.add_hook::<OnDeath>()
-		// Adds some slimes to our world
-		.add_startup_system(spawn_slimes.system())
-		// Set the OnDeath component before the hook is checked to avoid frame delays
-		.add_system(change_life.system().before(HookLabel(OnDeath)))
+ App::build()
+  // Runs the commands cached in the OnDeath component of each entity during CoreStage::update()
+  .add_hook::<OnDeath>()
+  // Adds some slimes to our world
+  .add_startup_system(spawn_slimes.system())
+  // Set the OnDeath component before the hook is checked to avoid frame delays
+  .add_system(change_life.system().before(HookLabel(OnDeath)))
 }
 
 #[derive(Hook)]
 struct OnDeath{
-	callback: Callback
-	events: Events<OnDeath>
+ callback: Callback
+ events: Events<OnDeath>
 };
 
 impl Default for OnDeath{
-	fn default() -> Self {
-		let commands = EntityCommands::new().despawn();
-		OnDeath::new(Callback::SelfCommand(commands))
-	}
+ fn default() -> Self {
+  let commands = EntityCommands::new().despawn();
+  OnDeath::new(Callback::SelfCommand(commands))
+ }
 } 
 
 struct Life(isize);
@@ -393,13 +393,13 @@ struct Life(isize);
 /// Shared bundle type for all of the creatures in our game
 #[derive(Bundle)]
 struct CreatureBundle {
-	sprite: Sprite,
-	transform: Transform,
-	life: Life,
-	life_events: Events<Life>
-	/*
-		Many other useful fields go here
-	*/
+ sprite: Sprite,
+ transform: Transform,
+ life: Life,
+ life_events: Events<Life>
+ /*
+  Many other useful fields go here
+ */
 }
 
 struct LittleSlime;
@@ -407,25 +407,25 @@ const LITTLE_SLIME_LIFE: isize = 100;
 
 #[derive(Bundle)]
 struct LittleSlimeBundle {
-	marker: LittleSlime,
-	on_death: Events<OnDeath>,
-	#[bundle]
-	creature_bundle: CreatureBundle
+ marker: LittleSlime,
+ on_death: Events<OnDeath>,
+ #[bundle]
+ creature_bundle: CreatureBundle
 }
 
 impl LittleSlimeBundle {
-	fn new(x: f32, y: f32, sprite: Handle<ColorMaterial>) -> Self {
-		LittleSlimeBundle{
-			marker: LittleSlime,
-			creature_bundle: CreatureBundle {
-				sprite,
-				transform: Transform::from_xyz(x, y, 1.0),
-				life: LITTLE_SLIME_LIFE,
-				// Implicitly adds the OnDeath component with 
-				..Default::default()
-			}
-		}
-	}
+ fn new(x: f32, y: f32, sprite: Handle<ColorMaterial>) -> Self {
+  LittleSlimeBundle{
+   marker: LittleSlime,
+   creature_bundle: CreatureBundle {
+    sprite,
+    transform: Transform::from_xyz(x, y, 1.0),
+    life: LITTLE_SLIME_LIFE,
+    // Implicitly adds the OnDeath component with 
+    ..Default::default()
+   }
+  }
+ }
 }
 
 struct BigSlime;
@@ -433,59 +433,59 @@ const BIG_SLIME_LIFE: isize = 100;
 
 #[derive(Bundle)]
 struct BigSlimeBundle {
-	marker: BigSlime,
-	on_death: OnDeath,
-	#[bundle]
-	creature_bundle: CreatureBundle
+ marker: BigSlime,
+ on_death: OnDeath,
+ #[bundle]
+ creature_bundle: CreatureBundle
 }
 
 impl BigSlimeBundle {
-	fn new(x: f32, y: f32, sprite: Handle<ColorMaterial>) -> Self {
-		// By mutating our commands object (just like in a system) 
-		// we can create complex behavior without the need for custom Commands
-		let mut commands = EntityCommands::new();
-		commands.remove::<BigSlime>();
-		commands.insert(LittleSlime);
-		// Overwrites old value of Life component
-		commands.insert(Life(LITTLE_SLIME_LIFE));
-		let on_death = OnDeath::new(Callback::SelfCommand(command));
-		
-		BigSlimeBundle{
-			marker: LittleSlime,
-			creature_bundle: CreatureBundle {
-				sprite,
-				transform: Transform::from_xyz(x, y, 1.0),
-				life: BIG_SLIME_LIFE,
-				on_death,
-				..Default::default()
-			}
-		}
-	}
+ fn new(x: f32, y: f32, sprite: Handle<ColorMaterial>) -> Self {
+  // By mutating our commands object (just like in a system) 
+  // we can create complex behavior without the need for custom Commands
+  let mut commands = EntityCommands::new();
+  commands.remove::<BigSlime>();
+  commands.insert(LittleSlime);
+  // Overwrites old value of Life component
+  commands.insert(Life(LITTLE_SLIME_LIFE));
+  let on_death = OnDeath::new(Callback::SelfCommand(command));
+  
+  BigSlimeBundle{
+   marker: LittleSlime,
+   creature_bundle: CreatureBundle {
+    sprite,
+    transform: Transform::from_xyz(x, y, 1.0),
+    life: BIG_SLIME_LIFE,
+    on_death,
+    ..Default::default()
+   }
+  }
+ }
 }
 
 fn spawn_slimes(mut commands: Commands, asset_server: ResMut<AssetServer>){
-	/*
-		Eliding tedious asset loading logic
-	*/
+ /*
+  Eliding tedious asset loading logic
+ */
 
-	commands.spawn_bundle(LittleSlimeBundle::new(0.0, 1.0, little_slime_handle));
-	commands.spawn_bundle(BigSlimeBundle::new(3.0, 5.0, big_slime_handle));
+ commands.spawn_bundle(LittleSlimeBundle::new(0.0, 1.0, little_slime_handle));
+ commands.spawn_bundle(BigSlimeBundle::new(3.0, 5.0, big_slime_handle));
 }
 
 /// Applies damage and healing to each creature
 fn change_life(mut query: Query<(&mut Life, &mut EventReader<Life>, &mut HookWriter<OnDeath>)>){
-	for (mut life, mut life_events, mut on_death) in query.iter_mut() {
-		for event in life_events {
-			life.0 += event.0;
-		}
+ for (mut life, mut life_events, mut on_death) in query.iter_mut() {
+  for event in life_events {
+   life.0 += event.0;
+  }
 
-		if life <= 0 {
-			// This event queue will almost always have exactly 0 or 1 events, 
-			// because creatures should only be dying once
-			// However this would be quite different for an OnHit hook
-			on_death.send(OnDeath);
-		}
-	}
+  if life <= 0 {
+   // This event queue will almost always have exactly 0 or 1 events, 
+   // because creatures should only be dying once
+   // However this would be quite different for an OnHit hook
+   on_death.send(OnDeath);
+  }
+ }
 }
 
 ```
