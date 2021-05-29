@@ -76,11 +76,11 @@ This metadata contains a few things:
 
 - the age of each entity's oldest undelivered change, per player
 
-This is used as the send priority value. I think having the server only send something when it has changed is better than assigning entities arbitrary update frequencies.
+This is used as the send priority value. I think having the server only send something when it has changed is better than assigning entities arbitrary update frequencies. For players on the same client, their send priorities are identical.
 
 - the relevance of each component, per entity, per player
 
-This controls which components are sent. By default, change detection will mark components as relevant for everybody, and then some form of rule-based filtering (maybe [entity relations][10]) can be used to selectively omit or force-include them.
+This controls which components are sent. By default, change detection will mark components as relevant for everybody, and then some form of rule-based filtering (maybe [entity relations][10]) can be used to selectively omit or force-include them. For players on the same client, their relevances are merged with an OR.
 
 (Might need a second age value that accounts for irrelevant changes.)
 
@@ -92,11 +92,11 @@ Alternatives like grids and potentially visible sets (PVS) can be explored and a
 
 - results of the AOI intersection tests, per player
 
-Self-explanatory. Once the other metadata has been updated, the server sorts this array in priority order and writes the relevant data until the player's packet is full or everything gets written.
+Self-explanatory. For players on the same client, their results are merged with an OR. Once the other metadata has been updated, the server sorts this array in priority order and writes the relevant data until the client's packet is full or everything gets written.
 
 *So what do we do if packets are lost?*
 
-Whenever the server sends a packet, it remembers the priorities of the included entities (actually their row indexes), then resets their priority and relevance. Later, if the server is notified that some previously sent packets were probably lost, it can pull this info and restore the priorities (plus the however many ticks have passed).
+Whenever the server sends a packet, it remembers the priorities of the included entities (actually their row indexes), then resets their priority and relevance. Later, if the server is notified that some previously sent packets were probably lost, it can pull this info and restore the priorities (plus however many ticks have passed).
 
 For restoring the relevance of an entity's components, there are two cases. If the delta matching the entity's age still exists, the server can use that as a reference and only flag its changed components. Otherwise, they all get flagged.
 
@@ -104,7 +104,7 @@ For restoring the relevance of an entity's components, there are two cases. If t
 
 Unfortunately, the most generalized strategy comes with its own headaches.
 
-- What do should client do when it loses the first update for an entity?
+- What should a client do when it misses the first update for an entity? Is it OK to spawn an entity with incomplete information? If not, how does the client know when it's safe?
 
 TBD
 
@@ -229,7 +229,7 @@ A better solution is for the server to assign each networked entity a global ID 
 
 3. Bake it into the memory layout. If the layout and order of the snapshot storage is identical on all machines, array indexes and relative pointers can double as global IDs. They wouldn't need to be explicitly written into packets, potentially reducing packet size by 4-8 bytes per entity (before compression). However, we'd probably end up wanting generations anyway to not confuse destroyed entities with new ones.
 
-I recommend 1 as it's the simplest method. Bandwidth and CPU resources would run out long before the reduced entity ranges does. My current strategy is a mix of 1 and 3.
+I recommend 1 as it's the simplest method. Bandwidth and CPU resources would run out long before the reduced entity ranges do. My current strategy is a mix of 1 and 3.
 
 ## Smooth Rendering
 
@@ -271,13 +271,13 @@ For clients with too-high ping, their interpolation will lag far behind their pr
 
 *Overwatch* [allows defensive abilities to mitigate compensated projectiles][7]. AFAIK this is simple to do. If a player activates any defensive bonus, just apply it to all their buffered hitboxes.
 
-When a player is parented to another entity, which they have no control over (e.g. the player is a passenger in a vehicle), the non-predicted movement of that parent must be rewound during compensation to spawn any projectiles fired by the player in the correct location. See [here.][8]
+When a player is the child of another, uncontrolled entity (e.g. the player is a passenger in a vehicle), the non-predicted movement of that parent entity must be rewound during lag compensation, so that any projectiles fired by the player spawn in the correct location. See [here.][8]
 
 ## Messages (RPCs)
 
 TODO
 
-Messages are good for sending global alerts and any gameplay mechanics you explicitly want modeled as requests. They can be unreliable or reliable. You can also postmark messages to be processed on a certain tick like inputs. That can only be best effort, though.
+Messages are good for sending global alerts and any gameplay mechanics you explicitly want modeled as requests. They can be unreliable ("Hey, spawn this particle effect!") or reliable. ("I want to buy 4 medkits.") You can also postmark messages to be processed on a certain tick like inputs. That can only be best effort, though.
 
 The example I'm thinking of is buying items from an in-game vendor. The server doesn't simulate UI, but ideally we can write the message transaction in the same system. A macro might end up being the most ergonomic choice.
 
