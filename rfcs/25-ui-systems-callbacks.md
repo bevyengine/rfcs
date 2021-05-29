@@ -331,8 +331,11 @@ To do so, all we need is a simple trait that wraps our `Callback` component and 
 pub trait Hook {
 	pub fn callback(&self) -> &Callback {}
 
-	// Convenience function for creating new Hooks component
-	pub fn new(Callback) -> Events<Self> {}
+	pub fn events(&mut self) -> Events<Self> {}
+
+	// Convenience function for creating new component with this trait
+	// That automatically initializes the Events field
+	pub fn new(Callback) -> Self {}
 }
 
 // This system could be added for `H = ActionHook` instead of implementing `callback_system` in the core plugins to avoid special-casing
@@ -371,11 +374,18 @@ fn main(){
 		.add_system(change_life.system().before(HookLabel(OnDeath)))
 }
 
-// This derive just creates a quick-and-easy .callback() method from the named field
 #[derive(Hook)]
 struct OnDeath{
 	callback: Callback
+	events: Events<OnDeath>
 };
+
+impl Default for OnDeath{
+	fn default() -> Self {
+		let commands = EntityCommands::new().despawn();
+		OnDeath::new(Callback::SelfCommand(commands))
+	}
+} 
 
 struct(Life(isize))
 
@@ -404,16 +414,13 @@ stuct LittleSlimeBundle {
 
 impl LittleSlimeBundle {
 	fn new(x: f32, y: f32, sprite: Handle<ColorMaterial>) -> Self {
-		let commands = EntityCommands::new().despawn();
-		let on_death = OnDeath::new(Callback::SelfCommand(commands));
-
 		LittleSlimeBundle{
 			marker: LittleSlime,
-			on_death,
 			creature_bundle: CreatureBundle {
 				sprite,
 				transform: Transform::from_xyz(x, y, 1.0),
 				life: LITTLE_SLIME_LIFE,
+				// Implicitly adds the OnDeath component with 
 				..Default::default()
 			}
 		}
@@ -433,6 +440,8 @@ stuct BigSlimeBundle {
 
 impl BigSlimeBundle {
 	fn new(x: f32, y: f32, sprite: Handle<ColorMaterial>) -> Self {
+		// By mutating our commands object (just like in a system) 
+		// we can create complex behavior without the need for custom Commands
 		let mut commands = EntityCommands::new();
 		commands.remove::<BigSlime>();
 		commands.insert(LittleSlime);
@@ -442,28 +451,14 @@ impl BigSlimeBundle {
 		
 		BigSlimeBundle{
 			marker: LittleSlime,
-			on_death,
 			creature_bundle: CreatureBundle {
 				sprite,
 				transform: Transform::from_xyz(x, y, 1.0),
 				life: BIG_SLIME_LIFE,
+				on_death,
 				..Default::default()
 			}
 		}
-	}
-}
-
-/// Marker component for big slimes
-struct BigSlime;
-
-impl BigSlime {
-	fn on_death() -> OnDeath {
-		let mut commands = EntityCommands::new();
-		commands.remove::<BigSlime>();
-		commands.insert(LittleSlime);
-		// Overwrites old value of Life component
-		commands.insert(Life(LITTLE_SLIME_LIFE))
-		OnDeath(Callback::SelfCommand(command))
 	}
 }
 
