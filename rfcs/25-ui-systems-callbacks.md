@@ -2,7 +2,9 @@
 
 ## Summary
 
-When combined with ordinary systems, commands stored as components on UI entities offer a powerful and expressive callback-like paradigm for one-off UI behavior.
+App logic is dramatically clearer when it flows from input to actions to reactions.
+This is handled quite simply (from an end user perspective) with a unified `Action` event type on UI elements and automatic input dispatching.
+To execute logic triggered by interacting with the UI, use ordinary systems in concert with a general purpose event handling paradigm to store custom behavior on individual UI entities as components that tie into well-defined events in a principled way.
 
 ## Motivation
 
@@ -165,75 +167,133 @@ fn puzzle_button<T: Component + Clone>(
 ### Specializing behavior
 
 In certain cases though, you may need to have a very large number of UI elements, each with entirely custom behavior.
-Rather than running one (or more!) system per button, you can use a more advanced **callback pattern** using `Callback` components which store a command.
-This command is applied once for each time an `Action` event is received by your entity, taking effect at the end of the current stage.
+Rather than running one (or more!) system per button, you can use a more advanced **event handler** pattern;
+describing *what* each entity should do each time a specific event occurs.
 
-Under the hood, these are processed by the `callback_system` function found in `CoreStage::Ui`. The `Callback` type and this built-in system are *remarkably* simple:
+There are four intuitive steps to doing so:
+
+1. Create a custom events type `T` that stores all the data you need.
+2. Register this type in your app using `AppBuilder::add_event::<T>()`. This has three effects:
+   1. Registers the `Events<T>` resource in the app in its default (empty) state.
+   2. Adds an `cleanup_events::<T>()` system to `CoreStage::PostUpdate`, which causes the events to automatically be cleaned up after two frames using a double-buffer system.
+   3. Adds an `handle_events::<T>()` system to `CoreStage::Update`, which automatically calls the function stored in `EventHandler<T>` once for each event received in the corresponding storage (be it a global resource or a component of a particular entity).
+3. Create a way for your events to be generated.
+   1. For most UI applications, you'll simply be using the standard `Events<Action>` component on every interactive UI element.
+   2. This component is automatically filled with events when buttons are pressed, or other user interactions occur.
+4. Define the behavior that should occur when the event occurs, and add it as a `EventHandler<T>` struct, added as either a resource or a component.
+
+Steps 1 through 3 should be completely familiar to you from working with other types of events, so lets focus on the last step.
+By examining the definition of `EventHandler` struct, we can see that it stores a function which consumes an event and mutates the world:
 
 ```rust
-/// `Callback` components are automatically run as commands when 
-enum Callback {
- /// Commands that affecting the global state broadly
- Command(Commands),
- /// Commands that affect a single entity, stored in this enum
- EntityCommand(Entity, EntityCommands),
- /// Commands that affect only the entity that has this component
- SelfCommand(EntityCommands),
+// These trait bounds are required as events could be stored as either a component or resource
+struct EventHandler<T: Component + Resource> {
+ // Pass in particular data that you want to use to customize the effects in the event T
+ func: Fn(&T, &mut World),
 }
+```
 
-/// Applies the `Callback` component of entities once for each `Action` event that they have
-fn callback_system(mut commands: Commands, mut query: Query<(Entity, &mut EventReader<Action>, &Callback)>){
- for (self_e, mut actions, callback) in query.iter_mut(){
-  // For each Action (triggered by inputs) that our entity receives
-  for _ in actions {
-   // Run the command referenced in the `Callback` component of our entity
-   // at the end of the current stage
-   match Callback {
-    Callback::Command(command) => commands.apply(command),
-    EntityCommand::EntityCommand(e, e_command) => commands.entity(e).apply(e_command),
-    Callback::SelfCommand(e_command) => commands.entity(self_e).apply(e_command),
-   }
+When the `handle_events::<T>` system detects an appropriate event, it runs that function at the end of the current stage using the `handle_event::<T>)` command.
+Let's take a look at exactly how that system works:
+
+```rust
+/// Automatically handles events of type `T` according to the logic in the corresponding `EventHandler`
+fn <T: Component + Resource> handle_events::<T>(mut commands: Commands,
+mut query: Query<(&mut EventReader<T>, &EventHandler<T>)>, 
+  event_res: EventReader<Option<T>>, event_handler_res: EventHandler<Option<T>>){
+  // Only handle resource events if both the global resource and global handler exist 
+  if let mut Some(events) = event_res && let Some(handler) = event_handler_res {
+    for event in events{
+      commands.handle_events::<T>(event, handler.func);
+    }
   }
- }
+
+  // Repeat the same logic with components
+  for (mut events, handler) in query.iter_mut() {
+    for event in events {
+      commands.handle_events::<T>(event, handler.func);
+    }
+  }
 }
 ```
 
-Adding callbacks to your UI elements is straightforward: simply add the appropriate `Callback` struct as a component.
+When the `handle_event` command is applied, the function you've stored in your handler is called, using the event you passed in along with the `World` as inputs, altering the world as it pleases.
+
+Working directly with access to the world may seem intimidating, but it's not too hard with a bit of practice and most of the API mirrors that of the familiar `Commands`.
+When writing these functions (or closures!), just be mindful of the required type signature: it must take in `&T` (your underlying event type) and `&mut World` (all of the data in our app) as function arguments and have no return value.
+
+Let's lay out what a few simple bits of functionality would look like.
+
+Once you've defined the desired functionality, adding event handling to your UI elements is straightforward: simply add an `EventHandler<Action>` struct as a component, storing the desired behavior in a function (including a closure).
 
 ```rust
-// This button will spawn a new unit when pressed
-commands.spawn_bundle(ButtonBundle::default())
- .with(Callback::Command(Commands::new().spawn_bundle(UnitBundle::default())));
-
-// This button will overwrite the value of the `GameDifficulty` resource when pressed
-commands.spawn_bundle(ButtonBundle::default())
- .with(Callback::Command(Commands::new().insert_resource(GameDifficulty::Hard));
-
-// This button will add the `InCombat` marker component to the `player_entity` Entity when pressed
-commands.spawn_bundle(ButtonBundle::default())
- .with(Callback::EntityCommand(player_entity, EntityCommands::new().insert(InCombat)));
-
-// This button will despawn itself when pressed
-commands.spawn_bundle(ButtonBundle::default())
- .with(Callback::SelfCommand(EntityCommands::new().despawn()));
-```
-
-Remember that you can create your own **custom commands**, giving you the ability to express arbitrary logic using callbacks.
-For moderately complex, one-off cases though, you may prefer to combine `Callback` with the `run_system` command to quickly execute systems of your own design in a one-shot fashion when UI elements are activated.
-
-```rust
-/// Powers up all of our towers when this system runs
-fn supercharge_towers(mut query: Query<(&mut Damage, &mut AttackSpeed), With<Tower>>){
- for mut damage, mut attack_speed in query.iter_mut(){
-  *damage *= 2.0;
-  *attack_speed *= 2.0; 
- }
+fn despawn_self(action: &Action, world: &mut World) {
+  world.despawn(action.entity);
 }
 
-/// Runs the supercharge_towers system once when this button is activated
-commands.spawn_bundle(ButtonBundle::default())
- .with(Callback::Command(Commands::new().run_system(supercharge_towers.system())));
+// The _action variable is never used, so it is prefixed with an _ by convention
+fn set_difficulty_hard(_action: &Action, world: &mut World) {
+  let mut difficulty = world.get_resources_mut::<Difficulty>().unwrap();
+  *difficulty = Difficulty::Hard;
+}
+
+fn toggle_pvp(action: &Action, world: &mut World){
+  let mut player_entity = world.get_entity_mut(actions.entity).expect("This entity should still exist!");
+  if player_entity.contains::<InCombat>(){
+    player_entity.remove::<InCombat>();
+  } else {
+    player_entity.insert(InCombat);
+  }
+}
+
+fn spawn_slime(action: &Action, world: &mut World){
+  // You can simply use .query instead if you have no filters
+  let player_position = world.query_filtered<&Position, With<Player>>().single().unwrap();
+  world.spawn().insert_bundle(BigSlimeBundle::new(player_position));
+}
+
+fn supercharge_towers(action: &Action, world: &mut World){
+  let button_cooldown = world.entity_mut(action.entity).get_mut::<Cooldown>().unwrap();
+  button_cooldown.reset();
+
+  let mut tower_query = world.query_filtered<(&mut AttackSpeed, &mut Damage), With<Tower>>();
+  for (mut attack_speed, mut damage) in tower_query.iter_mut(){
+    *attack_speed *= 2.0;
+    *damage *= 3;
+  }
+}
 ```
+
+Let's pull this together into a single complete but minimal example to demonstrate the lifecycle.
+
+```rust
+use bevy::prelude::*;
+
+fn main(){
+  App::build()
+    .add_plugins(DefaultPlugins)
+    // This is autaomtically done as part of DefaultPlugins
+    // .add_event::<Action>()
+    .add_startup_system(create_growing_button.system())
+    .run();
+}
+
+fn grow_on_action((action: &Action, world: &mut World){
+  let mut transform = world.entity_mut(action.entity).get_mut::<Tranform>().unwrap();
+  transform.scale *= 1.1; 
+}
+
+fn create_growing_button(mut commands: Commands){
+  // Create an ordinary button
+  commands.spawn_bundle(ButtonBundle::default())
+  // Add our custom event handler to it as a component
+  .insert(EventHandler::<Action>::new(grow_on_action));
+}
+```
+
+As you can see, this is a simple but expressive way to create custom effects for your interactive UI elements without adding additional systems.
+Be wary though: commands (like those used by event handlers) are generally less performant due to their inability to be parallelized,
+and only take effect at the end of the current stage.
 
 ### Reacting to UI
 
@@ -255,16 +315,21 @@ Use entity-specific events when the effects of your action are well-localized to
 This proposal's functionality depends on:
 
 1. Per-entity events: [PR](https://github.com/bevyengine/bevy/pull/2116), [perf improvements](https://github.com/bevyengine/bevy/pull/2073). This is essential to achieving nice ergonomics around input mapping and action responses.
-2. Implementing a command chaining API. This should be fairly simple: it just requires implementing a `.apply` method on both `Commands` and `EntityCommands` which appends the second list of commands to the first.
-3. A standardized label for input dispatch that's used by core and community plugins, and a new `CoreStage::Input`. These are essential to help reduce system ordering headaches.
-4. \[Optional\] The ability to run one-shot systems with commands: [issue](https://github.com/bevyengine/bevy/issues/2192), [PR](https://github.com/bevyengine/bevy/pull/2234).
+2. A standardized label for input dispatch that's used by core and community plugins, and a new `CoreStage::Input`. These are essential to help reduce system ordering headaches.
+3. A simple `handle_events` command, that works as outlined above.
+4. \[Optional\] Automatic, procedural labels of generic systems for `cleanup_events` and `handle_events`, allowing you to specify which order user-defined systems run in relative to these important triggers.
+5. \[Optional\] The ability to configure before / after system ordering via their labels, allowing you to specify the relative order of event-handling systems.
+
+5 and 6 are optional because they can be bypassed by manually adding the appropriate systems.
+That's not a *great* solution though, as it's highly non-obvious, fragile, and heavy on boilerplate.
 
 ## Drawbacks
 
-1. Callbacks have arbitrary power. If not carefully managed, this could create terrible spaghetti.
-2. Callbacks, like other commands, operate sequentially. This is problematic for high performance applications.
-3. There are several equivalent ways to achieve the same outcome. This choice is mostly dictated by ergonomics and subtle (but typically irrelevant) perf considerations.
-4. Serialization of callback components is likely to be challenging.
+1. EventHandlers have arbitrary power. If not carefully managed, this could create terrible spaghetti.
+2. Handling events in this way, like other commands, operate sequentially. This is problematic for high performance applications.
+3. Commands do not take effect until the stage boundary.
+4. Serialization of components that store functions is likely to be challenging.
+5. The ability to further constrain ordering of systems by their labels increases user control over the internal details of plugins, although it should be impossible to create internal breaks in this way due to the additive nature.
 
 ## Rationale and alternatives
 
@@ -283,14 +348,14 @@ it is vitally important to demonstrate complex patterns in an opinionated way to
 This allows for the creation of a standardized, interoperable ecosystem,
 and guides users towards a sensible, performant and maintainable set of patterns when building their own user interfaces.
 
-### Why do we want callbacks?
+### Why do we want event handling?
 
 UI, much like scripting, tends to involve a large number of special-cased behaviors, in direct opposition to the natural patterns promoted by the ECS architecture.
-The callback pattern (and more generally, hooks) allows us to express this logic in a sane and maintainable fashion.
+The event handling pattern allows us to express this logic in a sane and maintainable fashion.
 
-Theoretically, everything that users could do with the callback pattern could be done with one-off systems.
+Theoretically, everything that users could do with this pattern could be done with custom-built systems.
 However, this clutters our scheduler (possibly hurting performance), reduces clarity and hurts compile times due to a huge number of one-off types.
-Furthermore, by storing specialized logic as data directly on UI entities it makes it dramatically easier to debug and reason about customized behavior.
+Furthermore, by storing specialized logic as data directly on UI entities it becomes dramatically easier to debug and reason about customized behavior as there is one obvious place to look, rather than checking each component's corresponding systems.
 
 ### Why don't we need a more complex reactivity model?
 
@@ -308,186 +373,22 @@ we can make complex user interfaces dramatically easier to reason about, refacto
 
 ## Unresolved questions
 
-- How do we serialize and deserialize callback components?
-- How can we ergonomically control the order in which callback commands are executed?
-- Should we special-case UI callbacks for now, or create a generalized `Hook` trait from the very beginning?
+- How do we serialize and deserialize component that store a function, like `EventHandler<T>`?
+- How can we ergonomically control the order in which event handling commands are executed for entities triggering on the same type of event?
 
 ## Future work
 
 1. We may want to loop over UI in some way to ensure that everything is resolved properly.
-2. The `EntityCommand` variant of `Callback` may be better handled using `Relations` in some form in the future.
-3. The ergonomics and performance of the callback pattern will be improved with other possible improvements to commands, namely more immediate processing, parallel execution and better control over execution order.
-4. Accessing and modifying the behavior of other entities within a UI hierarchy *can* be done as is, but will be much more ergonomic with advanced relations features like the ability to query for data on the target entity.
-5. Create a `QueryCommands` type (which applies the command to every entity matching a given query), and then extend callbacks to support this use as well.
+2. The ergonomics and performance of the event handling pattern will be improved with other possible improvements to commands, namely more immediate processing, parallel execution and better control over execution order.
+3. Accessing and modifying the behavior of other entities within a UI hierarchy *can* be done as is, but will be much more ergonomic with advanced relations features like the ability to query for data on the target entity.
+4. The ergonomics and configurability of event registration should be improved, especially if we're tying an additional system to it and making more aggressive use of events.
+As a start, events could be automatically registered (see [discussion on making Component opt-in](https://github.com/bevyengine/bevy/issues/1843#issuecomment-850767526)) and the strategy for clearing events could be varied in transparent ways.
 
-### A generalized hook framework
+### General application of event handling
 
-The callback pattern, once established for UI (or immediately, if there's appetite for it), can be easily extended to create powerful and expressive **entity hooks**.
-This allows for the ad-hoc creation of safe and performant APIs for scripting-like one-off behavior without a huge proliferation of systems in our schedule.
+The event handler pattern, once introduced to UI, immediately lends itself to other highly customized, scripting-like applications within the game's logic.
 
-To do so, all we need is a simple trait that wraps our `Callback` component and a trivial generic system.
+One might create events for `Hit`, `Death` and `Poisoned` to create extremely customizable behavior in an RPG (without relying on a new system for every single enemy type and mechanic).
+Or you could use it for controlling puzzle logic in an action game, or tracking achievements in a shooter.
 
-```rust
-pub trait Hook {
- pub fn callback(&self) -> &Callback {}
-
- pub fn events(&mut self) -> Events<Self> {}
-
- // Convenience function for creating new component with this trait
- // That automatically initializes the Events field
- pub fn new(Callback) -> Self {}
-}
-
-// This system could be added for `H = ActionHook` instead of implementing `callback_system` in the core plugins to avoid special-casing
-// HookReader (and HookWriter) is just a simple variation on the standard EventReader parameters to allow us to store additional data on one component
-pub fn new_hook<H: Hook + Component>(mut query: Query<&mut HookReader<H>, mut commands: Commands>){
- // Operates on all entities with an `Events<H>` component
- for hook_events in query.iter_mut(){
-  for hook_event in hook_event{
-   match hook_event.callback() {
-    Callback::Command(command) => commands.apply(command),
-    EntityCommand::EntityCommand(e, e_command) => commands.entity(e).apply(e_command),
-    Callback::SelfCommand(e_command) => commands.entity(self_e).apply(e_command),
-   }
-  }
- }
-}
-```
-
-Hooks might be "whenever this entity dies", "when damage is taken", "when a unit is at full health" or whatever else is relevant to the specific game or application.
-Each of these event queues would be populated in their own game-logic specific system,
-and then these hooks could be exposed as an API to various scripting-like parts of the game.
-
-This pattern allows us to customize behavior in arbitrarily complex ways in a more efficient fashion (using one system per hook, rather than per behavior), and opens the door to programming flexible behaviors without having to write them directly as Rust code.
-
-Let's take a look at a more complete example of how this might look.
-
-```rust
-use bevy::prelude::*;
-
-fn main(){
- App::build()
-  // Runs the commands cached in the OnDeath component of each entity during CoreStage::update()
-  // by adding the `new_hook::<OnDeath>` system to the schedule
-  .add_hook::<OnDeath>()
-  // Adds some slimes to our world
-  .add_startup_system(spawn_slimes.system())
-  // Set the OnDeath component before the hook is checked to avoid frame delays
-  // HookLabel(H) system labels are automatically generated for each hook
-  .add_system(change_life.system().before(HookLabel(OnDeath)))
-}
-
-#[derive(Hook)]
-struct OnDeath{
- callback: Callback
- events: Events<OnDeath>
-};
-
-impl Default for OnDeath{
- fn default() -> Self {
-  let commands = EntityCommands::new().despawn();
-  OnDeath::new(Callback::SelfCommand(commands))
- }
-} 
-
-struct Life(isize);
-
-/// Shared bundle type for all of the creatures in our game
-#[derive(Bundle)]
-struct CreatureBundle {
- sprite: Sprite,
- transform: Transform,
- life: Life,
- life_events: Events<Life>
- /*
-  Many other useful fields go here
- */
-}
-
-struct LittleSlime;
-const LITTLE_SLIME_LIFE: isize = 100;
-
-#[derive(Bundle)]
-struct LittleSlimeBundle {
- marker: LittleSlime,
- on_death: Events<OnDeath>,
- #[bundle]
- creature_bundle: CreatureBundle
-}
-
-impl LittleSlimeBundle {
- fn new(x: f32, y: f32, sprite: Handle<ColorMaterial>) -> Self {
-  LittleSlimeBundle{
-   marker: LittleSlime,
-   creature_bundle: CreatureBundle {
-    sprite,
-    transform: Transform::from_xyz(x, y, 1.0),
-    life: LITTLE_SLIME_LIFE,
-    // Implicitly adds the OnDeath component with 
-    ..Default::default()
-   }
-  }
- }
-}
-
-struct BigSlime;
-const BIG_SLIME_LIFE: isize = 100;
-
-#[derive(Bundle)]
-struct BigSlimeBundle {
- marker: BigSlime,
- on_death: OnDeath,
- #[bundle]
- creature_bundle: CreatureBundle
-}
-
-impl BigSlimeBundle {
- fn new(x: f32, y: f32, sprite: Handle<ColorMaterial>) -> Self {
-  // By mutating our commands object (just like in a system) 
-  // we can create complex behavior without the need for custom Commands
-  let mut commands = EntityCommands::new();
-  commands.remove::<BigSlime>();
-  commands.insert(LittleSlime);
-  // Overwrites old value of Life component
-  commands.insert(Life(LITTLE_SLIME_LIFE));
-  let on_death = OnDeath::new(Callback::SelfCommand(command));
-  
-  BigSlimeBundle{
-   marker: LittleSlime,
-   creature_bundle: CreatureBundle {
-    sprite,
-    transform: Transform::from_xyz(x, y, 1.0),
-    life: BIG_SLIME_LIFE,
-    on_death,
-    ..Default::default()
-   }
-  }
- }
-}
-
-fn spawn_slimes(mut commands: Commands, asset_server: ResMut<AssetServer>){
- /*
-  Eliding tedious asset loading logic
- */
-
- commands.spawn_bundle(LittleSlimeBundle::new(0.0, 1.0, little_slime_handle));
- commands.spawn_bundle(BigSlimeBundle::new(3.0, 5.0, big_slime_handle));
-}
-
-/// Applies damage and healing to each creature
-fn change_life(mut query: Query<(&mut Life, &mut EventReader<Life>, &mut HookWriter<OnDeath>)>){
- for (mut life, mut life_events, mut on_death) in query.iter_mut() {
-  for event in life_events {
-   life.0 += event.0;
-  }
-
-  if life <= 0 {
-   // This event queue will almost always have exactly 0 or 1 events, 
-   // because creatures should only be dying once
-   // However this would be quite different for an OnHit hook
-   on_death.send(OnDeath);
-  }
- }
-}
-
-```
+Cases like this last one make it particularly relevant
