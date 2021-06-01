@@ -80,9 +80,9 @@ This RFC provides independent 2d and 3d primitives. Recall that the purpose of t
 /// Stores an angle in radians, and supplies builder functions to prevent errors (from_radians, from_degrees)
 struct Angle(f32);
 ```
-### Traits
+### Traits (REFERENCE ONLY!)
 
-These traits are provided as reference to illustrate how these might be used. The details of implementation and interface should be determined in a separate RFC, PR, or independent prototypes.
+**These traits are provided as reference to illustrate how these primitive shape types might be used. The details of implementation and interface should be determined in a separate RFC, PR, or independent prototypes.**
 
 ```rust
 trait Meshable{
