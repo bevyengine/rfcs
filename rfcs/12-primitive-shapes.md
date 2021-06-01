@@ -35,13 +35,13 @@ Note that a `Circle2d` does not contain any information about the position of th
 
 ### Bounding vs. Collision
 
-The difference between the two is somewhat semantic. Both bounding and collision check for intersections between bounding volumes or areas. However, bounding volumes are generally used for broad phase checks due to their speed and small size, and are consequently often used in tree structures for spacial queries. Note that both bounding types are not oriented - this reduces the number of comparisons needed to check for intersections during broad phase tests. 
+The difference between the two is somewhat semantic. Both bounding and collision check for intersections between bounding volumes or areas. However, bounding volumes are generally used for broad phase checks due to their speed and small size, and are consequently often used in tree structures for spacial queries. Note that both bounding types are not oriented - this reduces the number of comparisons needed to check for intersections during broad phase tests. Bounding spheres or AABBs are generally always preferred for broad phase bounding checks, despite the OBB's name.
 
-Although the traits for these may look similar, by making them distinct it will better conform to industry terminology and help guide users away from creating performance problems. For example, because a torus is a volume, it is conceivably possible to implement the `Bounding` trait, however it would be a terrible idea to be encouraging users to build BVTs/BVHs out of torii. This is also why the Oriented Bounding Box (OBB) is a collider, and not `Bounding`. Bounding spheres or AABBs are generally always preferred for broad phase bounding checks, despite the OBB's name. For advanced users who want to implement `Bounding` for OBBs, they always have the option of wrapping the OBB in a newtype and implementing the trait.
+**Note that the Bounding/Collision interface is not part of this RFC**, the purpose of this discussion is to present common use cases of these primitive shape types to uncover deficiencies in their design.
 
 ### Where are the `Transform`s?
 
- Translation and rotation are **not** defined using bevy's `Transform` components. This is because types that implement `Bounding` and `Collider` must be fully self-contained. This:
+In this potential bounding and collision interface, translation and rotation are **not** defined using bevy's `Transform` components, nor are they stored in the base primitive shape types. This is because types that implement `Bounding` and `Collider` must be fully self-contained. This:
  
  * makes the API simpler when using these components in functions and systems
  * ensures bounding and collision types use an absolute minimum of memory
@@ -49,20 +49,22 @@ Although the traits for these may look similar, by making them distinct it will 
 
 Instead, changes to the parent's `GlobalTransform` should be used to derive a new primitive on scale changes - as well as a new translation and rotation if required.
 
+Although bounding and collision are out of scope of this RFC, this helps to explain why primitive shape types contain no positional information. This hypothetical bounding/collision interface shows how the base primitive shapes can be composed to build common game engine functinality without adding memory overhead.
+
 ### Meshing
 
-Both 2d and 3d primitives can implement the `Meshable` trait to provide the ability to generate a tri mesh:
+Both 2d and 3d primitives could implement the `Meshable` trait to provide the ability to generate a tri mesh:
 
 ```rust
 let circle_mesh: Mesh = Circle2d{ radius: 2.0 }.mesh();
 ```
 The base primitive types only define the shape (`Circle2d`) and size (`radius`) of the geometry about the origin. Once generated, the mesh can have a transform applied to it like any other mesh, and it is no longer tied to the primitive that generated it. The `Default::default()` implementation of primitives should be a "unit" variant, such as a circle with diameter 1.0, or a box with all edges of length 1.0.
 
-Meshing could be naturally extended with other libraries or parameters. For example, a sphere by default might use `Icosphere`, but could be extended to generate UV spheres or quad spheres. For 2d types, we can use a crate such as `lyon` to generate 2d meshes from parameterized primitive shapes within the `Meshable` interface.
+Meshing could be naturally extended with other libraries or parameters. For example, a sphere by default might use `Icosphere`, but could be extended to generate UV spheres or quad spheres. For 2d types, we could use a crate such as `lyon` to generate 2d meshes from parameterized primitive shapes within the `Meshable` interface.
 
 ### Bounding
 
-For use in spatial queries, broad phase collision detection, and raycasting, `Bounding` and `Bounding2d` traits are provided. These traits are implemented for types that define position in addition to the shape and size defined in the base primitive. The basic functionality of this trait is to check whether one bounding shape is contained within another bounding shape.
+For use in spatial queries, broad phase collision detection, and raycasting, hypothetical `Bounding` and `Bounding2d` traits are provided. These traits are implemented for types that define position in addition to the shape and size defined in the base primitive. The basic functionality of this trait is to check whether one bounding shape is contained within another bounding shape.
 
 ### Colliders
 
@@ -169,6 +171,7 @@ struct Sphere {
 }
 impl Meshable for Sphere {}
 
+/* REFERENCE ONLY
 struct BoundingSphere {
   sphere: Sphere,
   translation: Vec3,
@@ -182,6 +185,7 @@ struct SphereCollider {
 }
 impl Meshable for SphereCollider {}
 impl Collider for SphereCollider {}
+*/
 
 // Box Types
 
@@ -190,6 +194,7 @@ struct Box {
 }
 impl Meshable for Box
 
+/* REFERENCE ONLY
 struct BoundingBox {
   box: Box,
   translation: Vec3,
@@ -206,6 +211,7 @@ struct BoxCollider {
 impl Meshable for BoxCollider {}
 impl Collider for BoxCollider {}
 type Obb = BoxCollider;
+*/
 
 // Cylinder Types
 
@@ -216,6 +222,7 @@ struct Cylinder {
 }
 impl Meshable for Cylinder {}
 
+/* REFERENCE ONLY
 struct CylinderCollider {
   cylinder: Cylinder,
   translation: Vec3,
@@ -223,6 +230,7 @@ struct CylinderCollider {
 }
 impl Meshable for CylinderCollider {}
 impl Collider for CylinderCollider {}
+*/
 
 // Capsule Types
 
@@ -233,6 +241,7 @@ struct Capsule {
 }
 impl Meshable for Capsule {}
 
+/* REFERENCE ONLY
 struct CapsuleCollider {
   capsule: Capsule,
   translation: Vec3,
@@ -240,6 +249,7 @@ struct CapsuleCollider {
 }
 impl Meshable for CapsuleCollider {}
 impl Collider for CapsuleCollider {}
+*/
 
 // Cone Types
 
@@ -250,6 +260,7 @@ struct Cone {
 }
 impl Meshable for Cone {}
 
+/* REFERENCE ONLY
 struct ConeCollider {
   cone: Cone,
   translation: Vec3,
@@ -257,6 +268,7 @@ struct ConeCollider {
 }
 impl Meshable for ConeCollider {}
 impl Collider for ConeCollider {}
+*/
 
 // Wedge Types
 
@@ -268,6 +280,7 @@ struct Wedge {
 }
 impl Meshable for Wedge {}
 
+/* REFERENCE ONLY
 struct WedgeCollider {
   wedge: Wedge,
   translation: Vec3,
@@ -275,6 +288,7 @@ struct WedgeCollider {
 }
 impl Meshable for WedgeCollider {}
 impl Collider for WedgeCollider {}
+*/
 
 // Other Types
 
@@ -366,6 +380,7 @@ struct Circle2d {
 }
 impl Meshable for Circle2d {}
 
+/* REFERENCE ONLY
 struct BoundingCircle2d {
   circle: Circle2d,
   translation: Vec2,
@@ -379,6 +394,7 @@ struct CircleCollider2d {
 }
 impl Meshable for CircleCollider2d {}
 impl Collider2d for CircleCollider2d {}
+*/
 
 // Box Types
 
@@ -387,6 +403,7 @@ struct Box2d {
 }
 impl Meshable for Box2d
 
+/* REFERENCE ONLY
 struct BoundingBox2d {
   box: Box2d,
   translation: Vec2,
@@ -403,16 +420,17 @@ struct BoxCollider2d {
 impl Meshable for BoxCollider2d {}
 impl Collider2d for BoxCollider2d {}
 type Obb2d = BoxCollider2d;
+*/
 
 // Capsule Types
 
 struct Capsule2d {
-  // Height of the cylindrical section
-  height: f32,
-  radius: f32,
+  height: f32, // Height of the rectangular section
+  radius: f32, // End cap radius
 }
 impl Meshable for Capsule2d {}
 
+/* REFERENCE ONLY
 struct CapsuleCollider2d {
   capsule: Capsule2d,
   translation: Vec2,
@@ -420,31 +438,14 @@ struct CapsuleCollider2d {
 }
 impl Meshable for CapsuleCollider2d {}
 impl Collider2d for CapsuleCollider2d {}
+*/
 
 ```
-### Lack of `Transform`s
+### Bounding and Collision
 
-Primitives colliders and bounding volumes are fully defined in space, and do not use `Transform` or `GlobalTransform`. This is an intentional decision. Because transforms can include nonuniform scale, they are fundamentally incompatible with shape primitives. We could use transforms in the future if the `translation`, `rotation`, and `scale` fields were distinct components, and shape primitives could be bundled with a `translation` or `rotation` if applicable.
+Primitives colliders and bounding volumes are fully defined in space (in their hypothetical implementation here), and do not use `Transform` or `GlobalTransform`. This is an intentional decision. Because transforms can include nonuniform scale, they are fundamentally incompatible with shape primitives. We could use transforms in the future if the `translation`, `rotation`, and `scale` fields were distinct components, and shape primitives could be bundled with a `translation` or `rotation` if applicable. 
 
-#### Cache Efficiency
-
-- Some primitives such as AABB and Sphere don't need a rotation (or scale) to be fully defined. 
-- Using a `GlobalTransform` adds an unused Quat and Vec3 to the cache line.
-- This is especially important for AABBs and Spheres, because they are fundamental to broad phase collision detection and BV(H), and as such need to be as efficient as possible.
-- This also applies to all other primitives, which don't use the `scale` field of the `GlobalTransform`.
-
-#### Ergonomics
-
-- Primitives need to be fully defined in world space to compute collision or bounding.
-- By making the primitive components fully defined and standalone, computing operations is as simple as: `primitive1.some_function(primitive_2)`, instead of also having query and pass in 2 `GlobalTransform`s in the (hopefully) correct order.
-
-#### Use with Transforms
-
-- The meshes generated from these primitives can be transformed freely. The primitive types, however, do not interact with transforms for the reasons stated above.
-
-### Bounding Boxes/Volumes
-
-Because bounding volumes and colliders are fully defined in world space, this leads to the natural question of how they are kept in sync with their parent. An implementation should provide a system similar to transform propagation, that would update the primitive as well as its translation and rotation if applicable. This can be accomplished in the transform propogation system itself, or in system that runs directly after. Further details are more appropriate for a subsequent bounding RFC/PR. The important point to consider is how this proposal provides common types that can be used for this purpose, whether for internal or external crates. The purpose of considering bounding and collision is that they represent common use cases of these primitives, and their potential implementation strategy should be considered.
+The provided reference implementaiton of bounding and collision types demonstrate how primitive shape types can be composed with other types, triats, or components to build added functionality from shared parts. While the collder and bounding primitives provided as reference are out of scope, they also highlight the incompatibility of shape primitives with the `Transform` component.
 
 ### Frustum Culling
 
@@ -467,7 +468,7 @@ In addition, by defining the frustum as a set of planes, it is also trivial to s
 
 ### Ray Casting
 
-The bounding volumes sections of this RFC cover how these types would be used for the bounding volumes which are used for accelerating ray casting. In addition, the `Ray` primitive component can be used to represent rays. Applicable 3d types could implement a `Raycast` trait to extend their functionality.
+The bounding volumes sections of this RFC cover how these types could be used for the bounding volumes which are used for accelerating ray casting. In addition, the `Ray` primitive component can be used to naturally represent raycasting rays. Applicable 3d types could implement a `Raycast` trait to extend their functionality.
 
 ```rust
 let ray = Ray::X;
@@ -512,6 +513,7 @@ An argument could be made to use an external crate for shape primitives, however
 - Unity `PrimitiveObjects`: https://docs.unity3d.com/Manual/PrimitiveObjects.html
 - Godot `PrimitiveMesh`: https://docs.godotengine.org/en/stable/classes/class_primitivemesh.html#class-primitivemesh
 - The popular *Shapes* plugin for Unity https://acegikmo.com/shapes/docs/#line
+- Rapier/Parry
 
 Prior art was used to select the most common types of shape primitive, naming conventions, as well as sensible data structures for bounding, collision, and culling.
 
