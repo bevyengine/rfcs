@@ -3,22 +3,39 @@
 
 ## Requirements
 
-- `ComponentId` should be stable between clients and the server.
-- Must isolate networked and non-networked state.
-  - Entities must be born (non-)networked. They cannot become (non-)networked.
-  - Networked entities must have a "network ID" component at minimum.
-  - Networked components and resources must only hold or reference networked data.
-  - Networked components must only be mutated inside `NetworkFixedUpdate`.
+Type identifiers (in some form) need to match between all connected machines. Options so far:
+
+- `TypeId`
+  - [debatable stability][14]
+  - no additional mapping needed (just reuse the world's)
+- ["`StableTypeId`"][13]
+  - currently unavailable
+  - no additional mapping needed (just reuse the world's)
+- `ComponentId`
+  - fragile, requires networked components and resources registered first and in a fixed order (for all relevant worlds)
+  - no mapping needed
+- `unique_type_id`
+  - uses ordering described in a `types.toml` file
+  - needs mapping between these and `ComponentId`
+- `type_uuid`
+  - not an index
+  - needs mapping between these and `ComponentId`
 
 ## Wants
   
-- Ideally, `World` could reserve and split off a range of entities, with separate component storages. ([#16][1] could potentially be used for this).
-- The ECS scheduler should support arbitrary cycles in the stage graph (or equivalent). Want ergonomic support for nested loops.
+- If it were possible to split off a range of entities into a [sub-world][12] (with its own, separate component storages), that would remove a layer of indirection and allow reusing the `World` API more directly.
+- If the ECS scheduler supported arbitrary cycles in the stage graph (or the "stageless" equivalent), I imagine it'd be possible to make the nested loop criteria completely transparent to the end user (no custom stages needed, perhaps).
 
+## Practices users should follow or they'll have UB
+
+- Entities must be spawned (non-)networked. They cannot become (non-)networked.
+- Networked entities must be spawned with a "network ID" component at minimum.
+- (Non-)networked components and resources should only hold or reference (non-)networked data.
+- Networked components should only be mutated inside `NetworkFixedUpdate`.
 
 ## `Connection` != `Player`
 
-I know I've been using the terms "client" and "player" somewhat interchangeably, but `Connection` and `Player` should be separate tokens. There's no benefit in forcing one player per connection. Having `Player` be its own thing makes it easier to do stuff like online splitscreen, temporarily substituting vacancies with bots, etc.
+I know I've been using the terms "client" and "player" somewhat interchangeably, but `Connection` and `Player` should be separate tokens. There's no reason the engine should limit things to one player per connection. Having `Player` be its own thing makes it easier to do stuff like online splitscreen, temporarily substituting vacancies with bots, etc. Likewise, a `Connection` should be a platform-agnostic handle.
 
 ## Storage
 
@@ -42,7 +59,7 @@ At the end of every tick, the server zeroes the space for the newest delta, then
 
 TODO
 
-- See if we can store data in the snapshots without struct padding.
+- Store/serialize networked data without struct padding so we're not wasting bandwidth.
 - Support components and resources that allocate on the heap (DSTs). Won't be possible at first but the solution most likely will be backing this resource with its own memory region (something like `bumpalo` but smarter). That will be important for deterministic desync detection as well.
 
 ### Full Updates
@@ -59,52 +76,60 @@ Eventual consistency isn't inherently reliant on prioritization and filtering, b
 
 If we can't send everything, we should prioritize what players want to know. They want live updates on objects that are close or occupy a big chunk of their FOV. They want to know about their teammates or projectiles they've fired, even if those are far away. The server has to make the most of each packet.
 
-Similarly, game designers often want to hide certain information from certain players. Limiting the amount of hidden information that gets leaked and exploited by cheaters is often crucial to a game's long-term health. Battle royale players, for example, don't need and probably shouldn't even have their opponents' inventory data. In practice, the guards are never perfect (e.g. *Valorant's* Fog of War not preventing wallhacks), but something is better than nothing.
+Similarly, game designers often want to hide certain information from certain players. Limiting the amount of hidden information that gets leaked and exploited by cheaters is often crucial to a game's long-term health. Battle-royale players, for example, don't need and probably shouldn't even have their opponents' inventory data. In practice, these barriers are never perfect (e.g. *Valorant's* Fog of War not preventing wallhacks), but something is better than nothing.
 
 Anyway, to do all this interest management, the server needs to track some extra metadata.
 
 ```rust
-struct InterestMetadata<const P: usize> {
-    priority: [Vec<usize>; P],    
-    relevance: SparseSet<ComponentId, [Vec<bool>; P]>,
-    position: Vec<Option<SpatialIndex>>,
-    within_scope: [Vec<Option(usize, f32)>; P],
+struct InterestMetadata<const P: usize, const E: usize, const C: usize> {
+    // P: players, E: entities, C: components
+    position: [Option<(usize, SpatialIndex)>; 2 * E],
+    within_aoi: [[Option<(usize, f32)>; E]; P],
+    relevance: [[BitSet; C]; P]
+    age: [[[usize; C]; E]; P] 
+    priority: [[usize; E]; P] 
 }
 ```
 
 This metadata contains a few things:
 
-- the age of each entity's oldest undelivered change, per player
+- position: the min and max AABB coordinates of every networked entity (if available)
+- within_aoi: the entities that are inside the area of interest of this player
 
-This is used as the send priority value. I think having the server only send something when it has changed is better than assigning entities arbitrary update frequencies. For players on the same client, their send priorities are identical.
+Checking if an entity is inside someone's area of interest (AOI) is just an application of collision detection. AOI results are used to filter information at the entity-level. "Intangible" entities that lack a transform will auto-pass this check. For players on the same client, their results are merged with an OR.
 
-- the relevance of each component, per entity, per player
+I don't see a need for ray, distance, and shape queries where BVH or spatial partitioning structures excel, so I'm looking into doing something like a [sweep-and-prune][9] (SAP) with Morton-encoding. Since SAP is essentially just sorting the array, I imagine it might have better performance. Alternatives like grids and potentially visible sets (PVS) can be explored and added later.
 
-This controls which components are sent. By default, change detection will mark components as relevant for everybody, and then some form of rule-based filtering (maybe [entity relations][10]) can be used to selectively omit or force-include them. For players on the same client, their relevances are merged with an OR.
+- relevance: whether or not a component value should be sent to this player
 
-(Might need a second age value that accounts for irrelevant changes.)
+Relevance is used to filter information at the component-level. By default, change detection will mark components as relevant for everybody, and then some form of rule-based filtering (maybe [entity relations][10]) can be used to selectively omit or force-include them. When sent, a component's relevance is reset to false. For players on the same client, their relevances are merged with an OR.
 
-- the position of every networked entity (if available)
+- age: time (in ticks) each component has had a pending change since it was last sent to this player
 
-Checking if an entity is inside someone's area of interest is just an application of collision detection. "Intangible" entities that lack a transform will auto-pass this check. I don't see a need for ray, distance, and shape queries where BVH or spatial partitioning structures excel, so I'm looking into doing something like a [sweep-and-prune][9] with Morton-encoding that might have better performance, since it's basically just sorting this array.
+Age serves as the basis for send priority. The send priority of an entity is simply the age of its oldest relevant component. When an entity is sent, the ages of its relevant components are reset to zero. Age is tracked per component to be more robust against the receiving client having packet loss. For players on the same client, this field will be identical.
 
-Alternatives like grids and potentially visible sets (PVS) can be explored and added later.
+I think having the server only send undelivered changes and prioritizing the oldest ones is better than assigning entities arbitrary update frequencies. That said, I'll be testing a "zero-cost" alternative where I just count the number of due relevant components per entity. Unlike age, I believe this wouldn't require storing any sent packet metadata (see below).
 
-- results of the AOI intersection tests, per player
+- priority: how important it is to send the current state of each entity to this player
 
-Self-explanatory. For players on the same client, their results are merged with an OR. Once the other metadata has been updated, the server sorts this array in priority order and writes the relevant data until the client's packet is full or everything gets written.
+Priority is the end result of combining the above metadata. After filtering entities to those within a player's area of interest and filtering their components to only what that player needs to know, the server sorts the interesting entities in priority order and writes each one until the client's packet is full or they're all written.
 
 *So what do we do if packets are lost?*
 
-Whenever the server sends a packet, it remembers the priorities of the included entities (actually their row indexes), then resets their priority and relevance. Later, if the server is notified that some previously sent packets were probably lost, it can pull this info and restore the priorities (plus however many ticks have passed).
+Whenever the server sends a packet, it remembers how old the included entities (actually their row indexes) were, then resets the age and relevance of their components. Later, if the server is notified that some previously sent packets were probably lost, it can pull this info and restore the components to a more indicative age (plus however many ticks have passed).
 
-For restoring the relevance of an entity's components, there are two cases. If the delta matching the entity's age still exists, the server can use that as a reference and only flag its changed components. Otherwise, they all get flagged.
+For restoring the relevance of an entity's components, there are two cases. If the delta matching the stored age still exists, the server can use that as a reference and only mark its changed components. Otherwise, they all get marked.
 
 *So how 'bout those edge cases?*
 
 Unfortunately, the most generalized strategy comes with its own headaches.
 
-- What should a client do when it misses the first update for an entity? Is it OK to spawn an entity with incomplete information? If not, how does the client know when it's safe?
+- What should a client do when it misses the first update for a entity? Is it OK to spawn a entity with incomplete information? If not, how does the client know when it's safe?
+
+AFAIK this is only a problem for "kinded" entities that have archetype invariants. I'm thinking two potential solutions:
+
+1. Have the client spawn new remote entities with any missing components in their invariants set to a default value.
+2. Have the server redundantly send the full invariants for a new interesting entity until that information has been delivered once.
 
 TBD
 
@@ -121,6 +146,8 @@ unsafe impl Replicate for T {}
 ## How to rollback?
 
 TODO
+
+probably a custom schedule/stage
 
 ```plaintext
 The "outer" loop is the number of fixed update steps as determined by the fixed timestep accumulator.
@@ -142,7 +169,7 @@ Let's consider a simpler default:
 
 - Always rollback and re-simulate when you receive a new update.
 
-This might seem wasteful, but think about it. If-then just hides performance problems from you. Heavy rollback scenarios will exist regardless. You can't prevent clients from running into them. Mispredictions are *especially* likely during heavier computations like physics. Just have clients always rollback and re-sim. It's easier to profile and optimize your worst-case. It's also more memory-efficient, since clients never need to store old predicted states.
+This might seem wasteful, but think about it. If-then is really an anti-pattern that just hides performance problems from you. Mispredictions will exist regardless of this choice, and they're *especially* likely during heavier computations like physics. Having clients always rollback and re-sim makes it easier to profile and optimize your worst-case. It's also more memory-efficient, since clients never need to store old predicted states.
 
 ## "Clock" Synchronization
 
@@ -275,11 +302,13 @@ When a player is the child of another, uncontrolled entity (e.g. the player is a
 
 ## Messages (RPCs)
 
+Messages are good for sending global alerts and any gameplay mechanics where raw inputs aren't expressive enough. For example, buying items bulk from an in-game menu. The server won't simulate UI, so it'd probably be simplest if the client sent a reliable message describing what they want. The "reply" in this example would be implicit in the received state.
+
+Messages can be reliable. They can also be postmarked to be processed on a certain tick like inputs. That can only be best effort (i.e. tick N or earliest), though.
+
+I don't really know what these should look like yet. A macro might be the most ergonomic choice, if it means a message can be completely defined in its relevant system.
+
 TODO
-
-Messages are good for sending global alerts and any gameplay mechanics you explicitly want modeled as requests. They can be unreliable ("Hey, spawn this particle effect!") or reliable. ("I want to buy 4 medkits.") You can also postmark messages to be processed on a certain tick like inputs. That can only be best effort, though.
-
-The example I'm thinking of is buying items from an in-game vendor. The server doesn't simulate UI, but ideally we can write the message transaction in the same system. A macro might end up being the most ergonomic choice.
 
 [1]: https://github.com/bevyengine/rfcs/pull/16
 [2]: https://github.com/lemire/FastPFor/blob/master/headers/simple8b_rle.h
@@ -292,3 +321,6 @@ The example I'm thinking of is buying items from an in-game vendor. The server d
 [9]: https://github.com/mattleibow/jitterphysics/wiki/Sweep-and-Prune
 [10]: https://github.com/bevyengine/rfcs/pull/18
 [11]: https://www.researchgate.net/publication/293809946_Believable_Dead_Reckoning_for_Networked_Games
+[12]: https://github.com/bevyengine/rfcs/pull/16#issuecomment-849878777
+[13]: https://github.com/bevyengine/bevy/issues/32
+[14]: https://github.com/bevyengine/bevy/issues/32#issuecomment-821510244
