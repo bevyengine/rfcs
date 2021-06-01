@@ -444,7 +444,7 @@ Primitives colliders and bounding volumes are fully defined in space, and do not
 
 ### Bounding Boxes/Volumes
 
-Because bounding volumes and colliders are fully defined in world space, this leads to the natural question of how they are kept in sync with their parent. An implementation should provide a system similar to transform propagation, that would update the primitive as well as its translation and rotation if applicable. Further details are more appropriate for a subsequent bounding RFC/PR. The important point to consider is how this proposal provides common types that can be used for this purpose, whether for internal or external crates.
+Because bounding volumes and colliders are fully defined in world space, this leads to the natural question of how they are kept in sync with their parent. An implementation should provide a system similar to transform propagation, that would update the primitive as well as its translation and rotation if applicable. This can be accomplished in the transform propogation system itself, or in system that runs directly after. Further details are more appropriate for a subsequent bounding RFC/PR. The important point to consider is how this proposal provides common types that can be used for this purpose, whether for internal or external crates. The purpose of considering bounding and collision is that they represent common use cases of these primitives, and their potential implementation strategy should be considered.
 
 ### Frustum Culling
 
