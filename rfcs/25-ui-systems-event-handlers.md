@@ -111,7 +111,7 @@ In this way, we can use a single system to differentiate behavior.
 ```rust
 // Operates over any ability buttons we may have in a single system
 fn ability_buttons(mut query: Query<(&mut EventReader<Action>, &mut Timer<Cooldown>, &Ability)>, time: Res<Time>, mut ability_events: EventWriter<Ability>){
- for actions, cooldown, ability in query.iter_mut(){
+ for (actions, cooldown, ability) in query.iter_mut(){
   // Tick down our cooldown timers
   cooldown.tick(time.delta());
   
