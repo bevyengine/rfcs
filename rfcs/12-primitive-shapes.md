@@ -508,6 +508,18 @@ Adding primitives invariably adds to the maintenance burden. However, this cost 
 
 An argument could be made to use an external crate for shape primitives, however these types are so fundamental It's important that they are optimized for the engine's most common use cases, and are not from a generalized solution. In addition, the scope of this RFC does not include the implementation of features like bounding, collision, raycasting, or physics. These are acknowledged as areas that (for now) should be carried out in external crates.
 
+### Using Parry/Rapier Types
+
+"Parry is the defacto standard for physics, why not use those types? If we make our own types, doesn't this add overhead if everyone is using Parry?"
+
+The choice of what physics engine to integrate into Bevy, if at all, will require much more discussion than can be covered in this RFC. However, it is true that Parry appears to be the most common choice for physics in Bevy, and its types should be considered for this RFC.
+
+Parry uses nalgebra for linear algebra; we would need to convert to/from glam types to interoperate with the rest of the engine whether or not we use Parry's geometric primitives. In that sense, making our own types doesn't add overhead to conversion, but we _would_ own the process. Parry plugins already exist for bevy. Adding our own primitive types to the engine wouldn't break those plugins, but it does add the ability to interoperate.
+
+Using Parry types would also mean every bevy crate that wants to implement some geometry focused feature, now needs to use the nalgebra and glam math types. This runs counter to Bevy's goal of simplicity.
+
+Perhaps most critically, Parry types are opinionated for physics/raycasting use. The goals of those types simply don't align with the goals outlined in this RFC. Bevy's shape primitives should be able to be used, for example, for meshing in 2d (UI/CAD) and 3d, frustum culling, clustered rendering, or anything else that that lives in the engine <-> application stack. If we want to add a 2d arc type for UI, we would need to to add primitives to Parry that are completely orthogonal to its goals.
+
 ## Prior art
 
 - Unity `PrimitiveObjects`: https://docs.unity3d.com/Manual/PrimitiveObjects.html
