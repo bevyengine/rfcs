@@ -228,25 +228,23 @@ interp_time = max(interp_time, predicted_time - max_lag_comp)
 
 The key idea here is that simplifying the client-server relationship is more efficient and has less problems. If you followed the Source engine model described [here][3], the server would have to apply inputs whenever they arrive, meaning the server also has to rollback and it also must deal with weird ping-related issues (see the lag compensation section in [this article][4]). If the server never accepts late inputs and never changes its pace, no one needs to coordinate.
 
-## Prediction <-> Interpolation
+## Predicted <-> Interpolated
 
-Clients can't directly modify the authoritative state, but they should be able to predict whatever they want locally. Current plan is to just copy the latest authoritative state. If this ends up being too expensive (or when DSTs are supported), we can probably use a copy-on-write layer.
+Clients can't directly make persistent changes the authoritative state, but they're allowed to do whatever they want locally. Current plan is to just copy the latest authoritative state. If this ends up being too expensive (or when DSTs are supported), a copy-on-write layer is another option.
 
-To shift components between prediction and interpolation, we can default to either. When remote entities are interpolated by default, most entities will reset to interpolated when modified by a server update. We can then use specialized `Predicted<T>` and `Confirmed<T>` (equivalent to `Not(Predicted<T>)`) query filters to address the two separately. These will piggyback off of Bevy's built-in reliable change detection.
+We want to shift components between being predicted (extrapolated) and being interpolated. Either could be default. If interpolation is default, entities would reset to interpolated when modified by a server update. Users could then use specialized `Predicted<T>` and `Confirmed<T>` (equivalent to `Not(Predicted<T>)`) query filters to address the two groups separately. I think these can piggyback off of Bevy's built-in reliable change detection.
 
-Systems will predict by default, but users can opt-out with the `Predicted<T>` filter. Systems with filtered queries (i.e. physics, path-planning) should typically run last. Clients should always predict entities driven by their input and entities whose spawns haven't been confirmed.
+Systems would generate predictions by default, but users can opt-out with the `Predicted<T>` filter to only process entities that have already been mutated by an earlier system. Users would typically use these filters for heavier logic like physics. Clients will naturally predict any entities driven by their input and any spawned by their input (until confirmed by the server).
 
 Since sounds and particles require special consideration, they're probably best realized through dispatching events to be handled *outside* `NetworkFixedUpdate`. We can use these query filters to generate events that only trigger on authoritative changes and events that trigger on predicted changes to be confirmed or cancelled later.
 
 How to uniquely identify these events is another question, though.
 
-Should UI be allowed to reference predicted state or only verified state?
-
 ## Predicting Entity Creation
 
 This requires some special consideration.
 
-The naive solution is to have clients spawn dummy entities so that when an update that confirms the result arrives, they'll simply destroy the dummy and spawn the true entity. IMO this is a poor solution because it prevents clients from smoothly blending predicted spawns to their authoritative location. Snapping won't look right.
+The naive solution is to have clients spawn dummy entities so that when an update that confirms the result arrives, they'll simply destroy the dummy and spawn the true entity. IMO this is a poor solution because it prevents clients from smoothly blending errors in the predicted spawn's rendered transform. Snapping its visuals wouldn't look right.
 
 A better solution is for the server to assign each networked entity a global ID that the spawning client can predict and map to its local instance. There are 3 variants that I know of:
 
@@ -268,7 +266,7 @@ Cameras need some special treatment. Look inputs need to be accumulated at the r
 
 We'll also need some way for developers to declare their intent that a motion should be instant instead of smoothly interpolated. Since it needs to work for remote entities as well, maybe this just has to be a bool on the networked transform.
 
-We'll need a special blending for predicted entities and entities transitioning between prediction and interpolation. [Projective velocity blending][11] seems like the de facto standard method for smoothing extrapolation errors, but I've also seen simple exponential decays used. There may be better smoothing filters.
+While most visual interpolation is linear, we'll want another blend for quickly but smoothly correcting visual misprediction errors, which can occur for entities that are or just stopped being predicted. [Projective velocity blending][11] seems like the de facto standard method for these, but I've also seen simple exponential decays used. There may be better smoothing filters.
 
 ## Lag Compensation
 
