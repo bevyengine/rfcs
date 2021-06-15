@@ -7,15 +7,15 @@ Extend the `Component` trait to declare more information statically, instead of 
 
 ## Motivation
 
-`Component` trait is being used inside Bundles and Queries. It's usage in Queries is enforced by the type system.
+The `Component` trait is being used inside Bundles and Queries. It's usage in Queries is enforced by the type system.
 Unfortunately, because it's automatically derived, almost every type can be treated as a component, including Bundles.
 That means `Component` APIs don't really have any way to prevent misuse, like `commands.insert(bundle)`. Right now
 it's very easy to end up with that code because of a typo, as the `Bundle` api methods are very similarly named.
 
 There are also other pitfalls, like primitive types being automatically `Component`s, but without clear meaning what they represent.
-This is an especially sever issue for function pointer types. It's easy to use an enum variant or newtype constructor as
-an component, like `.insert(MyEnum::Variant)`,  without realising it. This leads to to very hard to spot bugs without any hint
-of either a compiler or runtime that something went wrong. This is easily preventable by not implementing `Component` trait for those types.
+This is an especially severe issue for function pointer types. It's easy to use an enum variant or newtype constructor as
+a component, like `.insert(MyEnum::Variant)`,  without realising it. This leads to very hard to spot bugs without any hint
+by the compiler or at runtime that something went wrong. This is easily preventable by not implementing the `Component` trait for those types.
 
 We also already have `#[derive(Bundle)]` and others. Adding that to `Component` keeps the syntax similar across the board.
 
@@ -29,11 +29,11 @@ into the world.
 struct MyComponent(..);
 ```
 
-This enables compiler to perform much more optimizations in the query iteration code, as a lot of the code paths can be statically eliminated.
+This enables the compiler to perform much more optimizations in the query iteration code, as a lot of the code paths can be statically eliminated.
 
 ## User-facing explanation
 
-In order to define your own component type, you have to implement a `Component` trait. The easiest way to do that is using a `derive` macro.
+In order to define your own component type, you have to implement the `Component` trait. The easiest way to do that is using a `derive` macro.
 
 ```rust
 #[derive(Component)]
@@ -41,7 +41,7 @@ struct HitPoints(u32);
 ```
 
 If you forget to properly annotate your component type, the compiler will remind you
-of that as soon as you try to insert that component into the world or query for it. Apart from type safety, this also provides a visual indication that given type
+of that as soon as you try to insert that component into the world or query for it. Apart from type safety, this also provides a visual indication that the given type
 is intended to be directly associated with entities in the world.
 
 By default, your component will be stored using Dense storage strategy.
