@@ -200,7 +200,7 @@ added for read-only, mutable, and owned structs that hold particle fields.
 ### Particle Emitters
 ```rust
 #[derive(Clone)]
-pub struct Particles {
+pub struct ParticleEmitter {
   next_burst: Timer,
   bursts: Vec<EmitterBurst>,
   shape: EmitterShape,
