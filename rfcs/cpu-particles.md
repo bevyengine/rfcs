@@ -266,15 +266,13 @@ To allow for randomized parameterization, `Curve` should generally be replacable
 with a `MinMaxCurve` which defines two separated curves as the minimum and
 maximum values at a given point in time. This can be used to generate a range
 from which a RNG can sample from or can be used as the start and end for linear
-interpolation for values that require smooth flows from one to another.
+interpolation for values that require smooth flows from one frame to another.
 
 If `Curve` is generic, it can be used to represent a gradient for changing colors
 as well.
 
 There already is a open PR for adding these types to Bevy:
 https://github.com/bevyengine/bevy/pulls?q=1837.
-
-## Drawbacks
 
 ## Rationale and alternatives
 The main alternative comes in the form of GPU-based particle simulations, where
