@@ -161,17 +161,11 @@ that contains all of the particle data:
 ```rust
 #[derive(Clone, RenderResources)]
 pub struct Particles {
-  positions: Vec<Vec3>,
-  rotations: Vec<f32>,
+  positions: Vec<Vec4>,
   sizes: Vec<f32>,
   colors: Vec<Vec4>,
-  #[render_resources(ignore)]
-  velociites: Vec<Vec3>,
-  #[render_resources(ignore)]
-  angular_velociites: Vec<f32>,
-  #[render_resources(ignore)]
-  remaining_lifetimes: Vec<f32>,
-  #[render_resources(ignore)]
+  velociites: Vec<Vec4>,
+  lifetimes: Vec<f32>,
   starting_lifetimes: Vec<f32>,
 }
 ```
@@ -183,8 +177,19 @@ auto-vectorization.
 
 Particles are created by appending the associated data to the end of each field
 of each Vec, and can be destroyed by calling `swap_remove` on the given
-particle's index. This also can be extended to allow spawning/destroying batches
+particle's index. This creation/destruction scheme ensures that CPU time is
+only spent iterating over live particles, at the cost of particle identity
+stability. This also can be extended to allow spawning/destroying batches
 of particles efficiently.
+
+Without modifiers, a particle update requires a position update. Velocities are
+multiplied by delta time and added to existing poses and lifetimes are increased
+by the provided delta time. If the liftime of a particle is up, it is destroyed.
+
+Position, rotation, angular velocity, and velocity are represented as
+`glam::Vec4` with the rotation/angular velocity stored in the w component. This
+allows trivial vectorization of updating particle pose. May also be sped up
+further using fused multiply adds with delta time.
 
 When rendering, no local to world Mat4 needs to be computed CPU side, instead
 opting to calculate the matrix on the GPU via TRS in the vertex shader. This
@@ -196,6 +201,10 @@ buffer in GPU instanced draw calls.
 
 For utility access `Particle<'a>`, `ParticleMut<'a>`, and `ParticleParams` are
 added for read-only, mutable, and owned structs that hold particle fields.
+
+If a maximum number of particles is made mandatory, one other option is to
+use `BlobVec` as an unsafe alternative to `Vec`. This has notable challenges
+since `BlobVec` is neither Send nor Sync.
 
 ### Particle Emitters
 ```rust
