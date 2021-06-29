@@ -104,7 +104,29 @@ Requiring extra annotation on every component type adds some boilerplate.
 - instead of `derive`, use an attribute macro.
 - Do nothing and keep registering metadata at runtime. Live with the branching inside query iterators.
 - Require manual implementation of `Component` trait without providing derive macro.
+### Why not use a manual implementation of `Component` to set the storage type?
 
+As shown in [this playground link](https://play.rust-lang.org/?version=stable&mode=debug&edition=2018&gist=ca85c5d3c561ef9d1feec143bbcd9611), we could force users to write out a manual implementation of the `Component` trait when they wanted to change the storage type.
+
+This has a couple advantages:
+
+1. More direct and less magical, at least for advanced Rust users.
+2. No configuration DSL to maintain.
+3. Better type checking.
+
+However, it has several more serious disadvantages, which outweigh those:
+
+1. Manual implementations of `Component` will break (often in dozens of places scattered around the code base) whenever we make breaking changes to the `Component` trait. Derive + attribute macros will continue working flawlessly, except where they directly touch the breaking changes.
+2. Longer boilerplate, especially as the `Component` trait grows. This is particularly frustrating as you need to add / remove this repeatedly when benchmarking perf as the actual net impact is very fact-specific.
+3. Exposes internal-ish implementation details to users who really don't care.
+
+### Comparison of methods of defining storage type in `Component` trait
+
+There are several possible ways to define the storage type, as shown in [this playground link](https://play.rust-lang.org/?version=stable&mode=debug&edition=2018&gist=4a2d47173f68137a34c31987d9d46bfa).
+
+While any approach would work, an associated type is safer and offers better discoverability, due to the use of the type checker.
+In addition, you can't assert specific associated const value in the trait bounds, which may be limiting in the future.
+The slight increase in verbosity is worth it for these benefits.
 ## Unresolved questions
 
 - How to support dynamic components for future scripting layer?
