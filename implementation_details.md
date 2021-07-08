@@ -23,15 +23,15 @@ Type identifiers (in some form) need to match between all connected machines. Op
 
 ## Wants
   
-- If it were possible to split off a range of entities into a [sub-world][12] (with its own, separate component storages), that would remove a layer of indirection and allow reusing the `World` API more directly.
-- If the ECS scheduler supported arbitrary cycles in the stage graph (or the "stageless" equivalent), I imagine it'd be possible to make the nested loop criteria completely transparent to the end user (no custom stages needed, perhaps).
+- Ability to split-off a range of entities into a [sub-world][12] with its own, separate component storages. This would remove a layer of indirection, bringing back the convenience of the `World` interface.
+- Scheduler support for arbitrary cycles in the stage graph (or "stageless" equivalent). I believe this boils down to arranging stages (or labels) in a hierarchical FSM (state chart) or behavior tree.
 
 ## Practices users should follow or they'll have UB
 
 - Entities must be spawned (non-)networked. They cannot become (non-)networked.
 - Networked entities must be spawned with a "network ID" component at minimum.
 - (Non-)networked components and resources should only hold or reference (non-)networked data.
-- Networked components should only be mutated inside `NetworkFixedUpdate`.
+- Networked components should only be mutated inside the fixed update.
 
 ## `Connection` != `Player`
 
@@ -39,7 +39,11 @@ I know I've been using the terms "client" and "player" somewhat interchangeably,
 
 ## Storage
 
-The server maintains a storage resource containing a full copy of the latest networked state as well as a ring buffer of deltas (for the last `N` snapshots). Both are updated lazily using Bevy's built-in change detection.
+IMO a fast, data-agnostic networking solution is impossible without the ability to handle things on the bit-level. Memcpy and integer compression are orders of magnitude faster than deep serialization and DEFLATE.
+
+To that end, the each snapshot should be a pre-allocated memory arena. The core storage resource would then basically amount to a ring buffer of arenas.
+
+On the server, this resource would hold a ring buffer of deltas (for the last `N` snapshots) with 0th delta being a full copy of the latest networked state. On the client these would all be considered snapshots.
 
 ```plaintext
                      delta ringbuf                      copy of latest
@@ -49,28 +53,34 @@ The server maintains a storage resource containing a full copy of the latest net
                                                newest delta 
 ```
 
-This structure is pre-allocated when the resource is initialized and is the same for both full and interest-managed updates.
+This architecture has a lot of advantages. It can be pre-allocated when the resource is initialized and it's the same for all replication modes. I.e. no storage differences between input determinism, full state transfer, or interest-managed state transfer.
 
-At the end of every tick, the server zeroes the space for the newest delta, then iterates `Changed<T>` and `Removed<T>`:
+These storages can be lazily updated using Bevy's built-in change detection. At the end of every tick, the server zeroes the space for the newest delta, then iterates `Changed<T>` and `Removed<T>`:
 
 - Generating the newest delta by xor'ing the changes with the stored copy.
 - Updating the rest of the ring buffer by xor'ing the older deltas with the newest.
 - Writing the changes to the stored copy.
 
+Even if change detection became optional, I don't think much speed would be lost if we had to scan two snapshots for bitwise differences.
+
 TODO
 
 - Store/serialize networked data without struct padding so we're not wasting bandwidth.
-- Support components and resources that allocate on the heap (DSTs). Won't be possible at first but the solution most likely will be backing this resource with its own memory region (something like `bumpalo` but smarter). That will be important for deterministic desync detection as well.
+- Support components and resources that allocate on the heap (DSTs). Won't be possible at first but the solution most likely will be backing this resource with its own memory arena (something like `bumpalo` but smarter). That will be important for deterministic desync detection as well.
 
-### Full Updates
+### Input Determinism
 
-(a.k.a. delta-compressed snapshots)
+In deterministic games, the server bundles received inputs and re-distributes them back to the clients. Clients generate their own snapshots locally whenever they have a full set inputs for a tick. Only one snapshot is needed. Clients also send checksum values to the server, that the server can use to detect desyncs.
 
-For delta-compression, the server just compresses whichever deltas clients need using some variant of run-length encoding (currently looking at [Simple8b + RLE][2]). If the compressed payload is too large, the server will split it into fragments. There's no unnecessary work either. The server only compresses deltas that are going to be sent and the same compressed payload can be sent to any number of clients.
+### Full State Transfer
 
-### Interest-Managed Updates
+(aka. delta-compressed snapshots)
 
-(a.k.a. eventual consistency)
+For delta-compression, the server just compresses whichever deltas clients need using some variant of run-length encoding (currently looking at [Simple8b + RLE][2]). If the compressed payload is too large, the server will split it into fragments. Overall, this is a very lightweight replication method because the server only needs to compress deltas that are going to be sent and the same compressed payload can be sent to any number of clients.
+
+### Interest-Managed State Transfer
+
+(aka. eventual consistency)
 
 Eventual consistency isn't inherently reliant on prioritization and filtering, but they're essential for an optimal player experience.
 
@@ -81,59 +91,62 @@ Similarly, game designers often want to hide certain information from certain pl
 Anyway, to do all this interest management, the server needs to track some extra metadata.
 
 ```rust
-struct InterestMetadata<const P: usize, const E: usize, const C: usize> {
-    // P: players, E: entities, C: components
-    position: [Option<(usize, SpatialIndex)>; 2 * E],
-    within_aoi: [[Option<(usize, f32)>; E]; P],
-    relevance: [[BitSet; C]; P]
-    age: [[[usize; C]; E]; P] 
-    priority: [[usize; E]; P] 
+struct InterestMetadata {
+    changed: Vec<u32>, 
+    relevant: Vec<BitSet>,
+    lost: Vec<BitSet>,
+    priority: Vec<Option<u32>>, 
 }
 ```
 
-This metadata contains a few things:
+Essentially, the server wants to send clients all the data that:
 
-- position: the min and max AABB coordinates of every networked entity (if available)
-- within_aoi: the entities that are inside the area of interest of this player
+- belongs entities they're interested in AND
+- has changed since they were last received AND
+- is currently relevant to them (i.e. they're allowed to know)
 
-Checking if an entity is inside someone's area of interest (AOI) is just an application of collision detection. AOI results are used to filter information at the entity-level. "Intangible" entities that lack a transform will auto-pass this check. For players on the same client, their results are merged with an OR.
+I'm gonna gloss over how to check if an entity is inside someone's area of interest (AOI). It's just an application of collision detection. You'll create some interest regions for each client and write from entities that fall within them.
 
-I don't see a need for ray, distance, and shape queries where BVH or spatial partitioning structures excel, so I'm looking into doing something like a [sweep-and-prune][9] (SAP) with Morton-encoding. Since SAP is essentially just sorting the array, I imagine it might have better performance. Alternatives like grids and potentially visible sets (PVS) can be explored and added later.
+I don't see a need for ray, distance, and shape queries where BVH or spatial partitioning structures excel, so I'm looking into doing something like a [sweep-and-prune][9] (SAP) with Morton-encoding. Since SAP is essentially  sorting an array, I imagine it might be faster. Alternatives like grids and potentially visible sets (PVS) can be explored and added later.
 
-- relevance: whether or not a component value should be sent to this player
+Those entities get written in the order of their oldest relevant changes. That way that the most pertinent information gets through if not everything can fit.
 
-Relevance is used to filter information at the component-level. By default, change detection will mark components as relevant for everybody, and then some form of rule-based filtering (maybe [entity relations][10]) can be used to selectively omit or force-include them. When sent, a component's relevance is reset to false. For players on the same client, their relevances are merged with an OR.
+Entities that the server always wants clients to know about or those that clients themselves always want to know about can be written without going through these checks or bandwidth constraints.
 
-- age: time (in ticks) each component has had a pending change since it was last sent to this player
+So how is that metadata tracked?
 
-Age serves as the basis for send priority. The send priority of an entity is simply the age of its oldest relevant component. When an entity is sent, the ages of its relevant components are reset to zero. Age is tracked per component to be more robust against the receiving client having packet loss. For players on the same client, this field will be identical.
+The **changed** field is simply an array of change ticks. We could reuse Bevy's built-in change tracking, but ideally each *word* in the arena would be tracked separately (would enable much better compression). These change ticks serve as the basis for send priority.
 
-I think having the server only send undelivered changes and prioritizing the oldest ones is better than assigning entities arbitrary update frequencies. That said, I'll be testing a "zero-cost" alternative where I just count the number of due relevant components per entity. Unlike age, I believe this wouldn't require storing any sent packet metadata (see below).
+The **relevant** field tracks whether or not a component should be sent to a certain client. This is how information is filtered at the component-level. By default, new changes would mark components as relevant for everybody, and then some form of filter rules (maybe [entity relations][10]) could selectively modify those. If a component value is sent, its relevance is reset to `false`.
 
-- priority: how important it is to send the current state of each entity to this player
+The **lost** field has bit per change tick, per client. Whenever the server sends a packet, it jots down somewhere which entities were in it and their priorities. Later, if the server is notified that a packet was probably lost, it can pull this info and set the lost bits.
 
-Priority is the end result of combining the above metadata. After filtering entities to those within a player's area of interest and filtering their components to only what that player needs to know, the server sorts the interesting entities in priority order and writes each one until the client's packet is full or they're all written.
+If the delta matching the stored priority still exists, the server can use that as a reference to only set a minimal amount of lost bits for an entity. Otherwise, all its lost bits would be set. Similarly, on send the lost bit would be cleared.
 
-*So what do we do if packets are lost?*
+Honestly, I believe this is pretty good, but I'm still looking for something that's more accurate while using fewer bits (if possible).
 
-Whenever the server sends a packet, it remembers how old the included entities (actually their row indexes) were, then resets the age and relevance of their components. Later, if the server is notified that some previously sent packets were probably lost, it can pull this info and restore the components to a more indicative age (plus however many ticks have passed).
+The **priority** field just stores the end result of combining the other metadata. This array gets sorted and the `Some(entity)` are written in that order, until the client's packet is full or they're all written.
 
-For restoring the relevance of an entity's components, there are two cases. If the delta matching the stored age still exists, the server can use that as a reference and only mark its changed components. Otherwise, they all get marked.
+I think having the server only send undelivered changes and prioritizing the oldest ones is better than assigning entities arbitrary update frequencies.
 
-*So how 'bout those edge cases?*
+### Interest Management Edge Cases
 
 Unfortunately, the most generalized strategy comes with its own headaches.
 
 - What should a client do when it misses the first update for a entity? Is it OK to spawn a entity with incomplete information? If not, how does the client know when it's safe?
 
-AFAIK this is only a problem for "kinded" entities that have archetype invariants. I'm thinking two potential solutions:
+AFAIK this is only a problem for "kinded" entities that have archetype invariants (aka spawn info). I'm thinking two potential solutions:
 
 1. Have the client spawn new remote entities with any missing components in their invariants set to a default value.
 2. Have the server redundantly send the full invariants for a new interesting entity until that information has been delivered once.
 
-TBD
+I think #2 is the better solution.
+
+TBD, I think there are more of these.
 
 ## Replicate Trait
+
+TBD
 
 ```rust
 pub unsafe trait Replicate {
@@ -145,14 +158,14 @@ unsafe impl Replicate for T {}
 
 ## How to rollback?
 
-TODO
-
-probably a custom schedule/stage
+There are two loops over the same chain of logic.
 
 ```plaintext
-The "outer" loop is the number of fixed update steps as determined by the fixed timestep accumulator.
-The "inner" loop is the number of steps to re-simulate.
+The first loop is for re-simulating older ticks.
+The second loop is for executing the newly-accumulated ticks.
 ```
+
+I think a nice solution would be to queue stages/labels using a hierarchical FSM (state chart) or behavior tree. Looping would stop being a special edge case and `ShouldRun` could reduce to a `bool`. The main thing is that transitions cannot be completely determined in the middle of a stage / label. The final decision has to be deferred to the end or there will be conflicts.
 
 ## Unconditional Rollbacks
 
@@ -171,78 +184,167 @@ Let's consider a simpler default:
 
 This might seem wasteful, but think about it. If-then is really an anti-pattern that just hides performance problems from you. Mispredictions will exist regardless of this choice, and they're *especially* likely during heavier computations like physics. Having clients always rollback and re-sim makes it easier to profile and optimize your worst-case. It's also more memory-efficient, since clients never need to store old predicted states.
 
-## "Clock" Synchronization
+## Time Synchronization
 
-Using a fixed rate, tick-based simulation simplifies how we need to think about time. It's like scrubbing a timeline, from one "frame" to the next. The key point is that everyone follows the same sequence. Clients may be simulating different points on the timeline, but tick 480 is the same simulation step for everyone.
+Networked applications have to deal with relativity. Clocks will drift. Some router between you and the game server will randomly go offline. Someone in your house will start streaming Netflix. Et cetera. The slightest change in latency (i.e. distance) between two clocks will cause them to shift out of phase.
 
-Ideally, clients predict ahead by just enough to have their inputs for each tick reach the server right before it simulates that tick. A commonly discussed strategy is to have clients estimate the clock time on the server (through some SNTP handshake) and use that to schedule their next simulation step, but IMO that's too indirect.
+So how do two computers even agree on *when* something happened?
 
-What we really care about is: How much time passes between when the server receives my input and when that input is consumed? If the server just tells me—in its update for tick N—how long my input for tick N sat in its buffer, I can use that information to converge on the correct lead.
+It'd be really easy to answer that question if there was an *absolute* time reference. Luckily, we can make one. See, there are [two kinds of time][15]—plain ol' **wall-clock time** and **game time**—and we have complete control over the latter. The basic idea is pretty simple: Use a fixed timestep simulation and number the ticks in order. Doing that gives us a timeline of discrete moments that everyone shares (i.e. Tick 742 is the same in-game moment for everyone).
 
-```rust
-if received_newer_server_update:
-    // an exponential moving average is a simple smoothing filter
-    avg_age = (31 / 32) * avg_age + (1 / 32) * age
+With this shared timeline strategy, clients can either:
 
-    // too late  -> positive error -> speed up
-    // too early -> negative error -> slow down
-    error = target_age - avg_age
+- (Input Sync) Try to simulate ticks at the same wall-clock time.
+- (State Sync) Try to have their inputs reach the server at same wall-clock time.
 
-    // reset accumulator
-    accumulated_correction = 0.0
+When doing state sync, I'd recommend against having clients try to simulate ticks at the same time. To accomodate inputs arriving at different times, the server itself would have to rollback and resimulate or we'd have to change the strategy. For example, [Source engine][3] games (AFAIK) simulate the movement of each player at their individual send rates and *then* simulate the world at the regular tick rate. However, doing things their way makes having lower ping a technical advantage (search "lag compensation" in this [this article][4]), which I assume is the reason why ~~melee is bad~~ trading kills is so rare in Source engine games.
 
+### A Relatively Fixed Timestep
 
-time_dilation = remap(error + accumulated_correction, -max_error, max_error, -0.1, 0.1)
-accumulated_correction += time_dilation * fixed_delta_time
-
-cost_of_one_tick = (1.0 + time_dilation) * fixed_delta_time
-```
-
-If its inputs are arriving too early, a client can temporarily run fewer ticks each second to relax its lead. For example, a client simulating 10% slower would shrink their lead by 1 tick for every 10.
-
-Interpolation is the same. You want the interpolation delay to be as small as possible. All that matters is the interval between received packets and how it varies (or maybe the number of buffered snapshots ahead of your current interpolation time).
+Fixed timesteps are typically implemented as a kind of currency exchange. The time that elapsed since the previous frame is deposited in an accumulator and converted into simulation steps according to the exchange rate (tick rate).
 
 ```rust
-if received_newer_server_update:
-     // an exponential moving average is simple smoothing filter
-    avg_delay = (31 / 32) * avg_delay + (1 / 32) * delay
-    avg_jitter = (31 / 32) * avg_jitter + (1 / 32) * abs(avg_delay - delay)
+pub struct Accumulator {
+    accum: f64,
+    ticks: usize,
+}
 
-    target_interp_delay = avg_delay + (2.0 * avg_jitter);
-    avg_interp_delay = (31 / 32) * avg_interp_delay + (1 / 32) * (latest_snapshot_recv_time - interp_time);
-    
-    // too early -> positive error -> slow down
-    // too late  -> negative error -> speed up
-    error = -(target_interp_delay - avg_interp_delay)
+impl Accumulator {
+    pub fn add_time(&mut self, time: f64, timestep: f64) {
+        self.accum += time;
+        while self.accum >= timestep {
+            self.accum -= timestep;
+            self.ticks += 1;
+        }
+    }
 
-    // reset accumulator
-    accumulated_correction = 0.0
+    pub fn ticks(&self) -> usize {
+        self.ticks
+    }
 
+    pub fn overtick_percentage(&self, timestep: f64) -> f64 {
+        self.accum / timestep
+    }
 
-time_dilation = remap(error + accumulated_correction, -max_error, max_error, -0.1, 0.1)
-accumulated_correction += time_dilation * delta_time
+    pub fn consume_tick(&mut self) -> Option<usize> {
+        let remaining = self.ticks.checked_sub(1);
+        remaining
+    }
 
-interp_time += (1.0 + time_dilation) * delta_time
-interp_time = max(interp_time, predicted_time - max_lag_comp)
+    pub fn consume_ticks(&mut self) -> Option<usize> {
+        let ticks = if self.ticks > 0 { Some(self.ticks) } else { None };
+        self.ticks = 0;
+        ticks
+    }
+}
 ```
 
-The key idea here is that simplifying the client-server relationship is more efficient and has less problems. If you followed the Source engine model described [here][3], the server would have to apply inputs whenever they arrive, meaning the server also has to rollback and it also must deal with weird ping-related issues (see the lag compensation section in [this article][4]). If the server never accepts late inputs and never changes its pace, no one needs to coordinate.
+Here's how it's typically used. Notice the time dilation. It's changing the time->tick exchange rate to produce more or fewer simulation steps per unit time. Note that this time dilation only affects the simulation rate. Inside the systems running in the fixed update, you should use the normal fixed timestep for the value of dt.
+
+```rust
+// Determine the exchange rate.
+let x = (1.0 * time_dilation);
+
+// Accrue all the time that has elapsed since last frame.
+accumulator.add_time(time.delta_seconds(), x * timestep);
+
+for step in 0..accumulator.consume_ticks() {
+  /* ... */
+}
+
+// Calculate the blend alpha for rendering simulated objects.
+let alpha = accumulator.overtick_percentage(x * timestep);
+```
+
+Ideally, clients simulate any given tick ahead by just enough so their inputs reach the server right before it does.
+
+One way I've seen people try to do this is to have clients estimate the wall-clock time on the server (using an SNTP handshake or similar) and from that schedule their next tick. That does work, but IMO it's too inaccurate. What we really care about is how much time passes between the server receiving an input and consuming it. That's what we want to control. The server can measure these wait times exactly and include them in the corresponding snapshot headers. Then clients can use those measurements to modify their tick rate and adjust their lead.
+
+For example, if its inputs are arriving too late (too early), a client can temporarily simulate more (less) frequently to converge on the correct lead.
+
+```rust
+if received_newer_server_update {
+  avg_input_wait_time = (1.0 - a) * avg_input_wait_time + a * latest_input_wait_time;
+  // Negate here because I'm scaling the timestep and not the rate.
+  // i.e. 110% tick rate => 90% timestep
+  error = -(target_input_wait_time - avg_input_wait_time);
+}
+
+// Anything we hear back from the server is always a round-trip old.
+// We want to drive this feedback loop with a more up-to-date estimate
+// to avoid overshoot / oscillation. 
+// Obviously, it's impossible for the client to know the current wait time.
+// But it can fancy a guess by assuming every adjustment it made since
+// the latest received update succeeded.
+predicted_error = error;
+for tick in (recv_tick..curr_tick) {
+    predicted_error += ringbuf[tick % ringbuf.len()];
+}
+
+// This is basically just a proportional controller.
+time_dilation = (predicted_error - min_error) * (max_dilation - min_dilation) / (max_error - min_error);
+time_dilation = time_dilation.clamp(min_dilation, max_dilation);
+
+// Store the new adjustment in the ring buffer.
+*ringbuf[curr_tick % ringbuf.len()] = time_dilation * timestep;
+```
+
+Interpolating received snapshots should be very similar. What we're interested in is the remaining time left in the snapshot buffer. You want to always have at least one snapshot ahead of the current "playback" time (so the client always has something to interpolate to).
+
+## Predict or Delay?
+
+The higher a client's ping, the more ticks they'll need to resim. Depending on the game, that might be too expensive to support all the clients in your target audience.
+
+In those cases, we can trade more input delay for fewer resim ticks. Essentially, there are three meaningful moments in the round-trip of an input:
+
+1. When the inputs are sent.
+2. When the true simulation tick happens (conceptually).
+3. When resulting update is received.
+
+```plaintext
+0 <-+-+-+-+-+-+-+-+-+-+-+-> t
+             sim
+             / \
+            /   \
+           /     \
+          /       \
+         /         \
+       send       recv
+      |<--   RTT   -->|
+```
+
+This gives us a few options for time sync:
+
+1. **No rollback and adaptive input delay**, preferred for games with prediction disabled
+2. **Limited rollback and adaptive input delay**, preferred for games using input determinism with prediction enabled
+3. **Unlimited rollback and no input delay**, preferred for games using state transfer with prediction enabled
+4. **Unlimited rollback with fixed input delay** as an alternative to #2 (for games allergic to variable input delay)
+
+"Adaptive input delay" here means "fixed input delay with more as needed."
+
+I think method #2 is best explaiend as a sequence of fallbacks. Clients first add a fixed amount of input delay. If that's more than their current RTT, they won't need to rollback. If that isn't enough, the client will rollback, but only up to a limit. If even the combination of fixed input delay and limited rollback doesn't cover RTT, more input delay will be added to fill the remainder.
+
+Method #3 is preferred for games that use state transfer because adding input delay would negatively impact the accuracy of server-side lag compensation.
 
 ## Predicted <-> Interpolated
 
-Clients can't directly make persistent changes the authoritative state, but they're allowed to do whatever they want locally. Current plan is to just copy the latest authoritative state. If this ends up being too expensive (or when DSTs are supported), a copy-on-write layer is another option.
+When the server has full authority, clients cannot directly write persistent changes to the authoritative state. However, it's perfectly okay for them to do whatever they want locally. That's all client-side prediction really is—local changes. Clients can just copy the latest authoritative state as a starting point.
 
-We want to shift components between being predicted (extrapolated) and being interpolated. Either could be default. If interpolation is default, entities would reset to interpolated when modified by a server update. Users could then use specialized `Predicted<T>` and `Confirmed<T>` (equivalent to `Not(Predicted<T>)`) query filters to address the two groups separately. I think these can piggyback off of Bevy's built-in reliable change detection.
+We can also shift components between being predicted (extrapolated) and being interpolated. Either could be default. If interpolation is default, entities would reset to interpolated when modified by a server update. Users could then use specialized `Predicted<T>` and `Confirmed<T>` query filters to address the two separately. These can piggyback off of Bevy's built-in reliable change detection.
 
-Systems would generate predictions by default, but users can opt-out with the `Predicted<T>` filter to only process entities that have already been mutated by an earlier system. Users would typically use these filters for heavier logic like physics. Clients will naturally predict any entities driven by their input and any spawned by their input (until confirmed by the server).
+This means systems predict by default, but users can opt-out with the `Predicted<T>` filter to only process components that have already been mutated by an earlier system. Clients will naturally predict any entities driven by their input and any spawned by their input (until confirmed by the server).
 
-Since sounds and particles require special consideration, they're probably best realized through dispatching events to be handled *outside* `NetworkFixedUpdate`. We can use these query filters to generate events that only trigger on authoritative changes and events that trigger on predicted changes to be confirmed or cancelled later.
+## Predicted FX Events
 
-How to uniquely identify these events is another question, though.
+Sounds and particles need special consideration, since they can be predicted but are also typically handled outside of the fixed update.
 
-## Predicting Entity Creation
+We'll need events that can be confirmed or cancelled. The main requirement is tagging them with a unique identifier. Maybe hashing together the tick number, system ID, and entity ID would suffice.
 
-This requires some special consideration.
+TBD
+
+## Predicted Spawns
+
+This too requires special consideration.
 
 The naive solution is to have clients spawn dummy entities so that when an update that confirms the result arrives, they'll simply destroy the dummy and spawn the true entity. IMO this is a poor solution because it prevents clients from smoothly blending errors in the predicted spawn's rendered transform. Snapping its visuals wouldn't look right.
 
@@ -258,7 +360,7 @@ I recommend 1 as it's the simplest method. Bandwidth and CPU resources would run
 
 ## Smooth Rendering
 
-Rendering should happen after `NetworkFixedUpdate`.
+Rendering should happen later in the frame, sometime after the fixed update.
 
 Whenever clients receive an update with new remote entities, those entities shouldn't be rendered until that update is interpolated. We can do this through a marker component or with a field in the render transform.
 
@@ -266,16 +368,16 @@ Cameras need some special treatment. Look inputs need to be accumulated at the r
 
 We'll also need some way for developers to declare their intent that a motion should be instant instead of smoothly interpolated. Since it needs to work for remote entities as well, maybe this just has to be a bool on the networked transform.
 
-While most visual interpolation is linear, we'll want another blend for quickly but smoothly correcting visual misprediction errors, which can occur for entities that are or just stopped being predicted. [Projective velocity blending][11] seems like the de facto standard method for these, but I've also seen simple exponential decays used. There may be better smoothing filters.
+While most visual interpolation is linear, we'll want another blend for quickly but smoothly correcting visual misprediction errors, which can occur for entities that are or just stopped being predicted. [Projective velocity blending][11] seems like the de facto standard method for these, but I've also seen simple exponential decays used. There may be better error correction methods.
 
 ## Lag Compensation
 
 Lag compensation deals with colliders and needs to run after all motion and physics systems. All positions have to be settled or you'll get unexpected results.
 
-It seems like a common strategy is to have the server estimate what interpolated state the client was looking at based on their RTT, but we can resolve this without any guesswork. Clients can just tell the server what they were looking at by bundling their interpolation parameters along with their inputs. With this information, the server can reconstruct what each client saw with *perfect* accuracy.
+Similar to inputs, I've seen people try to have the server estimate which snapshots each client was interpolating based on their ping, but we can easily do better than that. Clients can just tell the server directly by sending their interpolation parameters along with their inputs. With this information, the server knows to do with *perfect* accuracy. No guesswork necessary.
 
 ```plaintext
-<packet header>
+<input packet header>
 tick number (predicted)
 tick number (interpolated from)
 tick number (interpolated to)
@@ -286,27 +388,37 @@ interpolation blend value
 So there are two ways to do the actual compensation:
 
 - Compensate upfront by bringing new projectiles into the present (similar to a rollback).
-- Compensate over time ("amortized"), constantly testing projectiles against the history buffer.
+- Compensate over time ("amortized"), constantly testing projectiles against a history buffer.
 
 There's a lot to learn from *Overwatch* here.
 
-*Overwatch* shows that [we can treat time as another spatial dimension][5], so we can put the entire collider history in something like a BVH and test it all at once (with the amortized method).
+*Overwatch* shows that [we can treat time as another spatial dimension][5], so we can put the entire collider history in something like a BVH and test it all at once (the amortized method). Essentially, you'd generate a bounding box for each collider that surrounds all of its historical poses and then test projectiles for hits against those first (broad-phase), then test those hits against bounding boxes blended between two snapshots (optional mid-phase), then the precise geometry blended between two snapshots (narrow-phase).  
 
 For clients with too-high ping, their interpolation will lag far behind their prediction. If you only compensate up to a limit (e.g. 200ms), [those clients will have to extrapolate the difference][6]. Doing nothing is also valid, but lagging clients would abruptly have to start leading their targets.
 
-*Overwatch* [allows defensive abilities to mitigate compensated projectiles][7]. AFAIK this is simple to do. If a player activates any defensive bonus, just apply it to all their buffered hitboxes.
+You'd constrain the playback time like below and then run some extrapolation logic pre-update.
 
-When a player is the child of another, uncontrolled entity (e.g. the player is a passenger in a vehicle), the non-predicted movement of that parent entity must be rewound during lag compensation, so that any projectiles fired by the player spawn in the correct location. See [here.][8]
+```rust
+playback_time = playback_time.max((curr_tick * timestep) - max_lag_compensation);
+```
 
-## Messages (RPCs)
+*Overwatch* [allows defensive abilities to mitigate compensated projectiles][7]. AFAIK this is simple to do. If a player activates any defensive bonus, just apply it to all their buffered colliders.
 
-Messages are good for sending global alerts and any gameplay mechanics where raw inputs aren't expressive enough. For example, buying items bulk from an in-game menu. The server won't simulate UI, so it'd probably be simplest if the client sent a reliable message describing what they want. The "reply" in this example would be implicit in the received state.
+When a player is the child of another, uncontrolled entity (e.g. the player is a passenger in a vehicle), the non-predicted movement of that parent entity must be rewound during lag compensation, so that any projectiles fired by the player spawn in the correct location. [See here.][8]
 
-Messages can be reliable. They can also be postmarked to be processed on a certain tick like inputs. That can only be best effort (i.e. tick N or earliest), though.
+## Messages (RPCs and events you can send!)
 
-I don't really know what these should look like yet. A macro might be the most ergonomic choice, if it means a message can be completely defined in its relevant system.
+Sometimes raw inputs aren't expressive enough. Examples include choosing a loadout and buying items from an in-game menu. Mispredicts aren't acceptable in these cases, however servers don't typically simulate UI.
 
-TODO
+So there's need for a dedicated type of optionally reliable message for text/UI-based and "send once" gameplay interactions. Similarly, global alerts from the server shouldn't clutter the game state.
+
+These messages can optionally be postmarked to be processed on a certain tick like inputs, but that can only be best effort (i.e. tick N or earliest).
+
+And while I gave examples of "requests" using these messages, those don't have to receive explicit replies. If the server confirms your purchased items, those would just appear in your inventory in a later snapshot.
+
+IDK what these should look like yet. A macro might be the most ergonomic choice, if it means a message can be defined in its relevant system.
+
+TBD
 
 [1]: https://github.com/bevyengine/rfcs/pull/16
 [2]: https://github.com/lemire/FastPFor/blob/master/headers/simple8b_rle.h
@@ -322,3 +434,4 @@ TODO
 [12]: https://github.com/bevyengine/rfcs/pull/16#issuecomment-849878777
 [13]: https://github.com/bevyengine/bevy/issues/32
 [14]: https://github.com/bevyengine/bevy/issues/32#issuecomment-821510244
+[15]: https://johnaustin.io/articles/2019/fix-your-unity-timestep
