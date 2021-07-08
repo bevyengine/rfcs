@@ -39,11 +39,9 @@ I know I've been using the terms "client" and "player" somewhat interchangeably,
 
 ## Storage
 
-IMO a fast, data-agnostic networking solution is impossible without the ability to handle things on the bit-level. Memcpy and integer compression are orders of magnitude faster than deep serialization and DEFLATE.
+IMO a fast, data-agnostic networking solution is impossible without the ability to handle things on the bit-level. Memcpy and integer compression are orders of magnitude faster than deep serialization and DEFLATE. To that end, each snapshot should be a pre-allocated memory arena. The core storage resource would then basically amount to a ring buffer of these arenas.
 
-To that end, the each snapshot should be a pre-allocated memory arena. The core storage resource would then basically amount to a ring buffer of arenas.
-
-On the server, this resource would hold a ring buffer of deltas (for the last `N` snapshots) with 0th delta being a full copy of the latest networked state. On the client these would all be considered snapshots.
+On the server, this would translate to a ring buffer of deltas (for the last `N` snapshots) along with a full copy of the latest networked state. On the client this would hold a bunch of snapshots.
 
 ```plaintext
                      delta ringbuf                      copy of latest
@@ -66,7 +64,7 @@ Even if change detection became optional, I don't think much speed would be lost
 TODO
 
 - Store/serialize networked data without struct padding so we're not wasting bandwidth.
-- Support components and resources that allocate on the heap (DSTs). Won't be possible at first but the solution most likely will be backing this resource with its own memory arena (something like `bumpalo` but smarter). That will be important for deterministic desync detection as well.
+- Components and resources that allocate on the heap (backed by the arena) may have some issues with the interest management send strategy. First, finding all of an entity's heap allocations is its own problem. Then, writing partial heap information could invalidate existing data on the client.
 
 ### Input Determinism
 
@@ -109,9 +107,7 @@ I'm gonna gloss over how to check if an entity is inside someone's area of inter
 
 I don't see a need for ray, distance, and shape queries where BVH or spatial partitioning structures excel, so I'm looking into doing something like a [sweep-and-prune][9] (SAP) with Morton-encoding. Since SAP is essentially  sorting an array, I imagine it might be faster. Alternatives like grids and potentially visible sets (PVS) can be explored and added later.
 
-Those entities get written in the order of their oldest relevant changes. That way that the most pertinent information gets through if not everything can fit.
-
-Entities that the server always wants clients to know about or those that clients themselves always want to know about can be written without going through these checks or bandwidth constraints.
+Those entities get written in the order of their oldest relevant changes. That way that the most pertinent information gets through if not everything can fit. Entities that the server always wants clients to know about or those that clients themselves always want to know about can be written without going through these checks or bandwidth constraints.
 
 So how is that metadata tracked?
 
@@ -119,15 +115,11 @@ The **changed** field is simply an array of change ticks. We could reuse Bevy's 
 
 The **relevant** field tracks whether or not a component should be sent to a certain client. This is how information is filtered at the component-level. By default, new changes would mark components as relevant for everybody, and then some form of filter rules (maybe [entity relations][10]) could selectively modify those. If a component value is sent, its relevance is reset to `false`.
 
-The **lost** field has bit per change tick, per client. Whenever the server sends a packet, it jots down somewhere which entities were in it and their priorities. Later, if the server is notified that a packet was probably lost, it can pull this info and set the lost bits.
-
-If the delta matching the stored priority still exists, the server can use that as a reference to only set a minimal amount of lost bits for an entity. Otherwise, all its lost bits would be set. Similarly, on send the lost bit would be cleared.
+The **lost** field has bit per change tick, per client. Whenever the server sends a packet, it jots down somewhere which entities were in it and their priorities. Later, if the server is notified that a packet was probably lost, it can pull this info and set the lost bits. If the delta matching the stored priority still exists, the server can use that as a reference to only set a minimal amount of lost bits for an entity. Otherwise, all its lost bits would be set. Similarly, on send the lost bit would be cleared.
 
 Honestly, I believe this is pretty good, but I'm still looking for something that's more accurate while using fewer bits (if possible).
 
-The **priority** field just stores the end result of combining the other metadata. This array gets sorted and the `Some(entity)` are written in that order, until the client's packet is full or they're all written.
-
-I think having the server only send undelivered changes and prioritizing the oldest ones is better than assigning entities arbitrary update frequencies.
+The **priority** field just stores the end result of combining the other metadata. This array gets sorted and the `Some(entity)` are written in that order, until the client's packet is full or they're all written. I think having the server only send undelivered changes and prioritizing the oldest ones is better than assigning entities arbitrary update frequencies.
 
 ### Interest Management Edge Cases
 
@@ -190,12 +182,12 @@ Networked applications have to deal with relativity. Clocks will drift. Some rou
 
 So how do two computers even agree on *when* something happened?
 
-It'd be really easy to answer that question if there was an *absolute* time reference. Luckily, we can make one. See, there are [two kinds of time][15]—plain ol' **wall-clock time** and **game time**—and we have complete control over the latter. The basic idea is pretty simple: Use a fixed timestep simulation and number the ticks in order. Doing that gives us a timeline of discrete moments that everyone shares (i.e. Tick 742 is the same in-game moment for everyone).
+It'd be really easy to answer that question if there was an *absolute* time reference. Luckily, we can make one. See, there are [two kinds of time][15]—plain ol' **wall-clock time** and **game time**—and we have complete control over the latter. The basic idea is pretty simple: Use a fixed timestep simulation and number the ticks in order. Doing that gives us a timeline of discrete moments that everyone can share (i.e. Tick 742 is the same in-game moment for everyone).
 
 With this shared timeline strategy, clients can either:
 
-- (Input Sync) Try to simulate ticks at the same wall-clock time.
-- (State Sync) Try to have their inputs reach the server at same wall-clock time.
+- Try to simulate ticks at the same wall-clock time.
+- Try to have their inputs reach the server at same wall-clock time.
 
 When doing state sync, I'd recommend against having clients try to simulate ticks at the same time. To accomodate inputs arriving at different times, the server itself would have to rollback and resimulate or we'd have to change the strategy. For example, [Source engine][3] games (AFAIK) simulate the movement of each player at their individual send rates and *then* simulate the world at the regular tick rate. However, doing things their way makes having lower ping a technical advantage (search "lag compensation" in this [this article][4]), which I assume is the reason why ~~melee is bad~~ trading kills is so rare in Source engine games.
 
@@ -258,9 +250,7 @@ let alpha = accumulator.overtick_percentage(x * timestep);
 
 Ideally, clients simulate any given tick ahead by just enough so their inputs reach the server right before it does.
 
-One way I've seen people try to do this is to have clients estimate the wall-clock time on the server (using an SNTP handshake or similar) and from that schedule their next tick. That does work, but IMO it's too inaccurate. What we really care about is how much time passes between the server receiving an input and consuming it. That's what we want to control. The server can measure these wait times exactly and include them in the corresponding snapshot headers. Then clients can use those measurements to modify their tick rate and adjust their lead.
-
-For example, if its inputs are arriving too late (too early), a client can temporarily simulate more (less) frequently to converge on the correct lead.
+One way I've seen people try to do this is to have clients estimate the wall-clock time on the server (using an SNTP handshake or similar) and from that schedule their next tick. That does work, but IMO it's too inaccurate. What we really care about is how much time passes between the server receiving an input and consuming it. That's what we want to control. The server can measure these wait times exactly and include them in the corresponding snapshot headers. Then clients can use those measurements to modify their tick rate and adjust their lead. E.g. if its inputs are arriving too late (too early), a client can briefly simulate more (less) frequently to converge on the correct lead.
 
 ```rust
 if received_newer_server_update {
@@ -293,9 +283,7 @@ Interpolating received snapshots should be very similar. What we're interested i
 
 ## Predict or Delay?
 
-The higher a client's ping, the more ticks they'll need to resim. Depending on the game, that might be too expensive to support all the clients in your target audience.
-
-In those cases, we can trade more input delay for fewer resim ticks. Essentially, there are three meaningful moments in the round-trip of an input:
+The higher a client's ping, the more ticks they'll need to resim. Depending on the game, that might be too expensive to support all the clients in your target audience. In those cases, we can trade more input delay for fewer resim ticks. Essentially, there are three meaningful moments in the round-trip of an input:
 
 1. When the inputs are sent.
 2. When the true simulation tick happens (conceptually).
