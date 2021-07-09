@@ -299,7 +299,7 @@ if received_newer_server_update {
 
 // Calculate the current interpolation.
 // Network conditions are assumed to be constant between updates.
-current_interpolation_delay = last_update_received_time + time_since_last_update - playback_time;
+current_interpolation_delay = (latest_snapshot_tick * timestep) + time_since_last_update - playback_time;
 
 // I'm negating here because I'm scaling time and not frequency.
 // i.e. 110% freq => 90% time
