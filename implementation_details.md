@@ -284,6 +284,8 @@ time_dilation = time_dilation.clamp(min_dilation, max_dilation);
 *ringbuf[curr_tick % ringbuf.len()] = time_dilation * timestep;
 ```
 
+### Snapshot Interpolation
+
 Interpolating received snapshots is very similar. What we're interested in is the remaining time left in the snapshot buffer. You want to always have at least one snapshot ahead of the current "playback" time (so the client always has something to interpolate to).
 
 ```rust
