@@ -322,7 +322,7 @@ let (from, to, blend) = if i == 0 {
 } else {
     let a = buf[i-1].tick;
     let b = buf[i].tick;
-    let blend = ((b as f32 * timestep) - playback_time) / ((b - a) as f32 * timestep);
+    let blend = (playback_time - (a as f32 * timestep)) / ((b - a) as f32 * timestep);
     (a, b, blend)
 }
 
