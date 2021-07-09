@@ -134,7 +134,7 @@ AFAIK this is only a problem for "kinded" entities that have archetype invariant
 
 I think #2 is the better solution.
 
-TBD, I think there are more of these.
+TBD, I'm sure there are more of these.
 
 ## Replicate Trait
 
@@ -184,12 +184,12 @@ So how do two computers even agree on *when* something happened?
 
 It'd be really easy to answer that question if there was an *absolute* time reference. Luckily, we can make one. See, there are [two kinds of time][15]—plain ol' **wall-clock time** and **game time**—and we have complete control over the latter. The basic idea is pretty simple: Use a fixed timestep simulation and number the ticks in order. Doing that gives us a timeline of discrete moments that everyone can share (i.e. Tick 742 is the same in-game moment for everyone).
 
-With this shared timeline strategy, clients can either:
+With this shared timeline strategy, clients have two, mutually exclusive options:
 
 - Try to simulate ticks at the same wall-clock time.
 - Try to have their inputs reach the server at same wall-clock time.
 
-When doing state sync, I'd recommend against having clients try to simulate ticks at the same time. To accomodate inputs arriving at different times, the server itself would have to rollback and resimulate or we'd have to change the strategy. For example, [Source engine][3] games (AFAIK) simulate the movement of each player at their individual send rates and *then* simulate the world at the regular tick rate. However, doing things their way makes having lower ping a technical advantage (search "lag compensation" in this [this article][4]), which I assume is the reason why ~~melee is bad~~ trading kills is so rare in Source engine games.
+When using state transfer, I'd recommend against having clients try to simulate ticks at the same time. To accomodate inputs arriving at different times, the server itself would have to rollback and resimulate or you'd have to change the strategy. For example, [Source engine][3] games (AFAIK) simulate the movement of each player at their individual send rates and *then* simulate the world at the regular tick rate. However, doing things their way makes having lower ping a technical advantage (search "lag compensation" in this [this article][4]), which I assume is the reason why ~~melee is bad~~ trading kills is so rare in Source engine games.
 
 ### A Relatively Fixed Timestep
 
@@ -231,7 +231,7 @@ impl Accumulator {
 }
 ```
 
-Here's how it's typically used. Notice the time dilation. It's changing the time->tick exchange rate to produce more or fewer simulation steps per unit time. Note that this time dilation only affects the simulation rate. Inside the systems running in the fixed update, you should use the normal fixed timestep for the value of dt.
+Here's how it's typically used. Notice the time dilation. It's changing the time->tick exchange rate to produce more or fewer simulation steps per unit time. Just so you know, this time dilation should only affect the tick rate. Inside the systems running in the fixed update, you should always use the normal fixed timestep for the value of dt.
 
 ```rust
 // Determine the exchange rate.
@@ -253,12 +253,17 @@ Ideally, clients simulate any given tick ahead by just enough so their inputs re
 One way I've seen people try to do this is to have clients estimate the wall-clock time on the server (using an SNTP handshake or similar) and from that schedule their next tick. That does work, but IMO it's too inaccurate. What we really care about is how much time passes between the server receiving an input and consuming it. That's what we want to control. The server can measure these wait times exactly and include them in the corresponding snapshot headers. Then clients can use those measurements to modify their tick rate and adjust their lead. E.g. if its inputs are arriving too late (too early), a client can briefly simulate more (less) frequently to converge on the correct lead.
 
 ```rust
-if received_newer_server_update {
-  avg_input_wait_time = (1.0 - a) * avg_input_wait_time + a * latest_input_wait_time;
-  // Negate here because I'm scaling the timestep and not the rate.
+if received_newer_server_update { 
+  /* ... updates packet statistics ... */
+  // measurements of the input wait time and input arrival delta come from the server
+  target_input_wait_time = max(timestep, avg_input_arrival_delta + safety_factor * input_arrival_dispersion)
+  
+  // I'm negating here because I'm scaling the timestep and not the tick rate.
   // i.e. 110% tick rate => 90% timestep
   error = -(target_input_wait_time - avg_input_wait_time);
 }
+
+// This logic executes every tick.
 
 // Anything we hear back from the server is always a round-trip old.
 // We want to drive this feedback loop with a more up-to-date estimate
@@ -279,7 +284,48 @@ time_dilation = time_dilation.clamp(min_dilation, max_dilation);
 *ringbuf[curr_tick % ringbuf.len()] = time_dilation * timestep;
 ```
 
-Interpolating received snapshots should be very similar. What we're interested in is the remaining time left in the snapshot buffer. You want to always have at least one snapshot ahead of the current "playback" time (so the client always has something to interpolate to).
+Interpolating received snapshots is very similar. What we're interested in is the remaining time left in the snapshot buffer. You want to always have at least one snapshot ahead of the current "playback" time (so the client always has something to interpolate to).
+
+```rust
+if received_newer_server_update {
+  /* ... updates packet statistics ... */
+  target_interpolation_delay = max(server_send_interval, avg_update_arrival_delta + safety_factor * update_arrival_dispersion);
+  time_since_last_update = 0.0;
+}
+
+// This logic executes every frame.
+
+// Calculate the current interpolation.
+// Network conditions are assumed to be constant between updates.
+current_interpolation_delay = last_update_received_time + time_since_last_update - playback_time;
+
+// I'm negating here because I'm scaling time and not frequency.
+// i.e. 110% freq => 90% time
+error = -(target_interpolation_delay - current_interpolation_delay);
+time_dilation = (error - min_error) * (max_dilation - min_dilation) / (max_error - min_error);
+time_dilation = time_dilation.clamp(min_dilation, max_dilation);
+
+playback_time += time.delta_seconds() * (1.0 + time_dilation);
+time_since_last_update += time.delta_seconds();
+
+// Determine the two snapshots and blend alpha. 
+let i = buf.partition_point(|&snapshot| (snapshot.tick as f32 * timestep) < playback_time);
+let (from, to, blend) = if i == 0 {
+    // Current playback time is behind all buffered snapshots.
+    (buf[0].tick, buf[0].tick, 0.0)
+} else if i == buffer.len() {
+    // Current playback time is ahead of all buffered snapshots.
+    // Here, I'm just clamping to the latest, but you could extrapolate instead.
+    (buf[-1].tick, buf[-1].tick, 0.0)
+} else {
+    let a = buf[i-1].tick;
+    let b = buf[i].tick;
+    let blend = ((b as f32 * timestep) - playback_time) / ((b - a) as f32 * timestep);
+    (a, b, blend)
+}
+
+// Go forth and (s)lerp.
+```
 
 ## Predict or Delay?
 
@@ -304,15 +350,16 @@ The higher a client's ping, the more ticks they'll need to resim. Depending on t
 This gives us a few options for time sync:
 
 1. **No rollback and adaptive input delay**, preferred for games with prediction disabled
-2. **Limited rollback and adaptive input delay**, preferred for games using input determinism with prediction enabled
-3. **Unlimited rollback and no input delay**, preferred for games using state transfer with prediction enabled
-4. **Unlimited rollback with fixed input delay** as an alternative to #2 (for games allergic to variable input delay)
+2. **Bounded rollback and adaptive input delay**, preferred for games using input determinism with prediction enabled
+3. **Unbounded rollback and no/fixed input delay**, preferred for games using state transfer with prediction enabled
 
 "Adaptive input delay" here means "fixed input delay with more as needed."
 
-I think method #2 is best explaiend as a sequence of fallbacks. Clients first add a fixed amount of input delay. If that's more than their current RTT, they won't need to rollback. If that isn't enough, the client will rollback, but only up to a limit. If even the combination of fixed input delay and limited rollback doesn't cover RTT, more input delay will be added to fill the remainder.
+Method #1 basically tries to ensure packets are always received before they're needed by the simulation. The client will add as much input delay as needed to avoid stalling.
 
-Method #3 is preferred for games that use state transfer because adding input delay would negatively impact the accuracy of server-side lag compensation.
+Method #2 is best explained as a sequence of fallbacks. Clients first add a fixed amount of input delay. If that's more than their current RTT, they won't need to rollback. If that isn't enough, the client will rollback, but only up to a limit. If even the combination of fixed input delay and maximum rollback doesn't cover RTT, more input delay will be added to fill the remainder.
+
+Method #3 is preferred for games that use state transfer. Adding input delay would negatively impact the accuracy of server-side lag compensation, so it should almost always be set to zero in those cases. Games that use input determinism might prefer a constant input delay even if it means their game might stutter, unlike method #2.
 
 ## Predicted <-> Interpolated
 
