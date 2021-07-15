@@ -1,4 +1,4 @@
-# Feature Name: 'quick-start-book'
+# Feature Name: 'quick_start_book'
 
 ## Summary
 
