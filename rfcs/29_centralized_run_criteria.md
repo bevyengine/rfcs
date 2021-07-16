@@ -15,7 +15,7 @@ Run criteria are utility systems that control whether regular systems should run
 Criteria can be defined in two ways:
 - Inline, directly attached to their user:
 ```rust
-fn player_has_control(controller: Res<PlayerController>) -> ShouldRun {
+fn run_if_player_has_control(controller: Res<PlayerController>) -> ShouldRun {
     if controller.player_has_control() {
         ShouldRun::Yes
     } else {
