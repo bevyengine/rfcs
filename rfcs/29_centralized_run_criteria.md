@@ -48,7 +48,9 @@ schedule
     .add_system(player_dmg_buff_system.with_run_criteria(PlayerControlCriteria::CanAttack))
 ```
 
-Since run criteria aren't forbidden from having side effects, it might become necessary to define an explicit execution order between them. This is done almost exactly as with regular systems, the main difference is that the label must be unique (to facilitate reuse, and piping - covered elsewhere):
+Note that only labels that appear on just one criteria can be utilized for reusing criteria results: the label to criteria relationship must be unambiguous.
+
+Since run criteria aren't forbidden from having side effects, it might become necessary to define an explicit execution order between them. This is done exactly as with regular systems:
 ```rust
 schedule
     .add_run_criteria(run_if_player_can_attack.label(PlayerControlCriteria::CanAttack))
@@ -57,7 +59,7 @@ schedule
 
 It should be noted that criteria declared globally are required to have a label, because they would be useless for their purpose otherwise. Criteria declared inline can be labelled as well, but using that for anything other than defining execution order is detrimental to code readability.
 
-Run criteria are evaluated once at the start of schedule, any criteria returning `ShouldRun::*AndCheckAgain` will be evaluated again at the end of schedule. At that point, depending on the new result, the systems governed by those criteria might be ran again, followed by another criteria evaluation; this repeats until no criteria return `ShouldRun::Yes*`. Systems with no specified criteria run exactly once per schedule execution.
+Run criteria are evaluated once at the start of schedule, any criteria returning `ShouldRun::*AndCheckAgain` will be evaluated again at the end of schedule. At that point, depending on the new result, the systems governed by those criteria might be ran again, followed by another criteria evaluation; this repeats until no criteria return `ShouldRun::Yes*`. Systems with no run criteria always run exactly once per schedule execution.
 
 ## Implementation strategy
 
@@ -73,6 +75,13 @@ Run criteria are evaluated once at the start of schedule, any criteria returning
 Stages will become unusable individually, outside of a schedule.
 
 Performance of poorly-factored (wrt this feature) schedules might decrease. However, correctly refactoring them should result in a net increase.
+
+Right now, we have two modes of same-frame state change handling:
+
+* "Feedforward": state was changed in a previous stage, so this stage will run only systems that aren't forbidden by the new state.
+* "Feedback": a state change was detected while reevaluating criteria at the end of stage, so the stage runs again, with only the systems that are specific to the new state. 
+
+With `centralized_run_criteria`, feedforward mode is lost. Main difference between it and the feature's schedule-wide feedback is that the former doesn't run state-specific systems of stages prior to the state change. It could be possible to add that back in, but it seems like it would be more trouble than it's worth - especially considering that subsequent features (`first_class_fsm_drivers` and `stageless_api`) will likely incompatibly rework criteria and feedback.
 
 ## Rationale and alternatives
 
