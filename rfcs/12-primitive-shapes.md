@@ -332,28 +332,23 @@ struct Line2d {
   direction: Direction2d,
 }
 impl Meshable for Line2d {}
-impl Collider2d for Line2d {}
 
 struct LineSegment2d { 
   start: Point2d, 
   end: Point2d,
 }
 impl Meshable for LineSegment2d {}
-impl Collider2d for LineSegment2d {}
 
 struct PolyLine2d<const N: usize>{
   points: [Point2d; N],
 }
 impl Meshable for PolyLine2d {}
-impl Collider2d for PolyLine2d {}
 
 struct Triangle2d([Point2d; 3]);
 impl Meshable for Triangle2d {}
-impl Collider2d for Triangle2d {}
 
 struct Quad2d([Point2d; 4]);
 impl Meshable for Quad2d {}
-impl Collider2d for Quad2d {}
 
 /// A regular polygon, such as a square or hexagon.
 struct RegularPolygon2d {
@@ -365,13 +360,11 @@ struct RegularPolygon2d {
   orientation: Angle,
 }
 impl Meshable for RegularPolygon2d {}
-impl Collider2d for RegularPolygon2d {}
  
 struct Polygon2d <const N: usize>{
   points: [Point; N],
 }
 impl Meshable for Polygon2d {}
-impl Collider2d for Polygon2d {}
 
 /// Circle types
 
