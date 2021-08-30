@@ -164,6 +164,9 @@ fn despawn_if_dead(query: Query<(&Life, Despawner)>){
    1. Add replacements for every existing command.
    2. Remove `Command` and `Commands`.
    3. Remove `SystemMeta::apply_buffers`.
+6. Improve ergonomics of event-listening exclusive systems.
+   1. No system-local `Local` resources exist.
+   2. Cannot use `EventReader` system parameters
 
 ## Drawbacks
 
