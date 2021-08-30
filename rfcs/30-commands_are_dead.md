@@ -46,7 +46,7 @@ This structure holds for both resources and components: `ResForge<R>` is to `Res
 A system can only run, if, for all pieces of data that they access, the following rules are upheld:
 
 1. No other system can access data that is being forged in any way.
-2. No other system can forge or read data that is being mutated.
+2. No other system can forge, mutate or read data that is being mutated.
 3. No other system can forge or mutate data that can be read.
 4. No other system can forge data that is being detected.
 
