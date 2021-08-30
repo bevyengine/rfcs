@@ -148,21 +148,22 @@ fn despawn_if_dead(query: Query<(&Life, Despawner)>){
 
 ## Implementation strategy
 
-This is the technical portion of the RFC.
-Try to capture the broad implementation strategy,
-and then focus in on the tricky details so that:
-
-- Its interaction with other features is clear.
-- It is reasonably clear how the feature would be implemented.
-- Corner cases are dissected by example.
-
-When necessary, this section should return to the examples given in the previous section and explain the implementation details that make them work.
-
-When writing this section be mindful of the following [repo guidelines](https://github.com/bevyengine/rfcs):
-
-- **RFCs should be scoped:** Try to avoid creating RFCs for huge design spaces that span many features. Try to pick a specific feature slice and describe it in as much detail as possible. Feel free to create multiple RFCs if you need multiple features.
-- **RFCs should avoid ambiguity:** Two developers implementing the same RFC should come up with nearly identical implementations.
-- **RFCs should be "implementable":** Merged RFCs should only depend on features from other merged RFCs and existing Bevy features. It is ok to create multiple dependent RFCs, but they should either be merged at the same time or have a clear merge order that ensures the "implementable" rule is respected.
+1. Create four tiers of data access explicitly.
+2. Revise ECS internals to respect this strategy.
+3. Add instant resource removal and addition.
+   1. Add `ResForge`.
+   2. Refactor `.init_resource` and `.add_resource`.
+4. Add entity-component instant addition and removal.
+   1. Add `Foundry` type.
+   2. Add entity spawning.
+   3. Add component insertion and removal.
+      1. FIXME: figure out a workaround for table-stored components.
+   4. Add `Forge` type.
+   5. Add entity despawning.
+5. Remove `Commands` API.
+   1. Add replacements for every existing command.
+   2. Remove `Command` and `Commands`.
+   3. Remove `SystemMeta::apply_buffers`.
 
 ## Drawbacks
 
@@ -202,7 +203,7 @@ The alternative would be to special-case resource initialization, and always res
 
 ## Unresolved questions
 
-- How 
+- What's the best way to handle archetype updating?
 
 ## \[Optional\] Future possibilities
 
