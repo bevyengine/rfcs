@@ -80,7 +80,7 @@ fn spawn_entity(foundry: Foundry<Entity>>){
 #[derive(Component)]
 struct Player;
 
-fn spawn_player(foundry: Foundry<Entity, &Player>>){
+fn spawn_player(foundry: Foundry<Entity, Player>>){
 	// We can choose whether or not to add components
 	// on a per-entity basis
 	foundry.spawn().insert(Player);
@@ -88,7 +88,7 @@ fn spawn_player(foundry: Foundry<Entity, &Player>>){
 
 // We need to explicitly use AsBundle here
 // as we have no way to forbid the use of bundles as components
-fn spawn_sprite(foundry: Foundry<(Entity, AsBundle<&SpriteBundle>)>){
+fn spawn_sprite(foundry: Foundry<(Entity, AsBundle<SpriteBundle>)>){
 	foundry.spawn().insert_bundle(SpriteBundle::default());
 }
 
@@ -109,7 +109,7 @@ struct Life(i8);
 #[derive(Component)]
 struct Dead;
 
-fn check_for_death(query: Query<(&Life, Forge<&Dead>)>){
+fn check_for_death(query: Query<(&Life, Forge<Dead>)>){
 	for life, forge_dead in query.iter_mut(){
 		if life.0 <= 0 {
 			forge_dead.insert(Dead);
