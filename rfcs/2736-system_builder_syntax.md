@@ -20,6 +20,10 @@ Mostly described in [#1978](https://github.com/bevyengine/bevy/issues/1978).
 - `add_system(system.exclusive_system())` becomes `add_exclusive(system.exclusive_system())`
 - `add_startup_system(system.exclusive_system())` becomes `add_exclusive(system.exclusive_system().startup())`
 - `add_startup_system(system.label(x).before(y))` becomes `add_system(system.startup().label(x).before(y))`
+- `add_startup_system_set_to_stage(stage, set.label(x).before(y))` becomes `add_system_set(set.startup().stage(stage).label(x).before(y))`
+
+- `add_system(system)` remains unchanged
+- `add_system_set(SystemSet::on_enter(State).with_system(system))` remains unchanged (any config written to systems in a set will get overwritten by the config on the set when baked)
 
 The rest should follow.
 
