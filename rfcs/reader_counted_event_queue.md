@@ -39,12 +39,12 @@ Maintenance (reclaim memory):
 * Each frame - for each `EventQueue` call `cleanup`. 
 * **[SAFETY MEASURE]** Each Nth frame - check length of each `EventQueue`. If it is too big, truncate first chunks/clear (this will not free memory yet). 
   Next (this will move all EventReaders to new position immediately):
-  - Either. On all associated EventReaders should be called `EventReader::iter()` or `update_position()` (EventReaders should be presumably "queried" from systems locals, that read that EventType). 
+  - Either. On all associated EventReaders should be called `update_position()` (EventReaders should be presumably "queried" from systems locals, that read that EventType). 
   - Either. Each frame, in scheduler, for systems with EventReaders, that not run,  `update_position()` should be called.
     This is very fast operation.
 
 If there is time window, where nothing happens, and we just like wait for v-sync, it is a good place to put maintenance there. 
-Maintenance can be skipped few frames, and sliced between several frames. But I think this should be not necessary, since I expect
+Maintenance can be skipped few frames, and sliced between several frames. But I think this should not be necessary, since I expect
 maintenance to be very fast.
 
 ## Drawbacks
