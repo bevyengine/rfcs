@@ -71,7 +71,8 @@ along with readers too! _It also can work, without need to manually call `cleanu
 - Do we need `clear` functionality? I personally think, yes.
 
 ## Future possibilities
-
-Maybe it would be nice to have soft and hard queue length limits:
-- On reaching soft limit callback/special error event? will be triggered.
-- On reaching hard limit event queue will be trimmed to some size. _Or panic?_
+* Maybe we should provide user means of [unsubscription/subscription] or pausing subscription(?)? For example, if systems sees that it going down for a
+long time/forever, or somehow need to catch event messages only from specific timeframe.  
+* Maybe it would be nice to have soft and hard queue length limits:
+  - On reaching soft limit callback/special error event? will be triggered.
+  - On reaching hard limit event queue will be trimmed to some size. _Or panic?_
