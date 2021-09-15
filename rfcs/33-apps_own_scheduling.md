@@ -2,28 +2,39 @@
 
 ## Summary
 
-All scheduling information is ultimately owned and configurable by the central app (or hand-written `bevy_ecs` equivalent).
-Plugins specify local-only invariants about the ordering of their systems which must be respected.
+All scheduling information is attached directly to systems, and ultimately owned and configurable by the central app (or hand-written `bevy_ecs` equivalent).
+To ensure that this can be done safely, plugins specify invariants about the ordering of their systems which must be respected.
+Hard ordering constraints (where systems must be both ordered and separated by a hard sync point) are introduced as an assert-style protection to guard against a serious and common form of plugin misconfiguration.
 
 ## Motivation
 
-The current plugin model works well in simple cases, but completely breaks down when the central consumer (typically, an `App`) needs to configure when and if their systems run. See [Bevy #2160](https://github.com/bevyengine/bevy/issues/2160) for more background on this problem.
+The current plugin model works well in simple cases, but completely breaks down when the central consumer (typically, an `App`) needs to configure when and if their systems run. The main difficulties are:
+
+- 3rd party plugins can have "unfixable" ordering ambiguities or interop issues with other 3rd party plugins
+- plugins can not be added to states, and run criteria cannot be added
+- plugins can not be incorporated into apps and games that use a non-standard control flow architecture
+- end users who care about granular scheduling control for performance optimization have no way to change when systems run
+- worse, plugins can freely insert their own stages, causing sudden and uncontrollable bottlenecks
+- plugins cannot be used by standalone `bevy_ecs` users
+
+See [Bevy #2160](https://github.com/bevyengine/bevy/issues/2160) for more background on this problem.
 
 By moving the ultimate responsibility for scheduling configuration to the central app, users can comfortably combine plugins that were not originally designed to work together correctly and fit the logic into their particular control flow.
 
 ## User-facing explanation
 
 **Plugins** are cohesive, drop-in units of functionality that you can add to your Bevy app.
-Plugins can add **system sets** to your app or initialize **resources**.
+Plugins can initialize **resources** to store data to, or add **system sets**, used to add coherent batches of logic to your app.
 
-You can add plugins to your app using the `App::add_plugin` and `App::add_plugins` methods.
-If you're new to Bevy, plugins added in this way should immediately work without further configuration.
+Plugins can be added to your app using the `App::add_plugin` method.
+If you're new to Bevy, third-party plugins added in this way should immediately work without further configuration.
 
 ```rust
 use bevy::prelude::*;
+use bevy_hypothetical_tui::prelude::*;
 
 fn main(){
-  App::minimal().add_plugin(HelloWorldPlugin).run();
+  App::minimal().add_plugin(TuiPlugin).run();
 }
 ```
 
@@ -50,12 +61,12 @@ fn main(){
 
 Under the hood, plugins are very simple, and their systems and resources can be created and configured directly.
 
-The new `Plugin` struct stores data in a straightforward way:
+The `Plugin` struct stores data in a straightforward way:
 
 ```rust
 pub struct Plugin {
   pub systems: HashMap<Box<dyn SystemLabel>, SystemSet>,
-  pub resources: HashSet<Box<dyn Resource>>;
+  pub resources: HashSet<Box<dyn Resource>>,
 }
 ```
 
@@ -63,12 +74,6 @@ When you're creating Bevy apps, you can read, add, remove and configure both sys
 The methods shown above (such as `.add_system`) are simply convenience methods that manipulate these public fields.
 
 Note that each system set that you include requires its own label to allow other plugins to control their order relative to that system set, and allows the central `App` to further configure them as a unit if needed.
-
-### Standalone `bevy_ecs` usage
-
-Even if you're just using `bevy_ecs`, plugins can be a useful tool for enabling code reuse and managing dependencies.
-
-Instead of adding plugins to your app, independently add their system sets to your schedule and their resources to your world.
 
 ### Hard system ordering rules
 
@@ -90,24 +95,26 @@ System sets don't store simple `Systems`: instead they store fully configured `S
 - which states the system is executed in
 - the labels a system has
 
-Without any configuration, these systems are designed to operate as intended when the Bevy app is configured in the standard fashion (using `App::default()`). For many users, this should just work out of the box.
+Without any configuration, these systems are designed to operate as intended when the Bevy app is configured in the standard fashion (using `App::default()`). Each system will belong to the standard stage that the plugin author felt fit best, and ordering between other members of the plugins and Bevy's default systems should already be set up for you.
+For most plugins and most users, this strategy should just work out of the box.
 
 When creating your `App`, you can add additional systems and resources directly to the app, or choose to remove system sets or resources from the plugins you are using by directly using the appropriate `HashSet` and `HashMap` methods.
+Removing resources in this way can be helpful when you want to override provided initial values, or if you need to resolve a conflict where two of your dependencies attempt to set a resource's value in conflicting way.
 
 More commonly though, you'll be configuring the system sets using the labels that they were given by their plugin.
 When system sets are added to a `Plugin`, the provided label is applied to all systems within that set, allowing other systems to specify their order relative to that system set. Note that *all* systems that share a label must complete before the scheduler allows their dependencies to proceed.
 
-The `App` can also configure systems provided by a plugin using the `App::configure_label` method.
-This method allows the user to change any of the system configuration listed above by acting on the system set as a group.
+The `App` can also configure systems provided by its plugins using the `App::configure_label` method.
+There are four important limitations to this configurability:
 
-There are two important exceptions to this:
-
-1. `configure_label` cannot remove labels from systems.
-2. `configure_label` cannot remove ordering dependencies, only add them.
-
-If you change the configuration of the systems in such a way that ordering dependencies cannot be satisfied (by creating an impossible cycle or breaking a hard system ordering rule by changing the stage in which a system runs), the app's schedule will panic when it is run.
+1. Systems can only be configured as a group, on the basis of their public labels.
+2. Systems can only be removed from plugins as a complete system set.
+3. `configure_label` cannot remove labels from systems.
+4. `configure_label` cannot remove ordering dependencies, only add them.
 
 These limitations are designed to enable plugin authors to carefully control how their systems can be configured in order to avoid subtly breaking internal guarantees.
+If you change the configuration of the systems in such a way that ordering dependencies cannot be satisfied (by creating an impossible cycle or breaking a hard system ordering rule by changing the stage in which a system runs), the app's schedule will panic when it is run.
+Duplicate and missing resources will also cause a panic when the app is run.
 
 ### Writing plugins to be configured
 
@@ -115,6 +122,12 @@ When writing plugins (especially those designed for other people to use), group 
 
 Be sure to use hard system ordering dependencies when needed to ensure that downstream consumers cannot accidentally break your system sets which require command processing by moving systems into the same stage.
 **Systems which must live in separate stages due to hard system ordering rules must be in separate system sets in order to allow users to add them to their own stages freely.**
+
+### Standalone `bevy_ecs` usage
+
+Even if you're just using `bevy_ecs`, plugins can be a useful tool for enabling code reuse and managing dependencies.
+
+Instead of adding plugins to your app, independently add their system sets to your schedule and their resources to your world.
 
 ## Implementation strategy
 
@@ -172,8 +185,9 @@ Taking a structured approach improves things by:
 
 1. Enforcing principled rules about label exporting.
 2. Clearly communicating to users how plugins should be used.
-3. Decoupling the app and plugin API to reflect the fact that the things that an app can reasonably do are a strict superset of the things that a plugin can reasonably do due to its access to more information.
-4. Avoids surprising and non-local effects caused by plugins, improving transparency and reducing the risk involved in trying out a new 3rd-party plugin.
+3. Decoupling the app and plugin API.
+4. Avoids surprising and non-local effects caused by plugins.
+5. Moves all top-level app-configuration into the main app-building logic, to encourage discoverable, well-organized code.
 
 ### Why are system sets the correct granularity to expose?
 
@@ -207,21 +221,20 @@ There is no reasonable or desirable way to prevent this: instead we should embra
 
 ## Unresolved questions
 
-1. Should we change the `AppBuilder` API to be structured for consistency, or keep the existing builder pattern?
-2. Should an automatic or simple coercion from a single system into a system set be added to improve ergonomics?
-3. Should we rename `SystemDescriptor` to something more user-friendly like `ConfiguredSystem`?
-4. Are system labels and resource types exported within the `Plugin` trait forced to be `pub`? Should they be?
-5. What should `hard_before` and `hard_after` be called?
+1. Should we automatically label single systems added to plugins to improve ergonomics?
+2. Should we rename `SystemDescriptor` to something more user-friendly like `ConfiguredSystem`?
+3. Are system labels and resource types exported within the `Plugin` trait forced to be `pub`? Should they be?
+4. What should `hard_before` and `hard_after` be called?
+5. Should `PluginGroup` and `App::add_plugins` be deprecated?
 
 ## Future possibilities
 
-This is a simple building block that would help with the broader scheduler plans intended in [Bevy #2801](https://github.com/bevyengine/bevy/discussions/2801).
+This is a simple building block that advances the broader scheduler plans being explored in [Bevy #2801](https://github.com/bevyengine/bevy/discussions/2801).
 
-Automatic hard sync point insertion is by far the most controversial and ambitious part of this proposal.
 This could be extended and improved in the future with:
 
 1. Enhanced system visualization tools.
 2. Hints to manually specify which hard sync points various systems run between.
 3. Stages could (optionally?) be replaced with automatically inferred hard sync points on the basis of hard system ordering dependencies.
 4. Provide a more global, staged analysis of system and resource initialization to reduce or eliminate order-dependence of app initialization, as raised in [Bevy #1255](https://github.com/bevyengine/bevy/issues/1255).
-5. `as_if_before` functionality will improve the ability to control ordering between plugin system sets without inducing excessive blocking.
+5. If-needed ordering constraints ([Bevy #2747](https://github.com/bevyengine/bevy/discussions/2747)) will significantly improve the ability to control ordering between plugin system sets without inducing excessive blocking.
