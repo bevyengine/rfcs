@@ -234,13 +234,13 @@ This is the simplest option, but looks quite a bit different from our current AP
 ```rust
 mod third_party_crate {
   pub fn simple_plugin() -> Plugin {
-    Plugin::new()
+    Plugin::default()
   }
   
   pub struct MyConfig(pub bool);
 
   pub fn configured_plugin(my_config: MyConfig) -> Plugin {
-    Plugin::new().insert_resource(MyConfig(my_config))
+    Plugin::default().insert_resource(MyConfig(my_config))
   }
 }
 
@@ -264,7 +264,7 @@ mod third_party_crate {
 
   impl Into<Plugin> for SimplePlugin {
     fn into(self) -> Plugin {
-      Plugin::new()
+      Plugin::default()
     }
   }
 
@@ -276,12 +276,12 @@ mod third_party_crate {
 
   impl Into<Plugin> for ConfiguredPlugin {
     fn into(self) -> Plugin {
-      Plugin::new().insert_resource(self.my_config)
+      Plugin::default().insert_resource(self.my_config)
     }
   }
 
   fn third_party_plugin() -> Plugin {
-    Plugin::new()
+    Plugin::default()
   }
 }
 
@@ -304,7 +304,7 @@ mod third_party_crate {
 
   impl MakePlugin for SimplePlugin {
     fn make(self) -> Plugin {
-      Plugin::new()
+      Plugin::default()
     }
   }
 
@@ -316,12 +316,12 @@ mod third_party_crate {
 
   impl MakePlugin for ConfiguredPlugin {
     fn make(self) -> Plugin {
-      Plugin::new().insert_resource(self.my_config)
+      Plugin::default().insert_resource(self.my_config)
     }
   }
 
   fn third_party_plugin() -> Plugin {
-    Plugin::new()
+    Plugin::default()
   }
 }
 
