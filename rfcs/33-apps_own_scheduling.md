@@ -11,7 +11,7 @@ Hard ordering constraints (where systems must be both ordered and separated by a
 The current plugin model works well in simple cases, but completely breaks down when the central consumer (typically, an `App`) needs to configure when and if their systems run. The main difficulties are:
 
 - 3rd party plugins can have "unfixable" ordering ambiguities or interop issues with other 3rd party plugins
-- plugins can not be added to states, and run criteria cannot be added
+- the systems from plugins can not be added to states, and run criteria cannot be added to them
 - plugins can not be incorporated into apps and games that use a non-standard control flow architecture
 - end users who care about granular scheduling control for performance optimization have no way to change when systems run
 - worse, plugins can freely insert their own stages, causing sudden and uncontrollable bottlenecks
