@@ -225,6 +225,118 @@ There is no reasonable or desirable way to prevent this: instead we should embra
 2. What should `hard_before` and `hard_after` be called?
 3. Should `PluginGroup` and `App::add_plugins` be deprecated?
 
+### Plugin type semantics
+
+There are several decent options for how plugins should be defined.
+Let's review two different sorts of plugins, one with no config and one with config, and see how the ergonomics compare.
+
+All of these assume a standard `Plugin` struct, allowing us to have structured fields.
+
+### Crates define functions that return `Plugin`
+
+This is the simplest option, but looks quite a bit different from our current API.
+
+```rust
+mod third_party_crate {
+  pub fn simple_plugin() -> Plugin {
+    Plugin::new()
+  }
+  
+  pub struct MyConfig(pub bool);
+
+  pub fn configured_plugin(my_config: MyConfig) -> Plugin {
+    Plugin::new().insert_resource(MyConfig(my_config))
+  }
+}
+
+fn main(){
+  App::new()
+    .add_pluging(simple_plugin())
+    .add_plugin(configured_plugin(MyConfig(true)))
+    .run();
+}
+```
+
+### Crates define structs that implement `Into<Plugin>`
+
+Slightly more convoluted, but lets us pass in structs rather than calling functions.
+
+If a user cares about allowing reuse of a particular plugin-defining struct, they can `impl Into<Plugin> for &ConfiguredPlugin`.
+
+```rust
+mod third_party_crate {
+  pub struct SimplePlugin;
+
+  impl Into<Plugin> for SimplePlugin {
+    fn into(self) -> Plugin {
+      Plugin::new()
+    }
+  }
+
+  pub struct MyConfig(pub bool);
+
+  pub struct ConfiguredPlugin {
+    pub my_config: MyConfig, 
+  }
+
+  impl Into<Plugin> for ConfiguredPlugin {
+    fn into(self) -> Plugin {
+      Plugin::new().insert_resource(self.my_config)
+    }
+  }
+
+  fn third_party_plugin() -> Plugin {
+    Plugin::new()
+  }
+}
+
+fn main(){
+  App::new()
+    .add_plugin(third_party_plugin())
+    .run();
+}
+```
+
+### Crates define structs that implement `MakePlugin`
+
+Compared to the `Into<Plugin>` solution above, this would enable us to write our own derive macro for the common case of "turn all my fields into inserted resources".
+
+On the other hand, this is less idiomatic and more elaborate.
+
+```rust
+mod third_party_crate {
+  pub struct SimplePlugin;
+
+  impl MakePlugin for SimplePlugin {
+    fn make(self) -> Plugin {
+      Plugin::new()
+    }
+  }
+
+  pub struct MyConfig(pub bool);
+
+  pub struct ConfiguredPlugin {
+    pub my_config: MyConfig, 
+  }
+
+  impl MakePlugin for ConfiguredPlugin {
+    fn make(self) -> Plugin {
+      Plugin::new().insert_resource(self.my_config)
+    }
+  }
+
+  fn third_party_plugin() -> Plugin {
+    Plugin::new()
+  }
+}
+
+fn main(){
+  App::new()
+    .add_plugin(third_party_plugin())
+    .run();
+}
+```
+
 ## Future possibilities
 
 This is a simple building block that advances the broader scheduler plans being explored in [Bevy #2801](https://github.com/bevyengine/bevy/discussions/2801).
