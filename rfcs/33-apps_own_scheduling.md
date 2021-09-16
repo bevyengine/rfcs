@@ -222,9 +222,8 @@ There is no reasonable or desirable way to prevent this: instead we should embra
 ## Unresolved questions
 
 1. Should we rename `SystemDescriptor` to something more user-friendly like `ConfiguredSystem`?
-2. Are system labels and resource types exported within the `Plugin` trait forced to be `pub`? Should they be?
-3. What should `hard_before` and `hard_after` be called?
-4. Should `PluginGroup` and `App::add_plugins` be deprecated?
+2. What should `hard_before` and `hard_after` be called?
+3. Should `PluginGroup` and `App::add_plugins` be deprecated?
 
 ## Future possibilities
 
