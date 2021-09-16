@@ -34,7 +34,7 @@ use bevy::prelude::*;
 use bevy_hypothetical_tui::prelude::*;
 
 fn main(){
-  App::minimal().add_plugin(TuiPlugin).run();
+  App::minimal().add_plugin(tui_plugin()).run();
 }
 ```
 
@@ -42,21 +42,16 @@ You can write your own plugins by exporting a function that returns a `Plugin` s
 This can be provided as a standalone function or, more commonly, as a method on a simple `MyPlugin` struct:
 
 ```rust
-struct CombatPlugin;
-
-impl IntoPlugin for CombatPlugin {
- fn into() -> Plugin {
+fn combat_plugin() {
     Plugin::default()
       .add_systems("Combat", SystemSet::new().with(attack_system).with(death_system));
       .add_system("PlayerMovement", player_movement_system)
       .init_resouce::<Score>()
-  }
 }
 
 fn main(){
-  App::default().add_plugin(CombatPlugin).run();
+  App::default().add_plugin(combat_plugin()).run();
 }
-
 ```
 
 Under the hood, plugins are very simple, and their systems and resources can be created and configured directly.
