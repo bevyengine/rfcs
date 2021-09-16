@@ -23,11 +23,23 @@ By moving the ultimate responsibility for scheduling configuration to the centra
 
 ## User-facing explanation
 
+### Plugins 101
+
 **Plugins** are cohesive, drop-in units of functionality that you can add to your Bevy app.
-Plugins can initialize **resources** to store data to, or add **system sets**, used to add coherent batches of logic to your app.
+Most of what plugins do is the result of **systems** that they add to your app.
+Plugins can also initialize **resources**, which store data outside of the entity-component data store in a way that can be accessed by other systems.
+
+The `Plugin` struct stores this data in a straightforward way:
+
+```rust
+pub struct Plugin {
+  pub systems: HashMap<Box<dyn SystemLabel>, SystemSet>,
+  pub resources: HashSet<Box<dyn Resource>>,
+  // Other plugin-configuration settings ommitted here
+}
+```
 
 Plugins can be added to your app using the `App::add_plugin` method.
-If you're new to Bevy, third-party plugins added in this way should immediately work without further configuration.
 
 ```rust
 use bevy::prelude::*;
@@ -38,14 +50,13 @@ fn main(){
 }
 ```
 
-You can write your own plugins by exporting a function that returns a `Plugin` struct with the desired system sets and resources.
-This can be provided as a standalone function or, more commonly, as a method on a simple `MyPlugin` struct:
+The best way to pass `Plugins` to the apps that consume them is by exporting a function that returns a `Plugin` struct with the desired system sets and resources from your crate or module.
 
 ```rust
-fn combat_plugin() {
+fn combat_plugin() -> Plugin {
     Plugin::default()
-      .add_systems("Combat", SystemSet::new().with(attack_system).with(death_system));
-      .add_system("PlayerMovement", player_movement_system)
+      .add_systems("Combat", SystemSet::new().with(attack).with(death));
+      .add_system("PlayerMovement", player_movement)
       .init_resouce::<Score>()
 }
 
@@ -54,21 +65,32 @@ fn main(){
 }
 ```
 
-Under the hood, plugins are very simple, and their systems and resources can be created and configured directly.
-
-The `Plugin` struct stores data in a straightforward way:
+When designing plugins for a larger audience, you may want to make them configurable in some way to accommodate variations in logic that users might need.
+Doing so is quite straightforward: you can simply add parameters to the plugin-creating function.
+If you want the types that your plugin operates on to be configurable as well, add a generic type parameter to these functions.
 
 ```rust
-pub struct Plugin {
-  pub systems: HashMap<Box<dyn SystemLabel>, SystemSet>,
-  pub resources: HashSet<Box<dyn Resource>>,
+// We may want our physics plugin to work under both f64 and f32 coordinate systems
+trait Floatlike;
+
+fn physics_plugin<T: Floatlike>(realistic: bool) -> Plugin {
+  let mut plugin = Plugin::default().add_system(collision_detection::<T>);
+
+  if realistic {
+    plugin.add_system(realistic_gravity);
+  } else {
+    plugin.add_system(platformer_gravity);
+  }
+
+  plugin
+}
+
+fn main(){
+  App::default()
+    .add_plugin(physics_plugin::<f64>(true))
+    .run();
 }
 ```
-
-When you're creating Bevy apps, you can read, add, remove and configure both systems and resources stored within a plugin that you're using, allowing you to fit it into your app's needs using the standard `HashMap` and `HashSet` APIs.
-The methods shown above (such as `.add_system`) are simply convenience methods that manipulate these public fields.
-
-Note that each system set that you include requires its own label to allow other plugins to control their order relative to that system set, and allows the central `App` to further configure them as a unit if needed.
 
 ### Hard system ordering rules
 
@@ -81,6 +103,11 @@ They are merely an assertion to be checked at the time of schedule construction.
 Their purpose is to ensure that you (or the users of your plugin) do not accidentally break the required logic by shuffling when systems run relative to each other.
 
 ### Configuring plugins
+
+When you're creating Bevy apps, you can read, add, remove and configure both systems and resources stored within a plugin that you're using, allowing you to fit it into your app's needs using the standard `HashMap` and `HashSet` APIs.
+The methods shown above (such as `.add_system`) are simply convenience methods that manipulate these public fields.
+
+Note that each system set that you include requires its own label to allow other plugins to control their order relative to that system set, and allows the central `App` to further configure them as a unit if needed.
 
 System sets don't store simple `Systems`: instead they store fully configured `SystemDescriptor` objects which store information about when and if the system can run. This includes:
 
@@ -246,7 +273,7 @@ mod third_party_crate {
 
 fn main(){
   App::new()
-    .add_pluging(simple_plugin())
+    .add_plugin(simple_plugin())
     .add_plugin(configured_plugin(MyConfig(true)))
     .run();
 }
