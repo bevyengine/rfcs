@@ -92,15 +92,34 @@ fn main(){
 }
 ```
 
-### Hard system ordering rules
+### System ordering in Bevy
 
-In addition to `.before` and `.after`, `.hard_before` and `.hard_after` can be used to specify that two systems must be separated by a hard sync point in the schedule (generally the end of the stage), in addition to following the standard ordering constraint.
+Bevy schedules are composed of stages, which have two phases: parallel and sequential.
+The parallel phase of a stage always runs first, then is followed by a sequential phase which applies any commands generated in the parallel phase.
 
-This is critical when `Commands` from the first system must complete (e.g. spawning or despawning entities) before the second system can validly run.
+During **sequential phases**, each system can access the entire world freely but only one can run at a time.
+Exclusive systems can only be added to the sequential phase while parallel systems can be added to either phase.
 
-Note that hard system ordering rules have no special schedule-altering powers!
-They are merely an assertion to be checked at the time of schedule construction.
-Their purpose is to ensure that you (or the users of your plugin) do not accidentally break the required logic by shuffling when systems run relative to each other.
+During **parallel phases**, systems are allowed to operate in parallel, carefully dividing up access to the `World` according to the data accesses requested by their system parameters to avoid undefined behavior.
+By default, the only rule that their order follows is that a **waiting** system cannot be started if any **active** (currently running) systems are **incompatible** (cannot be scheduled at the same time) if they have conflicting data access.
+This is helpful for performance reasons, but, as the precise order in which systems start and complete is nondeterministic, can result in logic bugs or inconsistencies.
+
+To help you eliminate these sort of difficulties, Bevy lets you specify several types of **system ordering constraints**.
+Ordering constraints can be applied directly to systems, on system sets, or to labels, but are ultimately stored and worked with on a per-system basis.
+However, ordering constraints can only be applied *relative* to labels, allowing users to replace core parts of the engine (or other dependencies) by substituting new systems with the same public label.
+
+- **Strict ordering:** Systems from set `A` cannot be started while any system from set `B` are waiting or active.
+  - Simple and explicit.
+  - Use the `before(label: impl SystemLabel)` or `after(label: impl SystemLabel)` methods to set this behavior.
+- **If-needed ordering:** A given system in set `A` cannot be started while any incompatible system from set `B` is waiting or active.
+  - Usually, if-needed ordering is the correct tool for ordering groups of systems as it avoids unnecessary blocking.
+  - If systems in `A` use interior mutability, if-needed ordering may result in non-deterministic outcomes.
+  - Use `before_if_needed(label: impl SystemLabel)` or `after_if_needed(label: impl SystemLabel)`.
+- **At-least-once separation:** Systems in set `A` cannot be started if a system in set `B` has been started until at least one system with the label `S` has completed. Systems from `A` and `B` are incompatible with each other.
+  - This is most commonly used when commands created by systems in `A` must be processed before systems in `B` can run correctly. `CoreLabels::ApplyCommands` is the label used for the exclusive system that applies queued commands that is typically added to the beginning of each sequential stage.
+  - Use the `between(before: impl SystemLabel, after: impl SystemLabel)` method.
+  - The order of arguments in `between` matters; if 
+  - This methods do not automatically insert systems to enforce this separation: instead, the schedule will panic upon initialization as no valid system execution strategy exists.
 
 ### Configuring plugins
 
@@ -140,10 +159,23 @@ Duplicate and missing resources will also cause a panic when the app is run.
 
 ### Writing plugins to be configured
 
-When writing plugins (especially those designed for other people to use), group systems that should be thought about in one coherent "unit of function" together into a single system set.
+When writing plugins (especially those designed for other people to use), try to define constraints on your plugins logic so that your users could not break it if they tried:
 
-Be sure to use hard system ordering dependencies when needed to ensure that downstream consumers cannot accidentally break your system sets which require command processing by moving systems into the same stage.
-**Systems which must live in separate stages due to hard system ordering rules must be in separate system sets in order to allow users to add them to their own stages freely.**
+- if some collection of systems will not work properly without each other, make sure they are in the same system. This prevents them from being split by either schedule location or run criteria.
+- if one system must run before the other, use granular strict system ordering constraints
+- if a broad control flow must be follow, use if-needed system ordering constraints between labels
+- if commands must be processed before a follow-up system can be run correctly, use at-least-once separation ordering constraints
+- if a secondary source of truth (such as an index) must be updated in between two systems, use at-least-once separation ordering constraints
+
+Exposing system labels via `pub` allows anyone with access to:
+
+- set the order of their systems relative to the exposed label
+- add new constraints to systems with that label
+- change which states systems with that label will run in
+- add new run criteria to systems with that label
+- apply the labels to new systems
+
+As such, only expose labels that apply to systems
 
 ### Standalone `bevy_ecs` usage
 
@@ -153,43 +185,45 @@ Instead of adding plugins to your app, independently add their system sets to yo
 
 ## Implementation strategy
 
-### Code organization
+Small changes:
 
-As plugins no longer depend on `App` information at all, they should be moved into `bevy_ecs` directly.
+1. As plugins no longer depend on `App` information at all, they should be moved into `bevy_ecs` directly.
+2. To improve ergonomics, `App::add_system_set` should be changed to `App::add_systems`, and `SystemSet::with_system` should be shortened to `SystemSet::with`.
+3. If plugins can no longer configure the `App` in arbitrary ways, we need a new, ergonomic way to set up the default schedule and runner for standard Bevy games. The best way to do this is to create two new builder methods on `App`: `App::minimal` and `App::default`, which sets up the default stages, sets the runner and adds the required plugins.
+4. Plugin groups are replaced with simple `Vec<Plugin>>` objects when needed.
 
-### System sets
+### Stageless architecture
 
-The changes proposed are simple ergonomic renaming to reflect the increased prominence of system sets.
-`App::add_system_set` should be changed to `App::add_systems`, and `SystemSet::with_system` should be shortened to `SystemSet::with`.
+1. System ordering between exclusive and parallel systems is defined, as is system ordering between systems that run in different stages.
+2. All system scheduling information must be stored in the system descriptor (which are then stored within system sets) in order to enable a unified approach to configuration. See [Bevy #2736](https://github.com/bevyengine/bevy/pull/2736) for a nearly complete PR on this point.
+3. `Commands` application is re-architected, and is now handled explicitly in an exclusive system.
+This is by default the first system in each sequential stage.
+This system is now labeled so systems can be before or after command application.
+Users can freely add more copies of this system to their schedule.
+4. Systems cannot run "between stages" anymore, and the current "should an exclusive system run at the start of the stage, before commands, or after commands" is removed in favor of simple ordering.
 
-### Resources
+### System ordering mechanics
+
+Under the hood, all three of the system ordering constraints collapse to the standard `.before`-style edges that we know and love in Bevy 0.5.
+
+If-needed edges are evaluated and inserted on the basis of the existing entities at the start of each stage.
+
+At-least-once-separation forces the `before` label to be before the intervening system, and the `after` system to be after the intervening system.
+However, instead of counting the number of instances of that system with that label, only a single dependency is added to the [`dependency_count`.](https://github.com/bevyengine/bevy/blob/9eb1aeee488684ed607d249f883676f3e711a1d2/crates/bevy_ecs/src/schedule/executor_parallel.rs).
+
+### Resource initialization
 
 All resources are added to the app before the schedule begins. The app should panic if duplicate resources are detected at this stage; app users can manually remove them from one or more plugins in a transparent fashion to remove the conflict if needed.
 
-### Schedule overhaul prerequisites
+### Label properties
 
-1. Stage boundaries must be weakened. This API assumes that e.g. system sets can span hard sync points to allow them to be inserted into a given state and that ordering dependencies operate across hard sync points.
-2. All system scheduling information must be stored in the system descriptor (which are then stored within system sets) in order to enable a unified approach to configuration. See [Bevy #2736](https://github.com/bevyengine/bevy/pull/2736) for a nearly complete PR on this point.
-3. Users must be able to configure systems by reference to a particular label. This proposal has previously been called **label properties**.
-
-### Default stages and runner
-
-If plugins can no longer configure the `App` in arbitrary ways, we need a new, ergonomic way to set up the default schedule and runner for standard Bevy games.
-
-The best way to do this is to create two new builder methods on `App`: `App::minimal` and `App::default`, which sets up the default stages, sets the runner and adds the required plugins.
-
-### Plugin groups
-
-Plugin groups now require the simple `IntoPluginGroup` trait with a `into` method that returns a `Vec<Plugin>`.
-
-Alternatively, these could just be completely deprecated due to the move towards `App::default`, which was overwhelmingly their most common use.
+Users must be able to configure systems by reference to a particular label. This proposal has previously been called **label properties**.
 
 ## Drawbacks
 
 1. Plugins are no longer quite as powerful as they were. This is both good and bad: it reduces their expressivity, but reduces the risk that they mysteriously break your app.
 2. Apps can directly manipulate the system ordering of their plugins. This is essential for ensuring that interoperability and configurability issues are resolved, but risks breaking internal guarantees.
-3. Users can accidentally break the requirement for a hard sync point to pass between systems within a plugin as encouraged by the plugin configuration by moving system sets into the same stage. Hard ordering dependencies briefly discussed in the *Future Work* section of this RFC could ensure that this is impossible.
-4. Replacing existing resource values is more verbose, requiring either a startup system or explicitly removing the resource from the pre-existing plugin. This is much more explicit, but could slow down some common use cases such as setting window size.
+3. Replacing existing resource values is more verbose, requiring either a startup system or explicitly removing the resource from the pre-existing plugin. This is much more explicit, but could slow down some common use cases such as setting window size.
 
 ## Rationale and alternatives
 
@@ -244,8 +278,6 @@ There is no reasonable or desirable way to prevent this: instead we should embra
 ## Unresolved questions
 
 1. Should we rename `SystemDescriptor` to something more user-friendly like `ConfiguredSystem`?
-2. What should `hard_before` and `hard_after` be called?
-3. Should `PluginGroup` and `App::add_plugins` be deprecated?
 
 ### Plugin type semantics
 
@@ -367,6 +399,5 @@ This could be extended and improved in the future with:
 
 1. Enhanced system visualization tools.
 2. Hints to manually specify which hard sync points various systems run between.
-3. Stages could (optionally?) be replaced with automatically inferred hard sync points on the basis of hard system ordering dependencies.
-4. Provide a more global, staged analysis of system and resource initialization to reduce or eliminate order-dependence of app initialization, as raised in [Bevy #1255](https://github.com/bevyengine/bevy/issues/1255).
-5. If-needed ordering constraints ([Bevy #2747](https://github.com/bevyengine/bevy/discussions/2747)) will significantly improve the ability to control ordering between plugin system sets without inducing excessive blocking.
+3. A scheduler / app option could be added to automatically infer and insert systems (including command-processing systems) on the basis of at-least-once separation constraints.
+4. At-least-once separation constraints can be used to solve the cache invalidation issues that are blocking the implementation of indexes, as discussed in [Bevy #1205](https://github.com/bevyengine/bevy/discussions/1205).
