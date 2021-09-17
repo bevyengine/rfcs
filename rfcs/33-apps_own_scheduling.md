@@ -33,9 +33,10 @@ The `Plugin` struct stores this data in a straightforward way:
 
 ```rust
 pub struct Plugin {
-  pub systems: HashMap<Box<dyn SystemLabel>, SystemSet>,
-  pub resources: HashSet<Box<dyn Resource>>,
-  // Other plugin-configuration settings ommitted here
+  /// SystemDescriptors are systems which store both the function to be run
+  /// and information about scheduling constraints
+  pub systems: Vec<SystemDescriptor>,
+  pub resources: Vec<Box<dyn Resource>>,
 }
 ```
 
@@ -46,22 +47,27 @@ use bevy::prelude::*;
 use bevy_hypothetical_tui::prelude::*;
 
 fn main(){
-  App::minimal().add_plugin(tui_plugin()).run();
+  App::minimal().add_plugin(TuiPlugin).run();
 }
 ```
 
-The best way to pass `Plugins` to the apps that consume them is by exporting a function that returns a `Plugin` struct with the desired system sets and resources from your crate or module.
+The standard pattern for defining plugins is to export a `MyCrateNamePlugin` struct that implements the `Into<Plugin>` trait.
+In the `into()` method for that trait, create and return a new `Plugin` struct.
 
 ```rust
-fn combat_plugin() -> Plugin {
+struct CombatPlugin;
+
+impl Into<Plugin> for CombatPlugin {
+  fn into(self) -> Plugin {
     Plugin::default()
-      .add_systems("Combat", SystemSet::new().with(attack).with(death));
-      .add_system("PlayerMovement", player_movement)
+      .add_systems(SystemSet::new().with(attack).with(death));
+      .add_system(player_movement)
       .init_resouce::<Score>()
+  }
 }
 
 fn main(){
-  App::default().add_plugin(combat_plugin()).run();
+  App::default().add_plugin(CombatPlugin).run();
 }
 ```
 
@@ -73,21 +79,27 @@ If you want the types that your plugin operates on to be configurable as well, a
 // We may want our physics plugin to work under both f64 and f32 coordinate systems
 trait Floatlike;
 
-fn physics_plugin<T: Floatlike>(realistic: bool) -> Plugin {
-  let mut plugin = Plugin::default().add_system(collision_detection::<T>);
+struct PhysicsPlugin<T: Floatlike> {
+  realistic: bool
+};
 
-  if realistic {
-    plugin.add_system(realistic_gravity);
-  } else {
-    plugin.add_system(platformer_gravity);
+impl Into<Plugin> for PhysicsPlugin {
+  fn into(self) -> Plugin {
+    let mut plugin = Plugin::default().add_system(collision_detection::<T>);
+
+    if realistic {
+      plugin.add_system(realistic_gravity);
+    } else {
+      plugin.add_system(platformer_gravity);
+    }
+
+    plugin
   }
-
-  plugin
 }
 
 fn main(){
   App::default()
-    .add_plugin(physics_plugin::<f64>(true))
+    .add_plugin(PhysicsPlugin::<f64>{realistic: true})
     .run();
 }
 ```
@@ -275,16 +287,26 @@ However, if we insert a system `B` (which may do literally nothing!), and state 
 
 There is no reasonable or desirable way to prevent this: instead we should embrace this by designing a real API to do so.
 
-## Unresolved questions
-
-1. Should we rename `SystemDescriptor` to something more user-friendly like `ConfiguredSystem`?
-
 ### Plugin type semantics
 
-There are several decent options for how plugins should be defined.
+There are several potential options for how plugins should be defined.
 Let's review two different sorts of plugins, one with no config and one with config, and see how the ergonomics compare.
 
 All of these assume a standard `Plugin` struct, allowing us to have structured fields.
+
+**TL;DR:**
+
+1. We would like to export a type, rather than use bare functions.
+   1. This is more discoverable, standardized and prettier than exporting a bare function.
+   2. However, it comes with slightly increased boilerplate for end users.
+2. The `Plugin` trait approach plays very poorly with the desire for a structured data storage.
+   1. We can't both have a nice derive macro for boilerplate and allow users to use a method to define what systems / resources a plugin should include.
+   2. We could bypass this with two traits, one of which is derived and the other is manually implemented...
+   3. Without using two traits, users are forced to call `.add_plugin(ExamplePlugin::default())` each time rather than just adding the bare struct.
+3. Having a unified single type for plugins is convenient to work with internally and easy to teach.
+   1. This approach allows us to use fields, rather than getters and setters, reducing indirection and boilerplate.
+
+As a result, the rest of this RFC uses a standard `Plugin` struct, with crates creating their own types that implement the `Into<Plugin>` trait.
 
 ### Crates define functions that return `Plugin`
 
@@ -394,6 +416,7 @@ This is the closest to our existing model.
 Critically, it also [allows us to force public labels](https://play.rust-lang.org/?version=stable&mode=debug&edition=2018&gist=8f7ca85fb85ef163dc152b40eca743f9) by making the label type an associated type. See [this comment](https://github.com/bevyengine/rfcs/pull/33#issuecomment-921380669) for why this is important.
 
 This is the most verbose and indirect of the options, although the derive macro would help dramatically.
+Unfortunately, we can't both use a derive macro *and* use a method impl on the same trait to define the data that's in the plugin.
 
 ```rust
 mod third_party_crate {
@@ -450,6 +473,10 @@ fn main(){
     .run();
 }
 ```
+
+## Unresolved questions
+
+1. Should we rename `SystemDescriptor` to something more user-friendly like `ConfiguredSystem`?
 
 ## Future possibilities
 
