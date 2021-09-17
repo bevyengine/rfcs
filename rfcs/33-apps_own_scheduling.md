@@ -32,11 +32,11 @@ Plugins can also initialize **resources**, which store data outside of the entit
 The `Plugin` struct stores this data in a straightforward way:
 
 ```rust
-pub struct Plugin {
+struct Plugin {
   /// SystemDescriptors are systems which store both the function to be run
   /// and information about scheduling constraints
-  pub systems: Vec<SystemDescriptor>,
-  pub resources: Vec<Box<dyn Resource>>,
+  systems: Vec<SystemDescriptor>,
+  resources: Vec<Box<dyn Resource>>,
 }
 ```
 
@@ -132,6 +132,43 @@ However, ordering constraints can only be applied *relative* to labels, allowing
   - Use the `between(before: impl SystemLabel, after: impl SystemLabel)` method.
   - The order of arguments in `between` matters; the labels must only be separated by a cleanup system in one direction, rather than both.
   - This methods do not automatically insert systems to enforce this separation: instead, the schedule will panic upon initialization as no valid system execution strategy exists.
+
+### Configuring systems by their label
+
+Systems do not exist in a vacuum: in order to perform useful computations, they must follow certain **constraints**.
+The `SystemDescriptor` type captures this information, storing the underlying function and any labels, ordering constraints, run criteria and state information that may be attached to a particular system.
+
+Note that a single function can be reused, and turned into multiple distinct systems, each with their own `SystemDescriptor` object which is owned by a `Schedule`.
+
+In many cases, systems will be configured locally, either on their own or as part of a system set.
+
+```rust
+struct CombatPlugin;
+
+impl Into<Plugin> for CombatPlugin {
+  fn into(self) -> Plugin {
+    Plugin::default()
+      .add_systems(SystemSet::new().with(attack).with(death).label("Damage"));
+      .add_system(player_movement.after("Damage"))
+      .init_resouce::<Score>()
+  }
+}
+```
+
+However, the `App` can also configure systems by their label, applying the same configuration to all systems that share that label.
+In addition to explicitly given labels, each plugin automatically assigns a shared label to every system that it includes.
+
+```rust
+fn main(){
+  App::default()
+    .add_plugin(CombatPlugin)
+    // This uses the SystemLabel trait to define operations on the manually specified label
+    .configure_label("Damage".after(CoreSystem::Time))
+    // This label is automatically applied based on the type_id of the Plugin struct provided to add_plugin
+    .configure_label(CombatPlugin.get_label().set_run_criteria(FixedTimeStep::(0.5)))
+    .run();
+}
+```
 
 ### Configuring plugins
 
@@ -257,26 +294,51 @@ Taking a structured approach improves things by:
 4. Avoids surprising and non-local effects caused by plugins.
 5. Moves all top-level app-configuration into the main app-building logic, to encourage discoverable, well-organized code.
 
-### Why are system sets the correct granularity to expose?
+### Why do we need to automatically assign a shared label to systems added by a plugin?
 
-If we accept that apps must be allowed to configure when and if the systems in their plugins run, there are four possible options for how we could expose this:
+The basic principle here is that **each system must always have at least one publicly visible label.**
 
-1. Individual systems. These are too granular, and risk ballooning complexity and further breaking of plugin-internal guarantees.
-2. System sets. The most flexible of options: allowing plugin authors to obscure or expose details as desired in order to encourage shared configuration. Configuration applied to a system set can only be applied to all systems in the set at once.
-3. Stages. This heavily discourages system parallelism, and forces a global and linear view of the schedule in order to enforce the desired ordering constraints.
-4. All systems. This is far too coarse, and will prevent users from changing which stage systems runs in as any reasonable configuration API will apply the same operation to every system in a group.
+If a system does not have any labels that are visible to the `App`, **unresolvable system ordering** ambiguities can occur.
+The path to this is straightforward:
 
-System sets are also the most flexible of these options: they can be lumped or split to fit the particular needs of the users and invariants required by the plugin's logic.
+1. A third-party plugin defines some component or resource that they make `pub`.
+2. They operate on this data in one of their systems, that they do not make `pub` and do not assign a `pub` label to.
+3. The user defines another system that operates on the data.
 
-### Why are plugins forced to export a unique label for each system set?
+In this realistic scenario, the user has now created a gameplay-relevant system order ambiguity that they have no way of fixing (short of vendoring the dependency).
+The plugin author could not have foreseen this *particular* interaction.
 
-One of the driving principles behind this design is that plugin authors cannot and should not predict every possible user need for their plugins.
-This leads to either limited configurability, which forces dependency "vendoring" (maintaining a custom fork of the dependency) or internally developing the functionality needed, or excessive configurability, which bloats API surface in ways that are irrelevant to almost all users.
+In order to fix gameplay bugs (and ensure determinism for the use cases that care about it), this ambiguity must be resolved.
+In a stage-centric architecture, this could be done by ensuring that the stage that the user's system is in isn't the same as the stage that the plugin's system is in.
 
-Exported system sets are the atomic unit of plugin configurability, and configuration cannot occur effectively without labels.
-By forcing a one-to-one relationship between exported labels and system sets plugin authors have a clear standard to build towards that simplifies their decisions about what to make public.
+However, this has some serious drawbacks:
 
-### Why should we allow users to add dependencies to external plugin systems?
+1. The stage separation is not actually necessary, pointlessly limiting parallelism.
+2. The fact that a system must live in a particular stage to avoid bugs must be manually maintained through comments and tests.
+3. There may not be a suitable existing stage to satisfy all of the existing constraints, forcing the user to create a special stage *just* to satisfy this requirement.
+
+In an inferred-hard-sync-points architecture, even this escape hatch is gone.
+By providing at least one public label per system, we can avoid this problem without giving the end user unfettered access to the plugin internals.
+
+As a nice benefit, this also allows us to use labels as our primary tool for customizing plugins, without having to use system sets as yet another top-level tool for grouping systems.
+
+### Why is only the `App` allowed to configure systems by their labels?
+
+The principle here is similar to that of orphan rules in Rust (and the reason why a structured `Plugin` API is a good idea): if you allow arbitrary dependencies to change unrelated things in complex ways, things start to break in horrible fashions once your dependency tree grows.
+This is particularly bad under the working model where constraints are write-only.
+
+By contrast, the `App` has context on both the global control flow and is end-user controlled, allowing you to centralize your rules in a single place.
+
+Plugins should almost always be able to configure their own systems correctly without this tool, as they own the `SystemDescriptors` directly.
+In the very rare cases where they require app-level permissions to set some global rule, they can instruct the user to do so in their README or examples.
+
+### Why should we let the `App` remove systems by their label?
+
+If the `App` is allowed to set arbitrary run criteria on systems, they could just add a run criteria that always return `ShouldRun::No`.
+
+This is dumb, so we should support it properly (but with warnings about how there's a high chance that this breaks things).
+
+### Why should we allow users to add dependencies between external plugin systems?
 
 From a design perspective, this is essential to ensure that two third-party plugins can co-exist safely without needing to know about each other's existence in any way.
 
@@ -487,6 +549,5 @@ This is a simple building block that advances the broader scheduler plans being 
 This could be extended and improved in the future with:
 
 1. Enhanced system visualization tools.
-2. Hints to manually specify which hard sync points various systems run between.
-3. A scheduler / app option could be added to automatically infer and insert systems (including command-processing systems) on the basis of at-least-once separation constraints.
-4. At-least-once separation constraints can be used to solve the cache invalidation issues that are blocking the implementation of indexes, as discussed in [Bevy #1205](https://github.com/bevyengine/bevy/discussions/1205).
+2. A scheduler / app option could be added to automatically infer and insert systems (including command-processing systems) on the basis of at-least-once separation constraints.
+3. At-least-once separation constraints can be used to solve the cache invalidation issues that are blocking the implementation of indexes, as discussed in [Bevy #1205](https://github.com/bevyengine/bevy/discussions/1205).
