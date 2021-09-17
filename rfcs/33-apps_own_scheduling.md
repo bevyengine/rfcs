@@ -29,17 +29,6 @@ By moving the ultimate responsibility for scheduling configuration to the centra
 Most of what plugins do is the result of **systems** that they add to your app.
 Plugins can also initialize **resources**, which store data outside of the entity-component data store in a way that can be accessed by other systems.
 
-The `Plugin` struct stores this data in a straightforward way:
-
-```rust
-struct Plugin {
-  /// SystemDescriptors are systems which store both the function to be run
-  /// and information about scheduling constraints
-  systems: Vec<SystemDescriptor>,
-  resources: Vec<Box<dyn Resource>>,
-}
-```
-
 Plugins can be added to your app using the `App::add_plugin` method.
 
 ```rust
@@ -57,9 +46,9 @@ In the `into()` method for that trait, create and return a new `Plugin` struct.
 ```rust
 struct CombatPlugin;
 
-impl Into<Plugin> for CombatPlugin {
-  fn into(self) -> Plugin {
-    Plugin::default()
+impl Plugin for CombatPlugin {
+  fn build(plugin: &mut PluginState) {
+    plugin
       .add_systems(SystemSet::new().with(attack).with(death));
       .add_system(player_movement)
       .init_resouce::<Score>()
@@ -72,34 +61,52 @@ fn main(){
 ```
 
 When designing plugins for a larger audience, you may want to make them configurable in some way to accommodate variations in logic that users might need.
-Doing so is quite straightforward: you can simply add parameters to the plugin-creating function.
-If you want the types that your plugin operates on to be configurable as well, add a generic type parameter to these functions.
+To ensure that plugins can be properly controlled by the editor and customized by the users, all plugin configuration must be done using resources.
 
 ```rust
 // We may want our physics plugin to work under both f64 and f32 coordinate systems
 trait Floatlike;
 
-struct PhysicsPlugin<T: Floatlike> {
-  realistic: bool
+// We can make our plugins generic and specify trait bounds
+pub struct PhysicsPlugin<T: Floatlike> {
+  // Remember to add a phantom data field to satisfy the compiler
+  _phantom: PhantomData<T>,
 };
 
-impl Into<Plugin> for PhysicsPlugin {
-  fn into(self) -> Plugin {
-    let mut plugin = Plugin::default().add_system(collision_detection::<T>);
+struct RealisticGravity(bool);
 
-    if realistic {
-      plugin.add_system(realistic_gravity);
-    } else {
-      plugin.add_system(platformer_gravity);
-    }
+fn realistic_gravity_criteria(realistic_gravity_setting: Res<RealisticGravity>) -> ShouldRun {
+  if RealisticGravity.0 {
+    ShouldRun::Yes
+  } else {
+    ShouldRun::No
+  }
+}
 
+fn platformer_gravity_criteria(realistic_gravity_setting: Res<RealisticGravity>) -> ShouldRun {
+  if RealisticGravity.0 {
+    ShouldRun::No
+  } else {
+    ShouldRun::Yes
+  }
+}
+
+impl Plugin for PhysicsPlugin<T> {
+  fn build(plugin: &mut PluginState) {
+    plugin
+    .insert_resource(RealisticCollisionDetection)
+    .add_system(collision_detection::<T>.label("Collision detection"))
+    // These systems share a label to ensure that other systems will be scheduled correctly
+    // regardless of the configuration chosen
+    .add_system(realistic_gravity::<T>.set_run_criteria(realistic_gravity_criteria).label("Gravity"))
+    .add_system(platformer_gravity::<T>.set_run_criteria(platformer_gravity_criteria).label("Gravity"));
     plugin
   }
 }
 
 fn main(){
   App::default()
-    .add_plugin(PhysicsPlugin::<f64>{realistic: true})
+    .add_plugin(PhysicsPlugin::<f64>)
     .run();
 }
 ```
@@ -145,9 +152,9 @@ In many cases, systems will be configured locally, either on their own or as par
 ```rust
 struct CombatPlugin;
 
-impl Into<Plugin> for CombatPlugin {
-  fn into(self) -> Plugin {
-    Plugin::default()
+impl Plugin for CombatPlugin {
+  fn build(plugin: &mut PluginState) -> Plugin {
+    plugin
       .add_systems(SystemSet::new().with(attack).with(death).label("Damage"));
       .add_system(player_movement.after("Damage"))
       .init_resouce::<Score>()
@@ -237,9 +244,90 @@ Instead of adding plugins to your app, independently add their system sets to yo
 Small changes:
 
 1. As plugins no longer depend on `App` information at all, they should be moved into `bevy_ecs` directly.
-2. To improve ergonomics, `App::add_system_set` should be changed to `App::add_systems`, and `SystemSet::with_system` should be shortened to `SystemSet::with`.
-3. If plugins can no longer configure the `App` in arbitrary ways, we need a new, ergonomic way to set up the default schedule and runner for standard Bevy games. The best way to do this is to create two new builder methods on `App`: `App::minimal` and `App::default`, which sets up the default stages, sets the runner and adds the required plugins.
-4. Plugin groups are replaced with simple `Vec<Plugin>>` objects when needed.
+2. If plugins can no longer configure the `App` in arbitrary ways, we need a new, ergonomic way to set up the default schedule and runner for standard Bevy games. The best way to do this is to create two new builder methods on `App`: `App::minimal` and `App::default`, which sets up the default stages, sets the runner and adds the required plugins.
+3. Plugin groups are replaced with simple `Vec<Plugin>>` objects when needed.
+
+### Plugin architecture
+
+The ergonomics and semantics here are quite constrained. The following design:
+
+- exports a type for users to consume
+- allows users to pass in the struct to `.add_plugin`
+- ensures each system has at least one label
+- creates a structured API that limits the power of plugins
+- allows us to later add more required fields to plugins (mostly without breaking the existing ecosystem)
+
+Machinery:
+
+```rust
+// This trait must be implemented for all Plugins
+pub trait Plugin: 'static {
+  // This method is automatically called when plugins are added to the app
+  pub fn build(plugin: &mut PluginState);
+
+  /// Automatically generates a unique label based on the type implementing Plugin
+  pub fn get_label() -> PluginLabel {
+    PluginLabel(TypeId::of::<Self>())
+  }
+}
+
+/// A label corresponding to the type of the Plugin is automatically added
+/// to each system added by that plugin when `App::add_plugin` is called
+#[derive(SystemLabel, Debug, Clone, PartialEq, Eq, Hash)]
+pub struct PluginLabel(TypeId);
+
+#[derive(Default)]
+pub struct PluginState {
+    systems: Vec<SystemDescriptor>,
+    system_set: Vec<SystemSet>,
+    resources: Vec<Box<dyn Resource>>,
+    /* other plugin config fields here */
+}
+
+impl PluginState {
+    pub fn new<P: Plugin>() -> Self {
+        Self {
+            system_sets: Vec::new(),
+            systems: Vec::new(),
+            label: PluginLabel::of::<P>(),
+        }
+    }
+    pub fn apply(self, app: &mut App) {
+        for system in self.systems {
+            app.add_system(system.label(self.label.clone()))
+        }
+
+        for system_set in self.system_sets {
+            app.add_system_set(system_set.label(self.label.clone()))
+        }
+    }
+
+    /* other plugin builder functions here */
+}
+```
+
+Example:
+
+```rust
+pub struct CustomPlugin;
+
+impl Plugin for CustomPlugin {
+    // Most existing Bevy code should be easily portable;
+    // only the function signature of `build` will change
+    fn build(plugin: &mut PluginState) {
+        plugin
+            .add_system(hello_world)
+            .add_system_set(SystemSet::new().with_system(velocity).with_system(movement))
+            .init_resource::<Thing>()
+    }
+}
+
+fn main (){
+  App::default()
+    .add_plugin(CustomPlugin)
+    .configure_label(CustomPlugin.get_label().after(CoreSystem::Time))
+}
+```
 
 ### Stageless architecture
 
@@ -349,192 +437,12 @@ However, if we insert a system `B` (which may do literally nothing!), and state 
 
 There is no reasonable or desirable way to prevent this: instead we should embrace this by designing a real API to do so.
 
-### Plugin type semantics
+## Why should plugins be configured by setting a resource?
 
-There are several potential options for how plugins should be defined.
-Let's review two different sorts of plugins, one with no config and one with config, and see how the ergonomics compare.
+Using resources to configure plugins provides a clear, unified tool for setting plugin configuration.
+This will be particularly valuable when working on editor support, or when building complex trees of plugin dependencies.
 
-All of these assume a standard `Plugin` struct, allowing us to have structured fields.
-
-**TL;DR:**
-
-1. We would like to export a type, rather than use bare functions.
-   1. This is more discoverable, standardized and prettier than exporting a bare function.
-   2. However, it comes with slightly increased boilerplate for end users.
-2. The `Plugin` trait approach plays very poorly with the desire for a structured data storage.
-   1. We can't both have a nice derive macro for boilerplate and allow users to use a method to define what systems / resources a plugin should include.
-   2. We could bypass this with two traits, one of which is derived and the other is manually implemented...
-   3. Without using two traits, users are forced to call `.add_plugin(ExamplePlugin::default())` each time rather than just adding the bare struct.
-3. Having a unified single type for plugins is convenient to work with internally and easy to teach.
-   1. This approach allows us to use fields, rather than getters and setters, reducing indirection and boilerplate.
-
-As a result, the rest of this RFC uses a standard `Plugin` struct, with crates creating their own types that implement the `Into<Plugin>` trait.
-
-### Crates define functions that return `Plugin`
-
-This is the simplest option, but looks quite a bit different from our current API.
-
-```rust
-mod third_party_crate {
-  pub fn simple_plugin() -> Plugin {
-    Plugin::default()
-  }
-  
-  pub struct MyConfig(pub bool);
-
-  pub fn configured_plugin(my_config: MyConfig) -> Plugin {
-    Plugin::default().insert_resource(MyConfig(my_config))
-  }
-}
-
-fn main(){
-  App::new()
-    .add_plugin(simple_plugin())
-    .add_plugin(configured_plugin(MyConfig(true)))
-    .run();
-}
-```
-
-### Crates define structs that implement `Into<Plugin>`
-
-Slightly more convoluted, but lets us pass in structs rather than calling functions.
-
-If a user cares about allowing reuse of a particular plugin-defining struct, they can `impl Into<Plugin> for &ConfiguredPlugin`.
-
-```rust
-mod third_party_crate {
-  pub struct SimplePlugin;
-
-  impl Into<Plugin> for SimplePlugin {
-    fn into(self) -> Plugin {
-      Plugin::default()
-    }
-  }
-
-  pub struct MyConfig(pub bool);
-
-  pub struct ConfiguredPlugin {
-    pub my_config: MyConfig, 
-  }
-
-  impl Into<Plugin> for ConfiguredPlugin {
-    fn into(self) -> Plugin {
-      Plugin::default().insert_resource(self.my_config)
-    }
-  }
-
-  fn third_party_plugin() -> Plugin {
-    Plugin::default()
-  }
-}
-
-fn main(){
-  App::new()
-    .add_plugin(third_party_plugin())
-    .run();
-}
-```
-
-### Crates define structs that implement `MakePlugin`
-
-Compared to the `Into<Plugin>` solution above, this would enable us to write our own derive macro for the common case of "turn all my fields into inserted resources".
-
-On the other hand, this is less idiomatic and more elaborate.
-
-```rust
-mod third_party_crate {
-  pub struct SimplePlugin;
-
-  impl MakePlugin for SimplePlugin {
-    fn make(self) -> Plugin {
-      Plugin::default()
-    }
-  }
-
-  pub struct MyConfig(pub bool);
-
-  pub struct ConfiguredPlugin {
-    pub my_config: MyConfig, 
-  }
-
-  impl MakePlugin for ConfiguredPlugin {
-    fn make(self) -> Plugin {
-      Plugin::default().insert_resource(self.my_config)
-    }
-  }
-}
-
-fn main(){
-  App::new()
-    .add_plugin(SimplePlugin)
-    .add_plugin(ConfiguredPlugin(MyConfig(true)))
-    .run();
-}
-```
-
-### Crates export structs that impl `Plugin`
-
-This is the closest to our existing model.
-Critically, it also [allows us to force public labels](https://play.rust-lang.org/?version=stable&mode=debug&edition=2018&gist=8f7ca85fb85ef163dc152b40eca743f9) by making the label type an associated type. See [this comment](https://github.com/bevyengine/rfcs/pull/33#issuecomment-921380669) for why this is important.
-
-This is the most verbose and indirect of the options, although the derive macro would help dramatically.
-Unfortunately, we can't both use a derive macro *and* use a method impl on the same trait to define the data that's in the plugin.
-
-```rust
-mod third_party_crate {
-  #[derive(Default)]
-  pub struct SimplePlugin{
-    label_type: PhantomData<ThirdPartyLabel>,
-    systems: HashMap<ThirdPartyLabel, SystemSet>,
-    resources: HashSet<Box<dyn Resource>>,
-  }
-
-  pub enum ThirdPartyLabel {
-    A,
-    B,
-  }
-
-  // This is shown for demonstration purposes only;
-  // a derive macro would be used instead
-  impl Plugin for SimplePlugin {
-    type Label: ThirdPartyLabel;
-
-    fn systems(&mut self) -> &mut HashMap<ThirdPartyLabel, SystemSet> {
-      &mut self.systems
-    }
-
-    fn resources(&mut self) -> &mut HashSet<Box<dyn Resource>> {
-      &mut self.resources
-    }
-
-    // Other convenience methods elided here
-    // as the derive macro will virtually always be used
-  }
-
-  #[derive(Default)]
-  pub struct MyConfig(pub bool);
-
-  #[derive(Plugin, Default)]
-  pub struct ConfiguredPlugin {
-    label_type: PhantomData<ThirdPartyLabel>,
-    systems: HashMap<ThirdPartyLabel, SystemSet>,
-    resources: HashSet<Box<dyn Resource>>,
-  }
-
-  impl ConfiguredPlugin {
-    fn new(my_config: MyConfig) -> Self {
-      Self::default().insert_resource(my_config)
-    }
-  }
-}
-
-fn main(){
-  App::new()
-    .add_plugin(SimplePlugin::default())
-    .add_plugin(ConfiguredPlugin::new(MyConfig(true)))
-    .run();
-}
-```
+It also cleans up the ergonomics of the `Plugin` machinery substantially.
 
 ## Unresolved questions
 
@@ -551,3 +459,5 @@ This could be extended and improved in the future with:
 1. Enhanced system visualization tools.
 2. A scheduler / app option could be added to automatically infer and insert systems (including command-processing systems) on the basis of at-least-once separation constraints.
 3. At-least-once separation constraints can be used to solve the cache invalidation issues that are blocking the implementation of indexes, as discussed in [Bevy #1205](https://github.com/bevyengine/bevy/discussions/1205).
+4. `ShouldRun` could be cleaned up and moved back to simple binary logic. More helpers could be added for common plugin use cases.
+5. Systems could be fully added and removed from the schedule based on run-time information, keeping the schedule clean when configuring plugins with resources.
