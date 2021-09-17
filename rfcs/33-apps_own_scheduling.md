@@ -477,6 +477,8 @@ fn main(){
 ## Unresolved questions
 
 1. Should we rename `SystemDescriptor` to something more user-friendly like `ConfiguredSystem`?
+2. How do we handle [plugins that need to extend other resources at initialization](https://github.com/bevyengine/rfcs/pull/33#discussion_r709654419)?
+3. How do we ensure that [adding run criteria won't break invariants](https://github.com/bevyengine/rfcs/pull/33#discussion_r709655879)?
 
 ## Future possibilities
 
