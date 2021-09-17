@@ -118,7 +118,7 @@ However, ordering constraints can only be applied *relative* to labels, allowing
 - **At-least-once separation:** Systems in set `A` cannot be started if a system in set `B` has been started until at least one system with the label `S` has completed. Systems from `A` and `B` are incompatible with each other.
   - This is most commonly used when commands created by systems in `A` must be processed before systems in `B` can run correctly. `CoreLabels::ApplyCommands` is the label used for the exclusive system that applies queued commands that is typically added to the beginning of each sequential stage.
   - Use the `between(before: impl SystemLabel, after: impl SystemLabel)` method.
-  - The order of arguments in `between` matters; if 
+  - The order of arguments in `between` matters; the labels must only be separated by a cleanup system in one direction, rather than both.
   - This methods do not automatically insert systems to enforce this separation: instead, the schedule will panic upon initialization as no valid system execution strategy exists.
 
 ### Configuring plugins
@@ -175,7 +175,7 @@ Exposing system labels via `pub` allows anyone with access to:
 - add new run criteria to systems with that label
 - apply the labels to new systems
 
-As such, only expose labels that apply to systems
+As such, try to only expose labels that apply to systems that can safely be enabled or disabled as a group.
 
 ### Standalone `bevy_ecs` usage
 
