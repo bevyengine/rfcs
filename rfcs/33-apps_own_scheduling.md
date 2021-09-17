@@ -378,15 +378,75 @@ mod third_party_crate {
       Plugin::default().insert_resource(self.my_config)
     }
   }
+}
 
-  fn third_party_plugin() -> Plugin {
-    Plugin::default()
+fn main(){
+  App::new()
+    .add_plugin(SimplePlugin)
+    .add_plugin(ConfiguredPlugin(MyConfig(true)))
+    .run();
+}
+```
+
+### Crates export structs that impl `Plugin`
+
+This is the closest to our existing model.
+Critically, it also [allows us to force public labels](https://play.rust-lang.org/?version=stable&mode=debug&edition=2018&gist=8f7ca85fb85ef163dc152b40eca743f9) by making the label type an associated type. See [this comment](https://github.com/bevyengine/rfcs/pull/33#issuecomment-921380669) for why this is important.
+
+This is the most verbose and indirect of the options, although the derive macro would help dramatically.
+
+```rust
+mod third_party_crate {
+  #[derive(Default)]
+  pub struct SimplePlugin{
+    label_type: PhantomData<ThirdPartyLabel>,
+    systems: HashMap<ThirdPartyLabel, SystemSet>,
+    resources: HashSet<Box<dyn Resource>>,
+  }
+
+  pub enum ThirdPartyLabel {
+    A,
+    B,
+  }
+
+  // This is shown for demonstration purposes only;
+  // a derive macro would be used instead
+  impl Plugin for SimplePlugin {
+    type Label: ThirdPartyLabel;
+
+    fn systems(&mut self) -> &mut HashMap<ThirdPartyLabel, SystemSet> {
+      &mut self.systems
+    }
+
+    fn resources(&mut self) -> &mut HashSet<Box<dyn Resource>> {
+      &mut self.resources
+    }
+
+    // Other convenience methods elided here
+    // as the derive macro will virtually always be used
+  }
+
+  #[derive(Default)]
+  pub struct MyConfig(pub bool);
+
+  #[derive(Plugin, Default)]
+  pub struct ConfiguredPlugin {
+    label_type: PhantomData<ThirdPartyLabel>,
+    systems: HashMap<ThirdPartyLabel, SystemSet>,
+    resources: HashSet<Box<dyn Resource>>,
+  }
+
+  impl ConfiguredPlugin {
+    fn new(my_config: MyConfig) -> Self {
+      Self::default().insert_resource(my_config)
+    }
   }
 }
 
 fn main(){
   App::new()
-    .add_plugin(third_party_plugin())
+    .add_plugin(SimplePlugin::default())
+    .add_plugin(ConfiguredPlugin::new(MyConfig(true)))
     .run();
 }
 ```
