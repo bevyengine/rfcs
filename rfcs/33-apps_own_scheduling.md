@@ -245,7 +245,6 @@ Small changes:
 
 1. As plugins no longer depend on `App` information at all, they should be moved into `bevy_ecs` directly.
 2. If plugins can no longer configure the `App` in arbitrary ways, we need a new, ergonomic way to set up the default schedule and runner for standard Bevy games. The best way to do this is to create two new builder methods on `App`: `App::minimal` and `App::default`, which sets up the default stages, sets the runner and adds the required plugins.
-3. Plugin groups are replaced with simple `Vec<Plugin>>` objects when needed.
 
 ### Plugin architecture
 
@@ -449,6 +448,7 @@ It also cleans up the ergonomics of the `Plugin` machinery substantially.
 1. Should we rename `SystemDescriptor` to something more user-friendly like `ConfiguredSystem`?
 2. How do we handle [plugins that need to extend other resources at initialization](https://github.com/bevyengine/rfcs/pull/33#discussion_r709654419)?
 3. How do we ensure that [adding run criteria won't break invariants](https://github.com/bevyengine/rfcs/pull/33#discussion_r709655879)?
+4. Do we still need plugin groups at all? Can we replace them with a simple standard collection? The ergonomics matter much less with `App::default()` initialization.
 
 ## Future possibilities
 
