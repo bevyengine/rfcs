@@ -40,8 +40,7 @@ fn main(){
 }
 ```
 
-The standard pattern for defining plugins is to export a `MyCrateNamePlugin` struct that implements the `Into<Plugin>` trait.
-In the `into()` method for that trait, create and return a new `Plugin` struct.
+The standard pattern for defining plugins is to export a `MyCrateNamePlugin` struct that implements the `Plugin` trait.
 
 ```rust
 struct CombatPlugin;
