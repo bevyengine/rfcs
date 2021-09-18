@@ -177,41 +177,42 @@ fn main(){
 }
 ```
 
-### Configuring plugins
+### Configuring systems added by plugins
 
-When you're creating Bevy apps, you can read, add, remove and configure both systems and resources stored within a plugin that you're using, allowing you to fit it into your app's needs using the standard `HashMap` and `HashSet` APIs.
-The methods shown above (such as `.add_system`) are simply convenience methods that manipulate these public fields.
+Carefully configuring the systems added by your plugins can be critical for fitting the logic defined by third-party crates to fit the unique needs and control flow of your app. You might want to:
 
-Note that each system set that you include requires its own label to allow other plugins to control their order relative to that system set, and allows the central `App` to further configure them as a unit if needed.
+1. Make sure that one of your systems run before a third-party system.
+2. Control the relative order of two conflicting third-party systems.
+3. Add a run criteria to disable a plugin's system when certain criteria are met.
+4. Change which state(s) a plugins' systems runs in.
+5. Add a plugin's systems to a nested schedule that runs repeatedly each frame.
+6. Optimize the schedule strategy of a large schedule containing both first and third-party plugins.
 
-System sets don't store simple `Systems`: instead they store fully configured `SystemDescriptor` objects which store information about when and if the system can run. This includes:
+However, Bevy enforces **plugin privacy rules**, and does not allow you to freely dissect and reconfigure every systems provided by third-party plugins. These rules are:
 
-- which stage a system runs in
-- any system ordering dependencies a system may have
-- any run criteria attached to the system
-- which states the system is executed in
-- the labels a system has
+1. System ordering constraints and labels cannot be removed, although you can add new ones. Schedules will panic if ordering constraints cannot be satisfied.
+2. The app can only configure plugins' systems by applying configuration changes to every system in that label.
+3. Not all labels are public: you can only apply a label to new systems, or configure systems by that label, if the label is publicly exported.
 
-Without any configuration, these systems are designed to operate as intended when the Bevy app is configured in the standard fashion (using `App::default()`). Each system will belong to the standard stage that the plugin author felt fit best, and ordering between other members of the plugins and Bevy's default systems should already be set up for you.
-For most plugins and most users, this strategy should just work out of the box.
+You can think of these rules as an extra layer of safety-through-constraints provided by the creators of the plugins you are using, much like Rust's type system.
+If you're coming to Bevy from a traditional game engine, these constraints may feel dangerous and limiting to you.
+However, there are very good reasons that they exist:
 
-When creating your `App`, you can add additional systems and resources directly to the app, or choose to remove system sets or resources from the plugins you are using by directly using the appropriate `HashSet` and `HashMap` methods.
-Removing resources in this way can be helpful when you want to override provided initial values, or if you need to resolve a conflict where two of your dependencies attempt to set a resource's value in conflicting way.
+1. System ordering constraints are powerful, flexible and minimal. If these constraints are violated, you are likely to get serious, hard-to-detect, non-deterministic bugs in your code that you will not discover until the night before launch.
+2. Tying your design to individual systems, rather than carefully exposed sets of systems, makes it much harder to upgrade your code base as the plugin you are depending on evolves. This is problematic for plugin authors too, as this tight coupling makes re-architecting their code (even to split, merge or rename systems) expensive as they need to worry about breaking their users' apps.
+3. Systems in Bevy are generally rather small and granular due to the benefits for code modularity and parallelizability that it offers. Separating closely-interlocked systems (with distinct run criteria, or by moving them into different states or schedules) will tend to result in complete but bizarre failure.
+4. Manually specifying the precise order and stage arrangement increases the maintenance costs of your code base in a quadratic fashion. Each time you organize your schedule manually (for performance or to fix a bug), you risk creating new problems and create an undocumented, unenforced dependency that future maintainers cannot break.
+5. Rust's own privacy rules will not (sanely) allow Bevy to force all system label types to be public, even if we tried.
 
-More commonly though, you'll be configuring the system sets using the labels that they were given by their plugin.
-When system sets are added to a `Plugin`, the provided label is applied to all systems within that set, allowing other systems to specify their order relative to that system set. Note that *all* systems that share a label must complete before the scheduler allows their dependencies to proceed.
+There are also some powerful but subtle tools to work around these limitations:
 
-The `App` can also configure systems provided by its plugins using the `App::configure_label` method.
-There are four important limitations to this configurability:
+1. You can remove an existing group of systems by their public label, and then replace them with a new set of your own systems that perform the same job.
+2. System ordering constraints (usually) cease to have any effect if no systems with that label exist in the schedule. You can remove (or disable) any system by its label.
+3. Every system has at least one label (other than those added directly to the app that you control), which is automatically assigned to it by its `Plugin` when it is added to the app.
 
-1. Systems can only be configured as a group, on the basis of their public labels.
-2. Systems can only be removed from plugins as a complete system set.
-3. `configure_label` cannot remove labels from systems.
-4. `configure_label` cannot remove ordering dependencies, only add them.
+Now, let's take a look at how we can use `App::configure_label` to tackle those use cases we mentioned at the top of this section:
 
-These limitations are designed to enable plugin authors to carefully control how their systems can be configured in order to avoid subtly breaking internal guarantees.
-If you change the configuration of the systems in such a way that ordering dependencies cannot be satisfied (by creating an impossible cycle or breaking a hard system ordering rule by changing the stage in which a system runs), the app's schedule will panic when it is run.
-Duplicate and missing resources will also cause a panic when the app is run.
+TODO: Demonstrate how these examples work.
 
 ### Writing plugins to be configured
 
@@ -350,10 +351,6 @@ However, instead of counting the number of instances of that system with that la
 ### Resource initialization
 
 All resources are added to the app before the schedule begins. The app should panic if duplicate resources are detected at this stage; app users can manually remove them from one or more plugins in a transparent fashion to remove the conflict if needed.
-
-### Label properties
-
-Users must be able to configure systems by reference to a particular label. This proposal has previously been called **label properties**.
 
 ## Drawbacks
 
