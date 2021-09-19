@@ -1,0 +1,144 @@
+# Feature Name: `system-graph-flavors`
+
+## Summary
+
+Several new, higher-level system ordering constraints are introduced to allow users to describe more complex rules that the scheduler must obey.
+These constraints limit the set of possible paths through the schedule and serve as initialization-time assertions on the schedule that protect against accidental misconfiguration.
+
+## Motivation
+
+While the existing strict ordering constraints implemented as `.before` and `.after` are an excellent foundation,
+more complex constraints are needed to elegantly express and enforce rules about how systems relate to each other.
+
+In order to manage the complexity of code bases with hundreds of systems, these constraints need to be both minimal and local.
+Each constraint should have a good, clear reason to exist.
+
+This is particularly critical in the context of [plugin configurability](https://github.com/bevyengine/rfcs/pull/33), where plugin authors need a powerful toolset of constraints in order to ensure that their logic is not broken when reconfigured by the end user.
+
+## User-facing explanation
+
+### Scheduling 101
+
+Bevy schedules are composed of stages, which have two phases: parallel and sequential.
+The parallel phase of a stage always runs first, then is followed by a sequential phase which applies any commands generated in the parallel phase.
+
+During **sequential phases**, each system can access the entire world freely but only one can run at a time.
+Exclusive systems can only be added to the sequential phase while parallel systems can be added to either phase.
+
+During **parallel phases**, systems are allowed to operate in parallel, carefully dividing up access to the `World` according to the data accesses requested by their system parameters to avoid undefined behavior.
+
+Without any user-provided ordering constraints, systems within the same parallel phase can be executed in any order so long as Rust's ownership semantics are obeyed.
+That means that a **waiting** (scheduled to run during this stage) system cannot be started if any **active** (currently running) systems are **incompatible** (cannot be scheduled at the same time) if they have conflicting data access.
+This is helpful for performance reasons, but, as the precise order in which systems start and complete is nondeterministic, can result in logic bugs or inconsistencies due to **system order ambiguities**.
+
+### System ordering constraints
+
+To help you eliminate ambiguities, eliminate delays and enforce **logical invariants** about how your systems work together, Bevy provides a rich toolbox of **system ordering constraints**.
+
+There are several **flavors** of system ordering constraints, each with their own high-level behavior:
+
+- **Strict ordering:** Systems from set `A` cannot be started while any system from set `B` are waiting or active.
+  - Simple and explicit.
+  - Use the `before(label: impl SystemLabel)` or `after(label: impl SystemLabel)` methods to set this behavior.
+- **If-needed ordering:** A given system in set `A` cannot be started while any incompatible system from set `B` is waiting or active.
+  - Usually, if-needed ordering is the correct tool for ordering groups of systems as it avoids unnecessary blocking.
+  - If systems in `A` use interior mutability, if-needed ordering may result in non-deterministic outcomes.
+  - Use `before_if_needed(label: impl SystemLabel)` or `after_if_needed(label: impl SystemLabel)`.
+- **At-least-once separation:** Systems in set `A` cannot be started if a system in set `B` has been started until at least one system with the label `S` has completed. Systems from `A` and `B` are incompatible with each other.
+  - This is most commonly used when commands created by systems in `A` must be processed before systems in `B` can run correctly.
+  - Use the `between(before: impl SystemLabel, after: impl SystemLabel)`, `before_and_seperated_by(before: impl SystemLabel, seperated_by: impl SystemLabel)` method or its `after` analogue.
+  - `hard_before` and `hard_after` are syntactic sugar for the common case where the separating system label is `CoreSystem::ApplyCommands`, the label used for the exclusive system that applies queued commands that is typically added to the beginning of each sequential stage.
+  - The order of arguments in `between` matters; the labels must only be separated by a cleanup system in one direction, rather than both.
+  - This methods do not automatically insert systems to enforce this separation: instead, the schedule will panic upon initialization as no valid system execution strategy exists.
+  - At-least-once separation also applies a special form of run criteria overriding (see below): if a pair of `before` and `after` systems are enabled during a schedule pass, and all intervening `between` systems are disabled, the last intervening `between` system is forcibly enabled to ensure that cleanup occurs
+
+System ordering constraints operate across stages, but can only see systems within the same schedule.
+
+A schedule will panic on initialization if it is **unsatisfiable**, that is, if its system ordering constraints cannot all be met at once.
+This may occur if:
+
+1. A cyclic dependency exists. For example, `A` must be before `B` and `B` must be before `A` (or some more complex transitive issue exists).
+2. Two systems are at-least-once separated and no separating system exists that could be scheduled to satisfy the constraint.
+
+System ordering constraints cannot change which stage systems run in or add systems: you must fix these problems manually in such a way that the schedule becomes satisfiable.
+
+### Run criteria overrides
+
+Bevy provides tools to ensure that critical clean-up work is not missed when systems are enabled and disabled using run criteria.
+
+Suppose we have a system `A` that does some work, but leaves the `World` in a messy state that will cause bugs or undesirable side effects if not handled properly.
+System `B` is responsible for cleaning up this work, and should run during every pass of the schedule loop that `A` does.
+
+We can ensure that this occurs by adding a run criteria to `B` that takes `A`'s run status into account: if `A` should run, `B` must also run, regardless of what its other run criteria say.
+Otherwise, `B`'s original run criteria behave as usual.
+Often, `B` will have a blanket run criteria that states that it should never run, and is only run when the override requires it.
+
+As a user, you can add this rule to your systems and system sets by using the `.overrides(overridden_system: impl SystemLabel)` or `overridden_by(overriding_system: impl SystemLabel)` methods.
+Bevy also provides a standard run criteria for the "this system should never run unless overridden" use case: add `.with_run_criteria(NeverRun)` to these systems.
+
+## Implementation strategy
+
+Simple changes:
+
+1. Commands should be processed in a standard exclusive system with the `CoreSystem::ApplyCommands` label.
+
+### Strict ordering
+
+This algorithm is a restatement of the existing approach, as added in [Bevy #1144](https://github.com/bevyengine/bevy/pull/1144).
+It is provided here to establish a foundation on which we can build other ordering constraints.
+
+TODO: describe algorithm.
+
+### If-needed ordering
+
+TODO: describe the algorithm.
+
+### At-least-once separation
+
+TODO: describe the algorithm.
+
+### Schedules own systems
+
+Currently, each `Stage` owns the systems in it.
+This creates painful divisions that make it challenging or impossible to do things like check dependencies between systems in different stages.
+
+Instead, the `Schedule` should own the systems in it, and constraint-satisfaction logic should be handled at the schedule-level.
+
+### Cross-stage system ordering constraint semantics
+
+### Run criteria overrides
+
+TODO: write this code.
+
+## Drawbacks
+
+1. This adds significant opt-in end-user complexity (especially for plugin authors) over the simple and explicit `.before` and `.after` that already exist or use of stages (or direct linear ordering).
+2. Additional constraints will increase the complexity (and performance cost) of the scheduler.
+
+## Rationale and alternatives
+
+TODO: complete me.
+
+## Prior art
+
+The existing scheduler and basic strict ordering constraints are discussed at length in [Bevy #1144](https://github.com/bevyengine/bevy/pull/1144).
+
+Additional helpful technical foundations and analysis can be found in the [linked blog post](https://ratysz.github.io/article/scheduling-1/) by @Ratysz.
+
+## Unresolved questions
+
+1. How *precisely* should schedules store the systems in them?
+
+## Future possibilities
+
+These additional constraints lay the groundwork for:
+
+1. More elegant, efficient versions of higher-level APIs such as a [system graph specification].
+2. Techniques for automatic schedule construction, where the scheduler is permitted to infer hard sync points and insert cleanup systems as needed to meet the constraints posed.
+3. [Robust schedule-configurable plugins](https://github.com/bevyengine/rfcs/pull/33).
+
+In the future, pre-computed schedules that are loaded from disk could help mitigate some of the startup performance costs of this analysis.
+Such an approach would only be worthwhile for production apps.
+
+The maintainability of system ordering constraints can be enhanced in the future with the addition of tools that serve to verify that they are still useful.
+For example, if-needed ordering constraints that can never produce any effect on system ordering could be flagged at schedule initialization time and reported as a warning.
