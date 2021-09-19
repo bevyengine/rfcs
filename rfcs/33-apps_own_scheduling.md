@@ -82,14 +82,6 @@ fn realistic_gravity_criteria(realistic_gravity_setting: Res<RealisticGravity>) 
   }
 }
 
-fn platformer_gravity_criteria(realistic_gravity_setting: Res<RealisticGravity>) -> ShouldRun {
-  if RealisticGravity.0 {
-    ShouldRun::No
-  } else {
-    ShouldRun::Yes
-  }
-}
-
 impl Plugin for PhysicsPlugin<T> {
   fn build(plugin: &mut PluginState) {
     plugin
@@ -98,7 +90,7 @@ impl Plugin for PhysicsPlugin<T> {
     // These systems share a label to ensure that other systems will be scheduled correctly
     // regardless of the configuration chosen
     .add_system(realistic_gravity::<T>.set_run_criteria(realistic_gravity_criteria).label("Gravity"))
-    .add_system(platformer_gravity::<T>.set_run_criteria(platformer_gravity_criteria).label("Gravity"));
+    .add_system(platformer_gravity::<T>.set_run_criteria(!realistic_gravity_criteria).label("Gravity"));
     plugin
   }
 }
@@ -109,6 +101,10 @@ fn main(){
     .run();
 }
 ```
+
+Even if you're just using `bevy_ecs`, plugins can be a useful tool for enabling code reuse and managing dependencies.
+
+Instead of adding plugins to your app, independently add their system sets to your schedule and their resources to your world.
 
 ### System ordering in Bevy
 
@@ -134,8 +130,9 @@ However, ordering constraints can only be applied *relative* to labels, allowing
   - If systems in `A` use interior mutability, if-needed ordering may result in non-deterministic outcomes.
   - Use `before_if_needed(label: impl SystemLabel)` or `after_if_needed(label: impl SystemLabel)`.
 - **At-least-once separation:** Systems in set `A` cannot be started if a system in set `B` has been started until at least one system with the label `S` has completed. Systems from `A` and `B` are incompatible with each other.
-  - This is most commonly used when commands created by systems in `A` must be processed before systems in `B` can run correctly. `CoreLabels::ApplyCommands` is the label used for the exclusive system that applies queued commands that is typically added to the beginning of each sequential stage.
-  - Use the `between(before: impl SystemLabel, after: impl SystemLabel)` method.
+  - This is most commonly used when commands created by systems in `A` must be processed before systems in `B` can run correctly.
+  - Use the `between(before: impl SystemLabel, after: impl SystemLabel)`, `before_and_seperated_by(before: impl SystemLabel, seperated_by: impl SystemLabel)` method or its `after` analogue.
+  - `hard_before` and `hard_after` are syntactic sugar for the common case where the separating system label is `CoreSystem::ApplyCommands`, the label used for the exclusive system that applies queued commands that is typically added to the beginning of each sequential stage.
   - The order of arguments in `between` matters; the labels must only be separated by a cleanup system in one direction, rather than both.
   - This methods do not automatically insert systems to enforce this separation: instead, the schedule will panic upon initialization as no valid system execution strategy exists.
 
@@ -209,35 +206,176 @@ There are also some powerful but subtle tools to work around these limitations:
 2. System ordering constraints (usually) cease to have any effect if no systems with that label exist in the schedule. You can remove (or disable) any system by its label.
 3. Every system has at least one label (other than those added directly to the app that you control), which is automatically assigned to it by its `Plugin` when it is added to the app.
 
-Now, let's take a look at how we can use `App::configure_label` to tackle those use cases we mentioned at the top of this section:
+Now, let's take a look at how we can use `App::configure_label` to tackle those use cases we mentioned at the top of this section.
 
-TODO: Demonstrate how these examples work.
+#### Making sure one of your systems runs before a third-party system
 
-### Writing plugins to be configured
+```rust
+fn main(){
+  App::default()
+    .add_plugin(ThirdPartyPlugin)
+    // We could also use a public label exposed by this plugin to control the timing more granularly
+    .add_system(hello_world.before(ThirdPartyPlugin.get_label()))
+    .run();
+}
+```
 
-When writing plugins (especially those designed for other people to use), try to define constraints on your plugins logic so that your users could not break it if they tried:
+This `before` ordering operates across stage boundaries: placing systems in a later stage than the system they are before will cause a panic at schedule initialization.
 
-- if some collection of systems will not work properly without each other, make sure they are in the same system. This prevents them from being split by either schedule location or run criteria.
-- if one system must run before the other, use granular strict system ordering constraints
-- if a broad control flow must be follow, use if-needed system ordering constraints between labels
-- if commands must be processed before a follow-up system can be run correctly, use at-least-once separation ordering constraints
-- if a secondary source of truth (such as an index) must be updated in between two systems, use at-least-once separation ordering constraints
+#### Control the relative order of two conflicting third-party systems
 
-Exposing system labels via `pub` allows anyone with access to:
+```rust
+fn main(){
+  App::default()
+    .add_plugin(ThirdPartyPlugin)
+    .add_plugin(FourthPartyPlugin)
+    .configure_label(
+      ThirdPartyPlugin.get_label()
+      .before(FourthPartyPlugin.get_label())
+    )
+    .run();
+}
+```
 
-- set the order of their systems relative to the exposed label
-- add new constraints to systems with that label
-- change which states systems with that label will run in
-- add new run criteria to systems with that label
-- apply the labels to new systems
+You are not restricted to simple strict ordering constraints here: if-needed ordering and at-least-once separation can also be used.
+For example, you may commonly need to ensure that commands are processed between the execution of the plugins from one system and the start of a second one.
 
-As such, try to only expose labels that apply to systems that can safely be enabled or disabled as a group.
+```rust
+fn main(){
+  App::default()
+    .add_plugin(ThirdPartyPlugin)
+    .add_plugin(FourthPartyPlugin)
+    .configure_label(
+      ThirdPartySystem::Spawning
+      .before_and_separated_by(FourthPartyPlugin.get_label(), CoreSystem::ApplyCommands)
+    )
+    // This ordering constraint has the same effect as the one above
+    .configure_label(CoreSystem::ApplyCommands.between(
+      ThirdPartySystem::Spawning,
+      FourthPartyPlugin.get_label()
+    ))
+    .run();
+}
+```
 
-### Standalone `bevy_ecs` usage
+With this constraint, the schedule will panic on initialization if any system from `FourthPartyPlugin` occurs after a `ThirdPartySystem::Spawning` system and no `CoreSystem::ApplyCommands` can be scheduled in between it.
+Using the default schedule, this means that they must occur in a later stage (or during the sequential phase of a single stage, with extra command-applying systems inserted in the middle).
 
-Even if you're just using `bevy_ecs`, plugins can be a useful tool for enabling code reuse and managing dependencies.
+However, like with standard `before` constraints, there is no *requirement* that a `FourthPartyPlugin` label exist later in the schedule than `ThirdPartySystem::Spawning`.
+Constraints are always ultimately imposed on the later system in the schedule, and have no effect if no later system exists.
 
-Instead of adding plugins to your app, independently add their system sets to your schedule and their resources to your world.
+#### Add a run criteria to disable a plugin's system when certain criteria are met
+
+```rust
+fn main(){
+  App::default()
+    .add_plugin(ThirdPartyPlugin)
+    .configure_label(
+      ThirdPartySystem::TrickyMechanic
+      // This additional run criteria will be added to any existing run criteria,
+      // chaining together in an AND fashion, 
+      // ensuring that existing criteria continue to restrict when the system runs
+      .add_run_criteria(hard_mode_only_criteria)
+    )
+    .configure_label(
+      ThirdPartySystem::Tooltips
+      // This run criteria will be chained in an OR fashion,
+      // allowing you to add behavior at additional, unexpected times
+      .add_enabling_run_criteria(tutorial_segment_criteria)
+    )
+    .configure_label(
+      ThirdPartySystem::Physics
+      // This removes all existing run criteria
+      .clear_run_criteria()
+      // New run criteria can then be added later
+      .add_run_criteria(FixedTimeStep::(0.1))
+    )
+    .run();
+}
+```
+
+#### Change which state(s) a plugins' systems runs in
+
+```rust
+fn main(){
+  App::default()
+    .add_plugin(PhysicsPlugin)
+    .configure_label(
+      PhysicsPlugin.get_label()
+      .move_to_state(GameState::Running(State::Update))
+    )
+    .run();
+}
+```
+
+**NOTE:** this particular example is very WIP, as states are due for a complete overhaul.
+It is not clear how you would ensure that the systems added by a plugin run in multiple states (or e.g. on both exit and enter), if the schedule owns systems.
+
+#### Add a plugin's systems to a nested schedule that runs repeatedly each frame
+
+```rust
+enum GameSchedule {
+  Main,
+  Actions
+}
+
+fn main(){
+  App::default()
+    .add_schedule(
+      // .set_main_schedule causes this schedule to replace
+      // the standard schedule provided by App::default
+      Schedule::new(GameSchedule::Main).set_main_schedule()
+    )
+    .add_schedule(
+      Schedule::new(GameSchedule::Actions)
+      // This adds the Action schedule as a nested schedule within the Main schedule
+      .nest(GameSchedule::Main)
+      // The Action schedule will repeat until the criteria returns ShouldRun::No
+      .repeat(action_looping_criteria)
+    )
+    // The systems added by this plugin will be added to the Actions schedule
+    // rather than the main schedule 
+    .add_plugin_to_schedule(ActionResolutionPlugin, GameSchedule::Actions)
+    .run();
+}
+```
+
+**NOTE:** this example is very speculative.
+Currently, we don't have great `App`-level tools for reasoning about and configuring nested schedules like this so the API here is invented whole-cloth.
+
+#### Schedule strategy optimization
+
+```rust
+fn main(){
+  App::default()
+    // Both of these plugins are very expensive,
+    // and through careful profiling we've determined that
+    // frame time is minimized when they live in seperate stages
+    .add_plugin(PathfindingPlugin)
+    .add_plugin(PhysicsPlugin)
+    .configure_label(
+      PathfindingPlugin.get_label()
+      // This is the default anchor for all plugins,
+      // but we can change that by using app::set_default_stage
+      .anchor_in_stage(CoreStage::Update)
+    )
+    .configure_label(
+      PhysicsPlugin.get_label()
+      .anchor_in_stage(CoreStage::PostUpdate)
+    )
+    .configure_label(
+      Physics::CollisionDetection
+      .anchor_in_stage(CoreStage::PreUpdate)
+    )
+    .run();
+}
+```
+
+If all systems that share a label can coexist within a single stage, using `.anchor_in_stage` will move them all to that stage.
+However, if "hard system ordering constraints" exist (due to the need to run an exclusive system such as commands application) between the systems,
+constrained systems will be placed into adjacent stages if they exist (repeating as needed).
+
+If not enough stages exist in the schedule to satisfy these constraints, the schedule will panic upon initialization.
 
 ## Implementation strategy
 
@@ -245,6 +383,7 @@ Small changes:
 
 1. As plugins no longer depend on `App` information at all, they should be moved into `bevy_ecs` directly.
 2. If plugins can no longer configure the `App` in arbitrary ways, we need a new, ergonomic way to set up the default schedule and runner for standard Bevy games. The best way to do this is to create two new builder methods on `App`: `App::minimal` and `App::default`, which sets up the default stages, sets the runner and adds the required plugins.
+3. `ShouldRun` is changed to a simple Boolean logic to enable sane composition.
 
 ### Plugin architecture
 
@@ -439,12 +578,21 @@ This will be particularly valuable when working on editor support, or when build
 
 It also cleans up the ergonomics of the `Plugin` machinery substantially.
 
+## Why do we need to change `ShouldRun`?
+
+The existing `ShouldRun` construct, which combines whether a system should be run with whether it should be checked again is very complicated, hard to compose and reason about, and causes serious user confusion.
+This looping logic should be handled with other tools, rather than being added to run criteria.
+
+The increased use (and particularly composition of) run criteria in this design mean that we should solve this (working out the details in a separate RFC), rather than contorting plugin configuration to work around it.
+
 ## Unresolved questions
 
 1. Should we rename `SystemDescriptor` to something more user-friendly like `ConfiguredSystem`?
 2. How do we handle [plugins that need to extend other resources at initialization](https://github.com/bevyengine/rfcs/pull/33#discussion_r709654419)?
 3. How do we ensure that [adding run criteria won't break invariants](https://github.com/bevyengine/rfcs/pull/33#discussion_r709655879)?
 4. Do we still need plugin groups at all? Can we replace them with a simple standard collection? The ergonomics matter much less with `App::default()` initialization.
+5. What tools do we need to add in order to be able to safely simplify `ShouldRun`  ?
+6. What does the new `State` paradigm look like, and how does it interact with this design?
 
 ## Future possibilities
 
@@ -455,5 +603,5 @@ This could be extended and improved in the future with:
 1. Enhanced system visualization tools.
 2. A scheduler / app option could be added to automatically infer and insert systems (including command-processing systems) on the basis of at-least-once separation constraints.
 3. At-least-once separation constraints can be used to solve the cache invalidation issues that are blocking the implementation of indexes, as discussed in [Bevy #1205](https://github.com/bevyengine/bevy/discussions/1205).
-4. `ShouldRun` could be cleaned up and moved back to simple binary logic. More helpers could be added for common plugin use cases.
-5. Systems could be fully added and removed from the schedule based on run-time information, keeping the schedule clean when configuring plugins with resources.
+4. More run criteria helpers could be added, to make enabling and disabling systems based on resource state more ergonomic.
+5. Systems could be fully added and removed from the schedule based on run-time information, keeping the schedule clean when configuring plugins with resources. The mostly likely tool for this is to extend (or supplement) `Commands`, as seen in [Bevy #2507](https://github.com/bevyengine/bevy/pull/2507).
