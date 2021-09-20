@@ -19,13 +19,15 @@ This is particularly critical in the context of [plugin configurability](https:/
 
 ### Scheduling 101
 
-Bevy schedules are composed of stages, which have two phases: parallel and sequential.
-The parallel phase of a stage always runs first, then is followed by a sequential phase which applies any commands generated in the parallel phase.
+Bevy schedules are composed of stages, of which there are two varieties: parallel and sequential.
+Typically, these will alternate: parallel stages will perform easily isolated work, and generate commands.
+Then a sequential stage will run, beginning with the standard command-processing exclusive system.
+Any adjacent parallel stages are collapsed into one parallel stage to maximize parallelism, and any adjacent sequential stages are concatenated.
 
-During **sequential phases**, each system can access the entire world freely but only one can run at a time.
+During **sequential stages**, each system can access the entire world freely but only one can run at a time.
 Exclusive systems can only be added to the sequential phase while parallel systems can be added to either phase.
 
-During **parallel phases**, systems are allowed to operate in parallel, carefully dividing up access to the `World` according to the data accesses requested by their system parameters to avoid undefined behavior.
+During **parallel stages**, systems are allowed to operate in parallel, carefully dividing up access to the `World` according to the data accesses requested by their system parameters to avoid undefined behavior.
 
 Without any user-provided ordering constraints, systems within the same parallel phase can be executed in any order so long as Rust's ownership semantics are obeyed.
 That means that a **waiting** (scheduled to run during this stage) system cannot be started if any **active** (currently running) systems are **incompatible** (cannot be scheduled at the same time) if they have conflicting data access.
@@ -150,7 +152,17 @@ This creates painful divisions that make it challenging or impossible to do thin
 
 Instead, the `Schedule` should own the systems in it, and constraint-satisfaction logic should be handled at the schedule-level.
 
-### Cross-stage system ordering constraint semantics
+### Cross-stage system ordering constraints
+
+When two systems are in separate stages, the exact meaning of ordering constraints gets a bit trickier.
+
+When system `A` is before system `B`:
+
+- if system `A` is in an earlier stage, nothing happens: this is trivially satisfied
+- if system `A` is in the same stage, system `B` is held in queue until system `A` completes
+- if system `A` is in a later stage, the schedule panics: this is trivially impossible
+
+This check (and panic) should be skipped for if-needed ordering constraints, as they should be minimally impairing since they are only intended to resolve ambiguities, rather than introduce logically-necessary constraints.
 
 ### Causal ties
 
