@@ -50,7 +50,7 @@ There are several **flavors** of system ordering constraints, each with their ow
   - `hard_before` and `hard_after` are syntactic sugar for the common case where the separating system label is `CoreSystem::ApplyCommands`, the label used for the exclusive system that applies queued commands that is typically added to the beginning of each sequential stage.
   - The order of arguments in `between` matters; the labels must only be separated by a cleanup system in one direction, rather than both.
   - This methods do not automatically insert systems to enforce this separation: instead, the schedule will panic upon initialization as no valid system execution strategy exists.
-  - At-least-once separation also applies a special form of run criteria overriding (see below): if a pair of `before` and `after` systems are enabled during a schedule pass, and all intervening `between` systems are disabled, the last intervening `between` system is forcibly enabled to ensure that cleanup occurs
+  - At-least-once separation also applies a special causal tie (see below): if a pair of `before` and `after` systems are enabled during a schedule pass, and all intervening `between` systems are disabled, the last intervening `between` system is forcibly enabled to ensure that cleanup occurs
 
 System ordering constraints operate across stages, but can only see systems within the same schedule.
 
@@ -62,19 +62,65 @@ This may occur if:
 
 System ordering constraints cannot change which stage systems run in or add systems: you must fix these problems manually in such a way that the schedule becomes satisfiable.
 
-### Run criteria overrides
+### Causal ties: systems that must run together
 
-Bevy provides tools to ensure that critical clean-up work is not missed when systems are enabled and disabled using run criteria.
+Sometimes, the working of a system is tied in an essential way to the operation of another.
+Suppose you've created a simple set of physics systems: updating velocity based on acceleration without then applying the velocity to update the position will result in subtle and frustrating bugs.
+Rather than relying on fastidious documentation and careful end-users, we can enforce these constraints through the schedule.
 
-Suppose we have a system `A` that does some work, but leaves the `World` in a messy state that will cause bugs or undesirable side effects if not handled properly.
-System `B` is responsible for cleaning up this work, and should run during every pass of the schedule loop that `A` does.
+These **causal ties** have fairly simple rules:
 
-We can ensure that this occurs by adding a run criteria to `B` that takes `A`'s run status into account: if `A` should run, `B` must also run, regardless of what its other run criteria say.
-Otherwise, `B`'s original run criteria behave as usual.
-Often, `B` will have a blanket run criteria that states that it should never run, and is only run when the override requires it.
+- causal ties are directional: the **upstream** system(s) determine whether the **downstream** systems must run, but the reverse is not true.
+- if an upstream system runs during a pass through the schedule, the downstream system must also run during the same pass through the schedule
+  - this overrides any existing run criteria, although any ordering constraints are obeyed as usual
+  - causal ties propagate downstream: you could end up enabling a complex chain of systems because a single upstream system needed to run during this schedule pass
+- if no suitable downstream system exists in the schedule, the schedule will panic upon initialization
+- causal ties are independent of system execution order: upstream systems may be before, after or ambiguous with their downstream systems
 
-As a user, you can add this rule to your systems and system sets by using the `.overrides(overridden_system: impl SystemLabel)` or `overridden_by(overriding_system: impl SystemLabel)` methods.
-Bevy also provides a standard run criteria for the "this system should never run unless overridden" use case: add `.with_run_criteria(NeverRun)` to these systems.
+Let's take a look at how we would declare these rules for our physics example using the `if_runs_then` system configuration method on our upstream system:
+
+```rust
+fn main(){
+  App::new()
+    .add_system(update_velocity
+      .label("update_velocity")
+      // If this system is enabled,
+      // all systems with the "apply_velocity" label must run this loop.
+      // If no systems with that label exist,
+      // the schedule will panic.
+      .if_runs_then("apply_velocity")
+    )
+    .add_system(
+      apply_velocity
+      .label("apply_velocity")
+    )
+    .run();
+}
+```
+
+If we only have control over our downstream system, we can use the `run_if` system configuration methods:
+
+```rust
+fn main(){
+  App::new()
+    .add_system(update_velocity
+      .label("update_velocity")
+    )
+    .add_system(
+      apply_velocity
+      .label("apply_velocity")
+      // If any system with the given label is enabled,
+      // this system must run this loop.
+      .run_if("update_velocity")
+    )
+    .run();
+}
+```
+
+`only_run_if` has the same semantics, except that it also adds a run criteria that always returns `ShouldRun::No`, allowing the system to be skipped except where overridden by a causal tie (or other run criteria).
+
+If we want a strict bidirectional dependency, we can use `always_run_together(label: impl SystemLabel)` as a short-hand for a pair of `.if_run_then` and `run_if` constraints.
+Bidirectional links of this sort result in an OR-style logic: if either system in the pair is scheduled to run in this schedule pass, both systems must run.
 
 ## Implementation strategy
 
@@ -106,7 +152,7 @@ Instead, the `Schedule` should own the systems in it, and constraint-satisfactio
 
 ### Cross-stage system ordering constraint semantics
 
-### Run criteria overrides
+### Causal ties
 
 TODO: write this code.
 
@@ -117,7 +163,14 @@ TODO: write this code.
 
 ## Rationale and alternatives
 
-TODO: complete me.
+### Why do we need to include causal ties as part of this RFC?
+
+Without causal-tie functionality, at-least-once separation can silently break when the separating system is disabled.
+
+### Why don't we support more complex causal tie operations?
+
+Compelling use cases (other than the one created by at-least-once separation) have not been demonstrated.
+If and when those exist, we can add the functionality with APIs that map well to user intent.
 
 ## Prior art
 
@@ -142,3 +195,5 @@ Such an approach would only be worthwhile for production apps.
 
 The maintainability of system ordering constraints can be enhanced in the future with the addition of tools that serve to verify that they are still useful.
 For example, if-needed ordering constraints that can never produce any effect on system ordering could be flagged at schedule initialization time and reported as a warning.
+
+Additional graph-style APIs for specifying causal ties may be helpful, as would the addition of a `.always_run_together` method that can be added to labels to imply mutual causal ties between all systems that share that label.
