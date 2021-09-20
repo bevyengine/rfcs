@@ -154,7 +154,22 @@ Instead, the `Schedule` should own the systems in it, and constraint-satisfactio
 
 ### Causal ties
 
-TODO: write this code.
+After all `SystemDescriptors` are added to the schedule, any causal ties described within are converted to a single `CausalTies` graph data structure.
+
+This stores directed edges: from one upstream system to the corresponding downstream system.
+If a label is applied to more than one system, it will create an edge between each appropriate system.
+If the label for the upstream system is empty, it should be silently skipped, but if the label for the downstream system is empty the schedule should panic.
+This is because our high-level functionality will continue to behave correctly if a system that creates work to be handled is absent, but will break if a system that cleans up work is missing.
+
+Whenever run criteria are checked, the set of all systems which have `ShouldRun::Yes` during this schedule pass are compared to the set of upstream systems (those which have at least one outgoing edge) in the `CausalTies` struct.
+All systems that are immediately downstream of those systems have their `ShouldRun` state set to `Yes` as well.
+If the downstream system is not waiting to be scheduled in the *current or future* stages, the executor should panic (likely due to the system being added to an earlier stage).
+This process is repeated until no new changes occur.
+
+If this is implemented under the current `RunCriteria` design that includes looping information, that looping information should be propagated to downstream dependencies as well.
+In particular, if an upstream system is `YesAndLoop`, the downstream system becomes `YesAndLoop`.
+If the upstream system is `NoAndLoop`, the downstream system becomes either `NoAndLoop` or `YesAndLoop`, based on whether or not it was already set to run.
+This branching is much more complex to reason about and likely to be substantially slower, and is another reason to simplify the `RunCriteria` enum.
 
 ## Drawbacks
 
@@ -171,6 +186,13 @@ Without causal-tie functionality, at-least-once separation can silently break wh
 
 Compelling use cases (other than the one created by at-least-once separation) have not been demonstrated.
 If and when those exist, we can add the functionality with APIs that map well to user intent.
+
+### Why not cache the new set of systems whose run criteria changed?
+
+Vector allocations are slow, but bit set comparisons and branchless mass assignments are fast.
+It's faster to repeat work here than verify if it needs to be done.
+
+At extremely high causal-tie graph depths and numbers of systems, the asymptotic performance gains may be worth it, but that seems unlikely in realistic scenarios.
 
 ## Prior art
 
