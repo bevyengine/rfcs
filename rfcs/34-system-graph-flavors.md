@@ -132,10 +132,18 @@ Simple changes:
 
 ### Strict ordering
 
-This algorithm is a restatement of the existing approach, as added in [Bevy #1144](https://github.com/bevyengine/bevy/pull/1144).
+This algorithm is a restatement of the existing approach, as added in [Bevy #1144](https://github.com/bevyengine/bevy/pull/1144) and found in the [bevy_ecs/schedule](https://github.com/bevyengine/bevy/tree/v0.5.0/crates/bevy_ecs/src/schedule) module.
 It is provided here to establish a foundation on which we can build other ordering constraints.
 
-TODO: describe algorithm.
+Based on the `.before` and `.after` constraints provided by the `SystemDescriptor` passed in by the end user, each system records the list of systems that must come after it in its `SystemSchedulingMetadata`: these are its **dependants**.
+Additionally, each system records the total number of systems that must come before it: these are its **dependencies**.
+
+Systems are allowed to run if:
+
+1. They are not incompatible with any currently running system due to the data that they must access.
+2. The current number of dependencies is 0.
+
+The parallel executor released in Bevy 0.5 runs systems in a straightforward and greedy fashion: if both of those conditions are true, the currently-checked system is immediately scheduled.
 
 ### If-needed ordering
 
