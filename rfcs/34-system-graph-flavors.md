@@ -147,11 +147,28 @@ The parallel executor released in Bevy 0.5 runs systems in a straightforward and
 
 ### If-needed ordering
 
-TODO: describe the algorithm.
+The dependency graph for strict-ordering constraints can be built once, upon schedule initialization.
+However, if-needed dependencies are more complex: they care about the actual data accesses involved, and so must be recomputed at the beginning of each parallel stage.
+Because the set of archetypes in the world cannot change during a parallel stage, this is safe to compute this ahead of time, rather than dynamically.
+
+The strategy for doing this is fairly straightforward:
+
+1. Convert all `SystemDescriptor` data into `SystemSchedulingMetadata`, which stores the constraints on a one-to-one basis.
+2. Compute and cache the dependency graph of the strict ordering constraints.
+3. Beginning from the strict-ordering dependency graph, check each if-needed dependency.
+4. If and only if the systems connected by an if-needed dependency are incompatible, add a temporary strict ordering edge between them.
+5. At the beginning of each parallel stage, reset the working dependency graph to the cached strict-ordering dependency graph.
 
 ### At-least-once separation
 
-TODO: describe the algorithm.
+At-least-once separation constraints affect both system scheduling and whether or not a system is enabled.
+These constraints capture an interaction between three kinds of systems: before-separation, after-separation and separating systems.
+
+If any before-separation and after-separation systems exist during the same parallel stage, a strict ordering dependency is added between all before-separation systems within that stage to all separating systems within that stage, and then to all after-separation systems within that stage.
+This is technically stricter than is needed, see **Rationale and Alternatives** for more discussion.
+
+If they exist within the same sequential stage, the constraint is verified through an in-order scan of the systems.
+If they exist across stage boundaries, the same in-order scan is applied, treating all parallel stages as if they were a single opaque unit.
 
 ### Schedules own systems
 
@@ -213,6 +230,19 @@ Vector allocations are slow, but bit set comparisons and branchless mass assignm
 It's faster to repeat work here than verify if it needs to be done.
 
 At extremely high causal-tie graph depths and numbers of systems, the asymptotic performance gains may be worth it, but that seems unlikely in realistic scenarios.
+
+### How could we reduce the strictness of at-least-once-separation scheduling?
+
+The simple algorithm proposed above is, technically speaking, too strict.
+Lets mark our before-separation systems with `A`, our after-separation systems with `B`, and our separating systems with `S` so that `A` -> `S` -> `B`.
+
+Within a stage, `A` -> `S` -> `B` -> `A` -> `S` -> `B` is a valid order, but is ruled out by our simple ordering constraints.
+
+
+1. Separating systems are not scheduled in the ordinary fashion. Instead, they are held in reserve, and each separator type is stored in its own pool.
+2. After a before-separation system completes, one separating system of the appropriate flavor is added to the set of waiting systems. A strict-ordering dependency between the separating system and all after-separation systems is added to the working dependency graph.
+3. This ensures that the separating system runs 
+
 
 ## Prior art
 
