@@ -20,7 +20,7 @@ Except that events will survive 2 frames window.
 
 ## Implementation strategy
 
-[How "reader counted event queue" works.](https://github.com/tower120/rc_event_queue/blob/master/doc/principal-of-operation.md)
+[How "reader counted event queue" works.](https://github.com/tower120/rc_event_queue/blob/master/doc/principle-of-operation.md)
 
 `rc_event_queue` should work in `AUTO_CLEANUP = false` mode. Meaning that we will call `cleanup` manually.
 For each EventType - make corresponding EventQueue resource. 
