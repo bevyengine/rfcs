@@ -97,22 +97,24 @@ One major, recurring idea in scheduling rework discussions is having one executo
 
 ### Hierarchical Stage Labels
 
-The lone executor in place, stages can be reincarnated as specialized system labels. Since the executor has knowledge of all systems, stages being labels would still provide enough information to the app builder to insert exclusive sync systems.
+The lone executor in place, stages can simply be special labels that tell the app/schedule builder where to insert sync points (exclusive systems that apply pending commands).
 
 ```rust
 .add_system(my_startup_system.to_stage(CoreStage::Startup))
 ```
 
-However, we can go a step further and organize these stage labels in a tree.
-
-These **stage trees** are new, purely topological building blocks designed to provide scaffolding for complex flow control patterns, replacing nested schedules. What's really cool is that users can create this scaffolding independently of adding systems to the schedule. They'll be stored separately.
+We can go a step further and arrange these labels in a tree. These trees replace nested schedules for building complex flow control patterns. What's really cool is that users can create this scaffolding independently of adding systems to the schedule.
 
 ![A visual example of a stage tree](../media/stage_tree.png "A visual example of a stage tree")
 (The blocks in this picture are stages.)
 
-The API for creating the pictured tree could look like this.
-
 ```rust
+pub struct Schedule {
+    /* ... */
+    trees: HashMap<TreeLabel, Tree<StageLabel>>,
+    /* ... */
+}
+
 impl Schedule {
     pub fn minimal() -> Self {
         Self::default()
@@ -131,19 +133,6 @@ impl Schedule {
     }
 }
 ```
-
-```rust
-pub struct StageTree {
-    // Map stage labels to positions in the tree.
-    map: HashMap<BoxedStageLabel, Index>,
-    // The actual tree.
-    tree: Tree<BoxedStageLabel>,
-}
-```
-
-### SystemSet renamed to Config
-
-While we're bikeshedding, there's no overlap between stages and system sets, but "set" and "added to a set" sort of imply that the systems have some ordering relationship. "Config" seems clearer.
 
 ### RunCriteria are split into Transitions and Conditions
 
@@ -217,7 +206,7 @@ loop
             push children onto stack in reverse order (right to left)
             continue
 
-execute systems assigned to stage
+run systems in the stage
 ```
 
 ### States and the execution stack
@@ -226,10 +215,10 @@ Disjoint stage trees can be linked using transitions, so schedules can have more
 
 ```rust
 pub struct ExecutorState {
-    platform_state: BoxedPlatformStateLabel,
-    app_state: BoxedAppStateLabel,
-    stage_tree: BoxedStageTreeLabel,
-    stage: BoxedStageLabel,
+    platform_state: PlatformState,
+    app_state: AppState,
+    tree: TreeLabel,
+    stage: StageLabel,
     running: bool,
 }
 
@@ -243,11 +232,15 @@ pub struct Executor {
 
 What about states then?
 
-Well in this rework, states (both app and lifecycle) simply increase the number of combinations that can be pushed onto the stack. States and stage trees have a decoupled* many-to-many relationship which, when combined with the utility of states in general pattern matching throughout an app, makes the whole setup very flexible. 
+Well in this rework, states (both app and lifecycle) simply increase the number of combinations that can be pushed onto the stack. States have a decoupled* many-to-many relationship with stages and trees. Since states can be used in pattern matching throughout an app, this combination is very flexible. 
 
 Too flexible, actually. Transitions and the execution stack are safe abstractions given the atomicity of stages, but they leave users wide open to writing [spaghetti][7]. For a better user experience, Bevy likely needs a higher-level abstraction with more guard rails (i.e. state charts) and visualization tools.
 
 *While decoupled, transitions are still aligned to stage boundaries, so the state cannot be changed in the middle of a leaf stage.
+
+### SystemSet is renamed to Config
+
+While we're bikeshedding, there's no overlap between stages and system sets, but "set" and "added to a set" sort of imply that the systems have some ordering relationship. "Config" seems clearer.
 
 ### So what does all this accomplish?
 
@@ -261,49 +254,35 @@ Clearer separation of responsibilities, better cohesion, more utility, and bette
   - They can be exported by plugins for users to incorporate "pre-packaged" logic into their schedule.
   - They can be used to insert plugin stages into local stages and vice-versa.
   - They remove the need for modifiers like `.startup()`.
-  - The same stage label can be added to multiple trees.
+  - The same stage can be added to multiple trees.
   - The same tree can be paired with multiple states.
 - Conditions can be made read-only and can be combined through simple boolean operations.
 - Transitions no longer have implicit conflicts.
-- States no longer require a unique stage variant.
+- States no longer require a unique stage type.
 
 ## Implementation Strategy
 
 (TODO)
 
-- Remove exclusive system modifiers (`at_start`, `.before_commands`, `.at_end`) in favor of ordering them the same way as other systems.
+- Remove exclusive system modifiers (`at_start`, `before_commands`, `at_end`) in favor of ordering them the same way as other systems.
+- Remove `startup` system modifier. Systems can be added directly to `CoreStage::Startup`.
 - Rebrand `RunCriteria` into `Condition`, change them to be pure booleans, then add composition methods (`and`, `or`, `xor`, `not`).
 - Rebrand `SystemStage` into `Schedule` and modify it to hold stage trees.
 - Fully commit to the [builder API for systems][12] so that everything feels consistent.
 - For convenience, add an API shortcut for adding an exclusive system that just applies commands (i.e. `flush_commands`).
 - Make it so that when a user appends/prepends a sub-stage to a stage that already has systems, those systems are re-labeled with an anonymous sub-stage.
 - (TODO) Explain how the executor can build the system graph(s) and find all the systems that are supposed to run in each stage.
-- (TODO) Explain what `Transition` is.
-- (TODO) Systems should be limited in which stages they can queue transitions for (i.e. only the current stage or its immediate parent).
+- (TODO) What's in the `Transition` type?
+- (TODO) Systems should have limits on which stages they can queue transitions for (i.e. only the current stage or its immediate parent).
 - (TODO) Transitions should be marked with their "terminal" stage and discarded once that stage completes, as a safeguard.
 
 ```rust
-#[derive(SystemLabel)]
-struct Label(&'static str);
-
-#[derive(StageLabel)]
-struct Stage(&'static str);
-
-#[derive(StageTreeLabel)]
-struct Tree(&'static str);
-
-#[derive(ConditionLabel)]
-struct Condition(&'static str);
-
-#[derive(TransitionLabel)]
-struct Transition(&'static str);
-
 // Add to default stage tree
 .add_stage(Stage)
 .add_stage(Stage.prepend_to(Stage))
 .add_stage(Stage.append_to(Stage))
-.add_stage(Stage.before(Stage))
-.add_stage(Stage.after(Stage))
+.add_stage(Stage.insert_before(Stage))
+.add_stage(Stage.insert_after(Stage))
 .add_stage(Stage
     .with_condition(Condition)
     .with_transition(Transition))
@@ -312,7 +291,7 @@ struct Transition(&'static str);
 .add_tree(Tree
     .add_stage(Stage
         .with_condition(Condition)
-        .with_transition(Transition))
+        .with_transition(Transition)))
 
 .add_system(System.to_stage(Stage))
 
@@ -325,9 +304,7 @@ struct Transition(&'static str);
 
 .add_system(System
     .label(Label)
-    .before(Label)
-    .with_config(Config)
-    .with_condition(Condition))
+    .with_config(Config))
 
 // conditions
 .and(Condition)
@@ -359,9 +336,9 @@ Forcing this level of explicitness on the general user would be bad.
 Still, for the sake of argument, if we had such an API available to complement this one, maximizing concurrency would require dissolving plugin stages and adding new constraints to their systems to deal with the resulting ambiguities, which are both things that plugin privacy rules specifically prevent.
 
 So ultimately, the only way to accommodate everyone is for plugin authors to:
-- Prefer exporting system labels and sets for systems that do not queue commands or transitions.
-- Even when stage labels *are* the right export, also export system labels and sets to give advanced users more flexibility.
-- Either provide a means to [reconfigure labeled elements][4] or just export the system functions directly.
+- Prefer exporting system labels for groups of systems that do not queue commands or transitions.
+- Even when stage labels *are* the right export, also export system labels to give advanced users more flexibility.
+- Either provide a means to [reconfigure labeled systems][4] or just export the system functions directly.
 
 (For some context,  `@cart` [is against *requiring* plugins to make everything public][5].)
 
@@ -381,14 +358,14 @@ Optimal scheduling is an NP-complete problem. It's okay to not have a perfect sc
 
 - Having a single executor and reducing stages to labels should make it easier to [rebuild the schedule at runtime][8].
 
-- The proposed changes should be compatible with the plugin configuration machinery described in [RFC #33][4]. In fact, stages being labels should make it easier for plugins to transparently share "pre-packaged" functionality. Plugins could simply check which of their stage labels have been inserted, then add the appropriate systems and stage trees.
+- The proposed changes should be compatible with the plugin configuration machinery described in [RFC #33][4]. In fact, stages being labels should make it easier for plugins to transparently share "pre-packaged" functionality. Plugins could simply check which of their stages have been inserted, then add the appropriate systems and stage trees.
 
     ```rust
     impl Plugin for MyPlugin {
         fn build(state: &mut PluginState) {
             for label in my_plugin_crate_labels {
                 if state.labels().contains(&label) {
-                    // add (sub) stages, systems, and system sets
+                    // add (sub) stages, and systems
                     // insert and initialize resources
                     // build other dependencies
                     /* ... */
