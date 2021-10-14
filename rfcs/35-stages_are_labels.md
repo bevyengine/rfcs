@@ -32,7 +32,7 @@ Systems are functions that can read and write data stored in the world. They com
 
 ### System Labels
 
-Systems are labeled so that users can order them with `.before(Label)` and `.after(Label)` modifiers.
+Systems are labeled so that users can order them with `.before(Label)` and `.after(Label)` modifiers. Each system can have many labels and each label can be added to many systems.
 
 ### (System) Sets
 
@@ -97,16 +97,16 @@ One major, recurring idea in scheduling rework discussions is having one executo
 
 ### Hierarchical Stage Labels
 
-The lone executor in place, stages can simply be special labels that tell the app/schedule builder where to insert sync points (exclusive systems that apply pending commands).
+The lone executor in place, stages can just be special labels that tell the executor that some systems are in a group, that it doesn't need to look in other groups when ordering them, and to flush any commands after they run.
 
 ```rust
 .add_system(my_startup_system.to_stage(CoreStage::Startup))
 ```
 
-We can go a step further and arrange these labels in a tree. These trees replace nested schedules for building complex flow control patterns. What's really cool is that users can create this scaffolding independently of adding systems to the schedule.
+We can go a step further and arrange these labels in a tree. These hierarchical stages can replace nested schedules for building complex control flows. Unlike nested schedules, stages can be ordered independently of adding systems.
 
-![A visual example of a stage tree](../media/stage_tree.png "A visual example of a stage tree")
-(The blocks in this picture are stages.)
+![Visual of hierarchical stages](../media/stage_tree.png "Visual of hierarchical stages")
+(All blocks pictured are stages.)
 
 ```rust
 pub struct Schedule {
@@ -119,7 +119,7 @@ impl Schedule {
     pub fn minimal() -> Self {
         Self::default()
             .add_stage(CoreStage::Startup)
-            .add_stage(CoreStage::Frame.with_transition(loop_until_shutdown))
+            .add_stage(CoreStage::Frame.with_transitions(loop_until_shutdown))
             .add_stage(CoreStage::Shutdown)
     }
 
@@ -136,13 +136,30 @@ impl Schedule {
 
 ### RunCriteria are split into Transitions and Conditions
 
-### Transitions
+### Transitions and "the stack"
 
-This rework consolidates stage loops and state transitions into one primitive called **transitions**, putting them both on the same level. 
+Run-time execution of a schedule uses a stack model, where the executor pops the next stage to run from the top of the stack. The stack makes it easy to "connect" separate stage hierarchies together. Stages in each hierarchy are run in post-order (left to right, children before parents). Users can modify the stack using `push`, `set`, and `replace` operations. By convention, this is only allowed at the end of a stage, when there are no pending commands. These stack operations supersede `SystemStage` loops and `State` transitions, putting them both on the same level.
 
-Transitions are now a first-class type that give users control of the "main execution stack" (see next section). Transitions, like commands, can only be queued by concurrent systems and require an exclusive system to be handled. As a safety measure, transition-handling can only be attached to stages, so that transition-handling always follows command-processing. 
+```rust
+pub struct StackFrame {
+    platform_state: PlatformState
+    app_state: AppState,
+    tree: TreeLabel,
+    stage: StageLabel,
+    pending: bool,
+}
 
-Unlike commands, users must write and attach their own transition-handling systems to stages in order to use them.
+pub struct Executor {
+    /* ... */
+    current: StackFrame,
+    stack: Vec<StackFrame>,
+    /* ... */
+}
+```
+
+(TODO: add more diagrams)
+
+To let concurrent systems queue changes, this rework introduces **transitions** as the "commands" for modifying the stack. Unlike commands, users must attach their own transition-handling systems to stages in order to use them. Transitions have very few constraints, so users should be encouraged to use them [sparingly][7].
 
 ```rust
 pub enum AppState {
@@ -151,29 +168,31 @@ pub enum AppState {
     Paused,
 }
 
-fn set_app_state_to_paused_if_condition(
+fn my_transition_handling_system(
     mut transitions: Transitions, // Not sure what fields this type should have.
-    mut stack: ResMut<ExecutorStack>,
-    current_state: Res<ExecutorState>,
+    mut stack: ResMut<Stack>,
+    curent_frame: Res<StackFrame>,
 ) {
+    let mut next_state = stack.peek();
+
     for transition in transitions {
         if /* ... */ {
-            // Change the global app state in the upcoming state to Paused.
-            // Alt. you could queue an entire paused stage tree.
-            // Lots of options, which is why the user is responsible.
-            let mut next_state = stack.peek();
             stack.set(next_state.set_app_state(AppState::Paused));
+        } else if /* ... */ {
+            stack.replace(/* ... */)
         }
     }
 }
 
-.add_stage(MyStages::MyExampleStage
-    .with_translation(set_app_state_to_paused_if_condition)))
+.add_stage(MyStages::ExampleStage
+    .with_transitions(my_transition_handling_system)))
 ```
+
+With this rework, states can just be plain enums. "States" as we currently know them would be a higher-level abstraction that couples these enums and stages in a limited number of interesting ways (`on_enter`, `on_exit`, `on_update`, etc.).
 
 ### Conditions
 
-With their transition responsibilities removed, run criteria become simple boolean **conditions** that can be combined in intuitive ways using `and`, `or`, `xor` and `not` modifiers. Conditions can be attached to systems, stages, and complete schedules.
+With their noodly transition responsibilities removed, run criteria become simple boolean **conditions** that can be combined in intuitive ways using `and`, `or`, `xor` and `not` modifiers. Conditions can be attached to systems, stages, and complete schedules.
 
 ```rust
 fn client_is_connected(
@@ -187,56 +206,24 @@ fn client_is_connected(
     .with_condition(client_is_connected))
 ```
 
-System conditions are re-evaluated every time their stage is executed. Stage conditions are a little more complicated (explained in pseudocode below). Stage execution follows post-order (left to right, children before parents).
+Stage conditions are evaluated when the stage is popped from the stack. System conditions are re-evaluated every time their stage is executed.
 
 ```
-loop
+while stack is not empty
     pop stage from stack
 
-    if stage is running 
-        // Condition was already evaluated and any children must have completed.
-        break
+    if stage is pending 
+        // Condition must have been true and all children must have completed.
+        run systems in stage
 
-    if stage condition == true
+    else if stage condition == true
         if stage is leaf 
-            break
+            run systems in stage
         else
-            set stage status to running
+            mark stage as pending
             push stage back onto stack
-            push children onto stack in reverse order (right to left)
-            continue
-
-run systems in the stage
+            push children onto stack in reverse order
 ```
-
-### States and the execution stack
-
-Disjoint stage trees can be linked using transitions, so schedules can have more than one. As mentioned in the previous section, transitions allow users to control something called the "execution stack," which is a [stack-based state machine][9]. The executor itself basically doubles as one big [FSM driver][10], where the next stage to be executed is popped from the top of this stack. When handling transitions, the stack can be modified using familiar `push`, `set`, and `replace` operations.
-
-```rust
-pub struct ExecutorState {
-    platform_state: PlatformState,
-    app_state: AppState,
-    tree: TreeLabel,
-    stage: StageLabel,
-    running: bool,
-}
-
-pub struct Executor {
-    /* ... */
-    current: ExecutorState,
-    stack: Vec<ExecutorState>,
-    /* ... */
-}
-```
-
-What about states then?
-
-Well in this rework, states (both app and lifecycle) simply increase the number of combinations that can be pushed onto the stack. States have a decoupled* many-to-many relationship with stages and trees. Since states can be used in pattern matching throughout an app, this combination is very flexible. 
-
-Too flexible, actually. Transitions and the execution stack are safe abstractions given the atomicity of stages, but they leave users wide open to writing [spaghetti][7]. For a better user experience, Bevy likely needs a higher-level abstraction with more guard rails (i.e. state charts) and visualization tools.
-
-*While decoupled, transitions are still aligned to stage boundaries, so the state cannot be changed in the middle of a leaf stage.
 
 ### SystemSet is renamed to Config
 
@@ -246,19 +233,16 @@ While we're bikeshedding, there's no overlap between stages and system sets, but
 
 Clearer separation of responsibilities, better cohesion, more utility, and better code reuse.
 
-- Having one executor enables capturing all available concurrency and detecting all ambiguities.
-- Stages are just labels, so:
-  - They're optional. Schedules can have a default.
-  - They can be applied using system configs.
-  - They can be added to a schedule independently of adding systems.
-  - They can be exported by plugins for users to incorporate "pre-packaged" logic into their schedule.
-  - They can be used to insert plugin stages into local stages and vice-versa.
-  - They remove the need for modifiers like `.startup()`.
-  - The same stage can be added to multiple trees.
-  - The same tree can be paired with multiple states.
-- Conditions can be made read-only and can be combined through simple boolean operations.
+- With stages being labels, users can:
+  - Choose not to use them. The schedule has a default.
+  - Apply them with configs (system sets).
+  - Assemble them in a hierarchy independently of adding systems.
+  - Export them in a plugin so end users can incorporate them into their schedule as "pre-packaged" logic (pending plugin rework).
+  - Add ones they've imported from plugins as children or siblings of their own and vice-versa.
+  - Add them as children or siblings *more than once*.
+- Condition systems can be read-only and can be combined through regular boolean operations.
 - Transitions no longer have implicit conflicts.
-- States no longer require a unique stage type.
+- States and stages are decoupled (although a higher-level API may re-introduce coupling).
 
 ## Implementation Strategy
 
@@ -278,38 +262,38 @@ Clearer separation of responsibilities, better cohesion, more utility, and bette
 
 ```rust
 // Add to default stage tree
-.add_stage(Stage)
-.add_stage(Stage.prepend_to(Stage))
-.add_stage(Stage.append_to(Stage))
-.add_stage(Stage.insert_before(Stage))
-.add_stage(Stage.insert_after(Stage))
-.add_stage(Stage
-    .with_condition(Condition)
-    .with_transition(Transition))
+.add_stage(StageLabel)
+.add_stage(StageLabel.prepend_to(StageLabel))
+.add_stage(StageLabel.append_to(StageLabel))
+.add_stage(StageLabel.insert_before(StageLabel))
+.add_stage(StageLabel.insert_after(StageLabel))
+.add_stage(StageLabel
+    .with_condition(System)
+    .with_transitions(System))
 
 // Add new stage tree
-.add_tree(Tree
-    .add_stage(Stage
-        .with_condition(Condition)
-        .with_transition(Transition)))
+.add_tree(TreeLabel
+    .add_stage(StageLabel
+        .with_condition(System)
+        .with_transitions(System)))
 
-.add_system(System.to_stage(Stage))
+.add_system(System.to_stage(StageLabel))
 
 // Setup a group of modifiers in advance to add to systems later
 .add_config(Config
-    .label(Label)
-    .to_stage(Stage)
-    .after(Label)
-    .with_condition(Condition.and(Condition.not())))
+    .label(SystemLabel)
+    .to_stage(StageLabel)
+    .after(SystemLabel)
+    .with_condition(System.and(System.not())))
 
 .add_system(System
-    .label(Label)
+    .label(SystemLabel)
     .with_config(Config))
 
 // conditions
-.and(Condition)
-.or(Condition)
-.xor(Condition)
+.and(System)
+.or(System)
+.xor(System)
 .not()
 ```
 
@@ -326,7 +310,7 @@ First, it really only makes sense to ask this question about stages imported fro
 Now, to answer the question:
 
 - Commands require exclusive mutable world access, so sync points can only exist in series.
-- Transitions, by convention, can't happen in parallel either since the executor can only have one state at a time.
+- Transitions, by convention, can't happen in parallel either since the executor can only be in one state at a time.
 - Bevy respects plugin privacy rules and does not allow users to freely dissect imported stages.
 
 Hypothetically, if Bevy knew that some commands would never affect certain archetypes, it could scope the world access appropriately and run other systems in parallel. However, that would require (1) a much more verbose API for specifying exact system side effects and relationships and (2) hard-coding many more special cases into the schedule builder. 
@@ -353,6 +337,9 @@ Optimal scheduling is an NP-complete problem. It's okay to not have a perfect sc
 ## Unresolved questions
 
 - Does it make sense to apply these constraints to transitions at the low-level?
+- Should app/lifecycle states be included in the execution stack or left out of it?
+  - Excluded, states are just global pattern matching values.  
+  - Included, states gain the reentrancy/nesting powers of a stack for free, but lose the ability to change outside of transitions (states would be read-only while a stage is being executed).
 
 ## Future Possibilities
 
