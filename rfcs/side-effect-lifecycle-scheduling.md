@@ -25,9 +25,44 @@ We can express this required ordering with labels, before, and after, but they l
 * Readers and writers must be after the producer and before the consumer. They can run in any order in relation to other readers and writers. If there needs to be an order between readers and writers, use the normal before and after labeling.
 * Consumers are run after producers, readers, and writers. There should only be one consumer of a type of side effect.
 
-### Some Examples
+### Some Simple Examples
 
-> TODO: add example of how api works with run criteria, commands, and maybe something else
+#### Scheduling around command application
+```rs
+fn main() {
+    App::new()
+        .add_system(apply_commands_buffer.consumes("commands"))
+        // if we don't care about when the commands are applied
+        // we can ignore the new api
+        .add_system(create_commands_A)
+        
+        // if we need to schedule a system after commands are applied
+        .add_system(create_commands_A.label("system A").produces("commands"))
+        .add_system(after_commands_A.after("system A").after("commands"))
+}
+```
+
+#### Systems dependent on app state
+```rs
+// this is not an example of how a final api for app state
+// or run criteria is expected to look. Just a way to highlight
+// the relations between the systems that produce those side effects
+
+fn main() {
+    App::new()
+        .add_system(system_that_queues_state_change.produces("state change"))
+        .add_system(system_that_applies_state_queue
+            .consumes("state change")
+            .produces("state")
+        )
+        .add_system(run_criteria
+            .reads("state")
+            .produces("on update state=A")
+        )
+        .add_system(system_A.reads("on update state=A"))
+        .add_system(system_B.reads("on update state=A"))
+}
+```
 
 ## Implementation
 
@@ -71,15 +106,15 @@ In practice we can't create these system sets like this as it would be very uner
 
 ## Drawbacks
 
-* as this builds on the existing labeling system, there shouldn't be much in terms of performance issues
-
-## Alternatives Considered
-
-* The example above for expressing the relationships between side effects using just labeling and system sets has one major problem. There is no current api for adding systems to system sets after the system set has been created. If such an api did exist we could potentially just add systems to the correct system set. This didn't seem better than the proposed API and has some implementation complexity since system sets are mostly just api sugar for labeling multiple systems and does not exist at runtime.
+I expect that these relationships will mostly be added automatically when using run criteria, app state, and the like with a higher level api. Users would only be expected to interact with this API when things can't be done automatically or the default behavior doesn't match their needs.
 
 ## Open questions
 
 * With looping criteria it might be possible to create a valid dependency cycle that cannot be resolved in the current API. If that is the case then we might need an `.after_can_break` type of edge that could be ignored in dependency cycle checking.
+
+## Alternatives Considered
+
+* The example above for expressing the relationships between side effects using just labeling and system sets has one major problem. There is no current api for adding systems to system sets after the system set has been created. If such an api did exist we could potentially just add systems to the correct system set. This didn't seem better than the proposed API and has some implementation complexity since system sets are mostly just api sugar for labeling multiple systems and does not exist at runtime.
 
 ## Future Work
 
