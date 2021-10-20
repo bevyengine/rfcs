@@ -20,7 +20,8 @@ This is particularly critical in the context of [plugin configurability](https:/
 ### Scheduling 101
 
 Bevy schedules are composed of stages, of which there are two varieties: parallel and sequential.
-Typically, these will alternate: parallel stages will perform easily isolated work, and generate commands.
+Typically, these will alternate, as adjacent stages of the same type will be collapsed.
+Parallel stages will perform easily isolated work, and generate commands.
 Then a sequential stage will run, beginning with the standard command-processing exclusive system.
 Any adjacent parallel stages are collapsed into one parallel stage to maximize parallelism, and any adjacent sequential stages are concatenated.
 
@@ -39,20 +40,18 @@ To help you eliminate ambiguities, eliminate delays and enforce **logical invari
 
 There are several **flavors** of system ordering constraints, each with their own high-level behavior:
 
-- **Strict ordering:** Systems from set `A` cannot be started while any system from set `B` are waiting or active.
+- **Strict ordering:** While any systems from set `A` are waiting or active, systems from set `B` cannot be started.
   - Simple and explicit.
   - Use the `before(label: impl SystemLabel)` or `after(label: impl SystemLabel)` methods to set this behavior.
-- **If-needed ordering:** A given system in set `A` cannot be started while any incompatible system from set `B` is waiting or active.
+  - If `A` is empty (or if no systems from `A` are enabled), this rule has no effect.
+- **If-needed ordering:** While any systems from set `A` are waiting or active, systems from set `B` cannot be started if they are incompatible with any remaining systems in `A`.
   - Usually, if-needed ordering is the correct tool for ordering groups of systems as it avoids unnecessary blocking.
   - If systems in `A` use interior mutability, if-needed ordering may result in non-deterministic outcomes.
   - Use `before_if_needed(label: impl SystemLabel)` or `after_if_needed(label: impl SystemLabel)`.
-- **At-least-once separation:** Systems in set `A` cannot be started if a system in set `B` has been started until at least one system with the label `S` has completed. Systems from `A` and `B` are incompatible with each other.
-  - This is most commonly used when commands created by systems in `A` must be processed before systems in `B` can run correctly.
-  - Use the `between(before: impl SystemLabel, after: impl SystemLabel)`, `before_and_seperated_by(before: impl SystemLabel, seperated_by: impl SystemLabel)` method or its `after` analogue.
-  - `hard_before` and `hard_after` are syntactic sugar for the common case where the separating system label is `CoreSystem::ApplyCommands`, the label used for the exclusive system that applies queued commands that is typically added to the beginning of each sequential stage.
-  - The order of arguments in `between` matters; the labels must only be separated by a cleanup system in one direction, rather than both.
-  - This methods do not automatically insert systems to enforce this separation: instead, the schedule will panic upon initialization as no valid system execution strategy exists.
-  - At-least-once separation also applies a special causal tie (see below): if a pair of `before` and `after` systems are enabled during a schedule pass, and all intervening `between` systems are disabled, the last intervening `between` system is forcibly enabled to ensure that cleanup occurs
+- **At-least-once separation:** If a type of side effect has been "produced" by any system, at least one "consuming" system must run before any system that "uses" that side effect can run.
+  - `Commands` are the most important side effect here, but others (such as indexing) may be added to the engine itself later.
+  - This design expands on the API in [RFC 36: Encoding Side Effect Lifecycles as Subgraphs](https://github.com/bevyengine/rfcs/pull/36).
+  - At-least-once separation also applies a special "causal tie" (see below): if a pair of `before` and `after` systems are enabled during a schedule pass, and all intervening `between` systems are disabled, the last intervening `between` system is forcibly enabled to ensure that cleanup occurs
 
 System ordering constraints operate across stages, but can only see systems within the same schedule.
 
