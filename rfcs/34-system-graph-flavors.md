@@ -129,18 +129,52 @@ Simple changes:
 
 1. Commands should be processed in a standard exclusive system with the `CoreSystem::ApplyCommands` label.
 
-### Strict ordering
+At-least-once separation needs to be tackled in concert with [RFC 36: Encoding Side Effect Lifecycles as Subgraphs](https://github.com/bevyengine/rfcs/pull/36), as it relies on the side effect API to provide an ergonomic interface to these concepts.
 
-This algorithm is a restatement of the existing approach, as added in [Bevy #1144](https://github.com/bevyengine/bevy/pull/1144).
-It is provided here to establish a foundation on which we can build other ordering constraints.
+### Causal ties
 
-TODO: describe algorithm.
+### Solving system ordering
 
-### If-needed ordering
+The basics of the system scheduler are universal.
+This core structure is a restatement of the existing approach, as added in [Bevy #1144](https://github.com/bevyengine/bevy/pull/1144).
+It is provided here for clarity when explaining other approaches.
 
-TODO: describe the algorithm.
+1. Collect a list of systems that need to be run during the current stage.
+2. Describe the data access of each system, in terms of which resources and archetype-components it needs access to.
+3. Select one of the waiting systems.
+   1. Currently, this is simply done greedily: checking the next available system.
+4. Check if the system is allowed to run.
+   1. Systems cannot run if an incompatible (in terms of data access) system is currently running.
+      1. This can be checked efficiently by comparing a the bitset of the system's data accesses to the bitset of the currently running data accesses.
+   2. Other system ordering constraints can also block a system from running, as described below.
+5. If it is allowed to run, run the system.
+   1. Rebuild the data accesses by taking a bitwise union of the data accesses of all currently running systems.
+   2. Once the system is complete, unlock its data by rebuilding the bitset again.
+6. Loop from 3 until all systems in the current stage are completed.
+7. Advance to the next stage and loop from 1.
 
-### At-least-once separation
+#### Strict ordering
+
+Systems cannot run if any of the systems that are "strictly before" them are still waiting or running.
+
+Naively, you could just check if any of the waiting or running systems have an appropriate label.
+However, this results in repeated, inefficient checks.
+Instead, we can precompute a representation of the dependency tree once, when the schedule for a given stage is made.
+
+Each system stores the number of **dependencies** it has: the dependency count must be equal to 0 in order for the system to run.
+Each system also stores a list of **dependent systems**: once this system completes, the number of dependencies in each of its dependant systems is decreased by one.
+
+We can count these dependencies by reviewing each strict ordering constraint.
+For each set of systems in the "before" set, add a dependency to each system in the "after" set.
+
+#### If-needed ordering
+
+Systems cannot run if any of the systems that they are "before if needed" are still waiting or running, if and only if they are incompatible with those systems.
+
+This can be implemented using the same dependency graph algorithm above: the only difference is which edges are added.
+For each if-needed dependency constraint added, an edge between the two systems is added if and only if they have incompatible data accesses.
+
+#### At-least-once separation
 
 TODO: describe the algorithm.
 
