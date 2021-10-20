@@ -133,6 +133,17 @@ At-least-once separation needs to be tackled in concert with [RFC 36: Encoding S
 
 ### Causal ties
 
+Causal ties add two small complications to the scheduler.
+
+First, when the schedule is built, we must check that all of the required downstream systems required to perform cleanup exist.
+For each causal tie, check if any systems with the upstream label are in the schedule.
+If they do, check if any systems with the downstream label are in the schedule.
+If none exist, panic.
+
+Secondly, after run criteria are evaluated, each causal tie should be checked.
+If any upstream systems for that causal tie are freshly enabled, also enable any of their downstream systems.
+Check all other causal ties and repeat until no new systems are enabled.
+
 ### Solving system ordering
 
 The basics of the system scheduler are universal.
