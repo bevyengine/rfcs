@@ -51,7 +51,7 @@ There are several **flavors** of system ordering constraints, each with their ow
 - **At-least-once separation:** If a type of side effect has been "produced" by any system, at least one "consuming" system must run before any system that "uses" that side effect can run.
   - `Commands` are the most important side effect here, but others (such as indexing) may be added to the engine itself later.
   - This design expands on the API in [RFC 36: Encoding Side Effect Lifecycles as Subgraphs](https://github.com/bevyengine/rfcs/pull/36).
-  - At-least-once separation also applies a special "causal tie" (see below): if a pair of `before` and `after` systems are enabled during a schedule pass, and all intervening `between` systems are disabled, the last intervening `between` system is forcibly enabled to ensure that cleanup occurs
+  - At-least-once separation also applies a special "causal tie" (see below): if a pair of `before` and `after` systems are enabled during a schedule pass, and all intervening `between` systems are disabled, the last intervening `between` system is forcibly enabled to ensure that cleanup occurs.
 
 System ordering constraints operate across stages, but can only see systems within the same schedule.
 
@@ -176,7 +176,7 @@ Each system stores the number of **dependencies** it has: the dependency count m
 Each system also stores a list of **dependent systems**: once this system completes, the number of dependencies in each of its dependant systems is decreased by one.
 
 We can count these dependencies by reviewing each strict ordering constraint.
-For each set of systems in the "before" set, add a dependency to each system in the "after" set.
+For each set of systems in the "before" set, add a dependency to each system in the "after" set that is in the same stage.
 
 #### If-needed ordering
 
@@ -187,7 +187,31 @@ For each if-needed dependency constraint added, an edge between the two systems 
 
 #### At-least-once separation
 
-TODO: describe the algorithm.
+Under an at-least-once-separated constraint, systems from the "after" set (`C`) cannot run if at least one system from the "before" set (`A`) has run, until at least one system from the "between" set (`B`) has run.
+
+Even ignoring the causal ties induced, this is by far the most complex constraint.
+Unfortunately, this pattern arises naturally whenever side effect cleanup is involved, and so must be handled properly by the scheduler itself.
+
+We cannot simply restate this as `A.before(B)` and `B.before(C)`: schedules produced by this will meet the requirements, but be overly strict, breaking our ability to express logic in important ways.
+This will force *all* of the separating systems to run before any of the "after" systems can start, making non-trivial chains impossible.
+
+Instead, we must track side effects.
+Each side effect is either in the `SideEffect::Clean` or `SideEffect::Dirty` state.
+When a system that produces a side effect is started, that side effect moves to the `SideEffect::Dirty` state.
+When a system that consumes a side effect completes, that side effect moves to the `SideEffect::Clean` state.
+Systems which use a side effect cannot be started if that side-effect is in the `SideEffect::Dirty` state.
+
+This solves the immediate scheduling problem, but does not tell us whether or not our schedule is unsatisfiable, and does not tell us when we must run our cleanup systems.
+The scheduler simply silently and nondeterministically hanging is not a great outcome!
+
+There are two options here:
+
+- users manually add cleanup systems at the appropriate points, and we write and then run a complex special-cased verifier
+  - critically, we need to make sure that the logic is never broken under *any* possible valid strategy
+- the scheduler automatically inserts cleanup systems where needed
+  - this avoids the need to add causal ties automatically
+  - this significantly improves the ordinary user experience by reducing errors and complexity
+  - this *might* worsen performance over a hand-optimized schedule, as more cleanup systems may be added than is strictly needed (or they may be added at suboptimal times)
 
 ### Schedules own systems
 
@@ -258,15 +282,20 @@ Additional helpful technical foundations and analysis can be found in the [linke
 
 ## Unresolved questions
 
-1. How *precisely* should schedules store the systems in them?
+1. How should dependencies between systems that are in different stages be handled?
+   1. For linear schedules, this is simple: just panic if the relative order is wrong.
+   2. Nonlinear schedules (as discussed at length in [RFC #35: (Hierarchical) Stage Labels, Conditions, and Transitions](https://github.com/bevyengine/rfcs/pull/35) are much more complex.
+   3. We could just eliminate the distinction between parallel and exclusive stages completely, merging this all into one big parallel stage. Then, any constraints outside of the stage panic, as is the case on 0.5  (but you care less, because linear structures will have only one stage).
+2. Should we use manual or automatic insertion of cleanup systems?
+   1. If we use manual scheduling, what algorithm do we want to use to verify satisfiability.
+   2. If we use automatic scheduling, what strategy should be followed?
 
 ## Future possibilities
 
 These additional constraints lay the groundwork for:
 
-1. More elegant, efficient versions of higher-level APIs such as a [system graph specification].
-2. Techniques for automatic schedule construction, where the scheduler is permitted to infer hard sync points and insert cleanup systems as needed to meet the constraints posed.
-3. [Robust schedule-configurable plugins](https://github.com/bevyengine/rfcs/pull/33).
+1. More elegant, efficient versions of higher-level APIs such as a [system graph specification](https://github.com/bevyengine/bevy/pull/2381) or a [side effects](https://github.com/bevyengine/rfcs/pull/36) abstraction.
+2. [Robust schedule-configurable plugins](https://github.com/bevyengine/rfcs/pull/33).
 
 In the future, pre-computed schedules that are loaded from disk could help mitigate some of the startup performance costs of this analysis.
 Such an approach would only be worthwhile for production apps.
