@@ -1,20 +1,15 @@
-# Feature Name: `trait-systems-queries`
+# Feature Name: `trait-queries`
 
 ## Summary
 
-By enabling trait-level reflection in Bevy, we can allow users to structure their logic in efficient, elegant ways to capture common behavior.
-Two tools are proposed: trait queries, which allow users to query for all components that implement a given trait, and trait-universal systems, which are generic systems which are replicated for every component (or resource) type that meets the required trait bounds.
+Trait queries allow users to query for components that implement a given trait.
 
 ## Motivation
 
-Working at higher levels of abstraction in Bevy currently requires a good amount of error-prone, tedious boilerplate.
-Abstracting over multiple similar component or resource types typically involves manually keeping track of a list of all of the relevant data that match your criteria, then updating various call sites.
+Abstracting over multiple similar component typically involves manually keeping track of a list of all of the relevant components that match your criteria, then updating various call sites.
 
-This tends to occur in two places:
-
-1. When writing queries for extensible gameplay systems, where we want to operate over *all* components that have a particular behavior, or entities that have exactly one component that has a particular behavior.
+This tends to occur when writing queries for extensible gameplay systems, where we want to operate over *all* components that have a particular behavior, or entities that have exactly one component that has a particular behavior.
 The workarounds for this often involve a huge number of tiny, specialized systems that are very challenging to maintain and reason about.
-2. When you want to share logic between related resource or component types. Currently, this involves writing generic systems, and then manually ensuring to add (and keep synchronized) the appropriate systems, often with a method on `App` as seen with `App::add_event`.
 
 Rust **traits** are the standard, idiomatic way to handle these types of abstraction.
 However, as Rust's reflection story is very limited, Bevy does not currently support the uses of traits that many users expect from within the ECS.  
@@ -22,11 +17,6 @@ However, as Rust's reflection story is very limited, Bevy does not currently sup
 By improving our ability to access the trait information of our component and resource types at runtime, we can enable these use cases, allowing users to write safer, clearer and more extensible code.
 
 ## User-facing explanation
-
-When components and resources are added to the ECS, their traits are automatically stored, and are accessible at runtime.
-Currently, there are two ways to take advantage of this information: **trait queries** and **trait-universal-systems**.
-
-### Trait queries
 
 In addition to querying for specific concrete component types, you can request any (or exactly one) component that meets a given trait bound.
 
@@ -66,56 +56,6 @@ If we wanted to ensure that there was only ever one handling method available, w
 
 You can also use these `dyn Trait` types in query filters: allowing you to search for entities with a component of a particular trait, without a component of that trait, with a changed component of that trait and so on.
 These all operate on an "at least one" basis: `Without<&dyn OnCrit>` will filter out any entities that have one or more components with the `OnCrit` trait.
-
-### Trait-universal systems
-
-Generic systems are powerful tools for allowing you to reuse logic across many related types.
-Suppose we wanted to automatically handle clicks on a particular kind of button by emitting an event of the type associated with that button.
-We might write a system that worked like so:
-
-```rust
-trait MenuButton: Component + Default;
-
-fn emit_menu_event<T: MenuButton>(query:<&Interaction, (With<T>>, Changed<Interaction>), event_writer: EventWriter<T>){
- for interaction in query.iter(){
-  if interaction = Interaction::Clicked {
-   event_writer.send(T.default());
-  }
- }
-}
-```
-
-Then, every time we want to connect a new menu button, we go back to our app and add another system:
-
-```rust
-fn main(){
- App::new()
- .add_system(emit_menu_event::<NewGame>)
- .add_system(emit_menu_event::<Continue>)
- .add_system(emit_menu_event::<LoadGame>)
- .add_system(emit_menu_event::<Options>)
- .add_system(emit_menu_event::<Credits>)
- .add_system(emit_menu_event::<Quit>)
- .run()
-}
-```
-
-While this is significantly better than writing out these systems one at a time, this process can be tedious, noisy and error-prone.
-We're going to add a copy of this system for *every* component that we implement `MenuButton` for; why not communicate that to Bevy directly?
-
-To do so, we can add a **trait-universal system**.
-As the name (and example above) implies, these run on every valid combination of component and resource types that meet the specified trait bounds.
-In practice, the snippet above would look like:
-
-```rust
-fn main(){
- App::new()
- .add_trait_universal_system(emit_menu_event)
- .run()
-}
-```
-
-As we add new components that have the `MenuButton` trait, their behavior is automatically wired up for us, and the systems are added to the schedule in precisely the same fashion as their siblings.
 
 ## Implementation strategy
 
