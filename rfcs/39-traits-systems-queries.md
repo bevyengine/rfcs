@@ -50,7 +50,7 @@ trait OnCrit: Component {
 }
 
 // This query returns any entity that just crit, and has at list one component with the `OnCrit` trait
-fn crit_system(query: Query<(Entity, &mut Damage, AnyOf<&(impl OnCrit)>), With<Crit>>, mut commands: Commands){
+fn crit_system(query: Query<(Entity, &mut Damage, AnyOf<&(dyn OnCrit)>), With<Crit>>, mut commands: Commands){
  for (entity, mut damage, on_crit_effects) in query.iter_mut(){
   // `on_crit_effects` is an iterator of components, all of whom are guaranteed to have the `OnCrit` trait
   // This allows us to call methods defined in the trait on each item
@@ -62,12 +62,10 @@ fn crit_system(query: Query<(Entity, &mut Damage, AnyOf<&(impl OnCrit)>), With<C
 }
 ```
 
-If we wanted to ensure that there was only ever one handling method available, we could use `OneOf<&(impl OnCrit)>` instead, which will only return entities that have exactly one component with that particular trait.
+If we wanted to ensure that there was only ever one handling method available, we could use `OneOf<&(dyn OnCrit)>` instead, which will only return entities that have exactly one component with that particular trait.
 
-You can also use these `impl Trait` types in query filters: allowing you to search for entities with a component of a particular trait, without a component of that trait, with a changed component of that trait and so on.
-These all operate on an "at least one" basis: `Without<&impl OnCrit>` will filter out any entities that have one or more components with the `OnCrit` trait.
-
-For more complex uses, note that you can use the standard `impl TraitA + TraitB` syntax to filter for components that have all of the required traits.
+You can also use these `dyn Trait` types in query filters: allowing you to search for entities with a component of a particular trait, without a component of that trait, with a changed component of that trait and so on.
+These all operate on an "at least one" basis: `Without<&dyn OnCrit>` will filter out any entities that have one or more components with the `OnCrit` trait.
 
 ### Trait-universal systems
 
