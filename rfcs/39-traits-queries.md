@@ -99,3 +99,8 @@ However, this has three serious drawbacks:
 
 1. How can we bridge the gap between the prototype API and the dream API laid out in the user-facing explanation?
 2. How can we determine an order to the components returned by trait queries?
+   1. Determinism is generally very useful for testing and networking.
+   2. The order of effect application may have important gameplay applications.
+   3. Ideally, this would be both controllable and robust.
+   4. Fundamentally, this is the same problem we ran into with specific ordering of relation targets.
+   5. This request may just be out of scope, and a problem we can solve later.
