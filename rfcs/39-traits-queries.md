@@ -39,7 +39,7 @@ trait OnCrit: Component {
   fn command(critting_entity: Entity) -> impl Command{}
 }
 
-// This query returns any entity that just crit, and has at list one component with the `OnCrit` trait
+// This query returns any entity that just crit, and has at least one component with the `OnCrit` trait
 fn crit_system(query: Query<(Entity, &mut Damage, AnyOf<&(dyn OnCrit)>), With<Crit>>, mut commands: Commands){
  for (entity, mut damage, on_crit_effects) in query.iter_mut(){
   // `on_crit_effects` is an iterator of components, all of whom are guaranteed to have the `OnCrit` trait
@@ -97,5 +97,5 @@ However, this has three serious drawbacks:
 
 ## Unresolved questions
 
-1. How cam we bridge the gap between the prototype API and the dream API laid out in the user-facing explanation?
+1. How can we bridge the gap between the prototype API and the dream API laid out in the user-facing explanation?
 2. How can we determine an order to the components returned by trait queries?
