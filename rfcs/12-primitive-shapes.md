@@ -551,10 +551,6 @@ Prior art was used to select the most common types of shape primitive, naming co
 
 Many game engine docs appear to have oddly-named and disconnected shape primitive types that are completely unrelated. This RFC aims to ensure Bevy doesn't go down this path, and instead derives functionality from common types to take advantage of the composability of components in the ECS.
 
-## Unresolved questions
-
-What is the best naming scheme, e.g., `2d::Line`/`3d::Line` vs. `Line2d`/`Line3d` vs. `Line2d`/`Line`?
-
 ### Out of Scope
 
 * Value types, e.g. float vs. fixed is out of scope. This RFC is focused on the core geometry types and is intended to use Bevy's common rendering value types such as `f32`.
