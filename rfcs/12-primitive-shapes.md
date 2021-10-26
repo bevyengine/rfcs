@@ -6,7 +6,7 @@ These geometric primitives, or "primitive shapes", are lightweight types for use
 
 ## Motivation
 
-This provides a type-level foundation that subsequent engine (and plugin!) features can be built upon incrementally, preventing ecosystem fragmentation. A major goal is to make it possible for engine and game developers to prototype physics, bounding, collision, and raycasting functionality using the same base types. This will make engine integration and cross-plugin interoperability much more feasible, as the engine will have opinionated types that will be natural to implement `into` or `from`. I hope this opens the door to experimentation with multiple physics and bounding acceleration backends. 
+This provides a type-level foundation that subsequent engine (and plugin!) features can be built upon incrementally, preventing ecosystem fragmentation. A major goal is to make it possible for engine and game developers to prototype physics, bounding, collision, and raycasting functionality using the same base types. This will make engine integration and cross-plugin interoperability much more feasible, as the engine will have opinionated types that will be natural to implement `into` or `from`. I hope this opens the door to experimentation with multiple physics and bounding acceleration backends.
 
 There is significant complexity in the way seemingly equivalent shapes are defined depending on how they are used. By considering these use cases *first*, the goal is that geometric data structures can be composed depending on the needed functionality, with traits used to ensure the right data structure is used for the right task.
 
@@ -25,7 +25,7 @@ Note that a `Circle2d` does not contain any information about the position of th
 | Shape     | Mesh | Bounding | Collision |
 |---        |---|---|---|
 | Sphere    | ✔ | ✔  + Trans | ✔ + Trans |
-| Box    | ✔ | ✔ + Trans (AABB) | ✔ + Trans + Rot (OBB) |
+| Box       | ✔ | ✔ + Trans (AABB) | ✔ + Trans + Rot (OBB) |
 | Capsule   | ✔ | ❌ | ✔ + Trans + Rot |
 | Cylinder  | ✔ | ❌ | ✔ + Trans + Rot |
 | Cone      | ✔ | ❌ | ✔ + Trans + Rot |
@@ -42,10 +42,10 @@ The difference between the two is somewhat semantic. Both bounding and collision
 ### Where are the `Transform`s?
 
 In this potential bounding and collision interface, translation and rotation are **not** defined using bevy's `Transform` components, nor are they stored in the base primitive shape types. This is because types that implement `Bounding` and `Collider` must be fully self-contained. This:
- 
- * makes the API simpler when using these components in functions and systems
- * ensures bounding and collision types use an absolute minimum of memory
- * prevents errors caused by nonuniform scale invalidating the shape of the primitive.
+
+* makes the API simpler when using these components in functions and systems
+* ensures bounding and collision types use an absolute minimum of memory
+* prevents errors caused by nonuniform scale invalidating the shape of the primitive.
 
 Instead, changes to the parent's `GlobalTransform` should be used to derive a new primitive on scale changes - as well as a new translation and rotation if required.
 
@@ -58,6 +58,7 @@ Both 2d and 3d primitives could implement the `Meshable` trait to provide the ab
 ```rust
 let circle_mesh: Mesh = Circle2d{ radius: 2.0 }.mesh();
 ```
+
 The base primitive types only define the shape (`Circle2d`) and size (`radius`) of the geometry about the origin. Once generated, the mesh can have a transform applied to it like any other mesh, and it is no longer tied to the primitive that generated it. The `Default::default()` implementation of primitives should be a "unit" variant, such as a circle with diameter 1.0, or a box with all edges of length 1.0.
 
 Meshing could be naturally extended with other libraries or parameters. For example, a sphere by default might use `Icosphere`, but could be extended to generate UV spheres or quad spheres. For 2d types, we could use a crate such as `lyon` to generate 2d meshes from parameterized primitive shapes within the `Meshable` interface.
@@ -82,6 +83,7 @@ This RFC provides independent 2d and 3d primitives. Recall that the purpose of t
 /// Stores an angle in radians, and supplies builder functions to prevent errors (from_radians, from_degrees)
 struct Angle(f32);
 ```
+
 ### Traits (REFERENCE ONLY!)
 
 **These traits are provided as reference to illustrate how these primitive shape types might be used. The details of implementation and interface should be determined in a separate RFC, PR, or independent prototypes.**
@@ -434,9 +436,10 @@ impl Collider2d for CapsuleCollider2d {}
 */
 
 ```
+
 ### Bounding and Collision
 
-Primitives colliders and bounding volumes are fully defined in space (in their hypothetical implementation here), and do not use `Transform` or `GlobalTransform`. This is an intentional decision. Because transforms can include nonuniform scale, they are fundamentally incompatible with shape primitives. We could use transforms in the future if the `translation`, `rotation`, and `scale` fields were distinct components, and shape primitives could be bundled with a `translation` or `rotation` if applicable. 
+Primitives colliders and bounding volumes are fully defined in space (in their hypothetical implementation here), and do not use `Transform` or `GlobalTransform`. This is an intentional decision. Because transforms can include nonuniform scale, they are fundamentally incompatible with shape primitives. We could use transforms in the future if the `translation`, `rotation`, and `scale` fields were distinct components, and shape primitives could be bundled with a `translation` or `rotation` if applicable.
 
 The provided reference implementaiton of bounding and collision types demonstrate how primitive shape types can be composed with other types, triats, or components to build added functionality from shared parts. While the collder and bounding primitives provided as reference are out of scope, they also highlight the incompatibility of shape primitives with the `Transform` component.
 
@@ -457,7 +460,7 @@ for bounding_volume in bound_vol_query.iter() {
 
 This data structure alone does not ensure the representation is valid; planes could be placed in nonsensical positions. To prevent this, the struct's fields should be made private, and constructors and setters should be provided to ensure `Frustum`s can only be initialized or mutated into valid arrangements.
 
-In addition, by defining the frustum as a set of planes, it is also trivial to support oblique frustums. Oblique frustums are useful for 2d projections used in CAD, as well as in games to take advantage of projection distortion to do things like emphasizing the feeling of speed in a driving game. See the Unity docs: https://docs.unity3d.com/Manual/ObliqueFrustum.html
+In addition, by defining the frustum as a set of planes, it is also trivial to support oblique frustums. Oblique frustums are useful for 2d projections used in CAD, as well as in games to take advantage of projection distortion to do things like emphasizing the feeling of speed in a driving game. See the Unity docs: <https://docs.unity3d.com/Manual/ObliqueFrustum.html>
 
 ### Ray Casting
 
@@ -515,10 +518,10 @@ Perhaps most critically, Parry types are opinionated for physics/raycasting use.
 
 ## Prior art
 
-- Unity `PrimitiveObjects`: https://docs.unity3d.com/Manual/PrimitiveObjects.html
-- Godot `PrimitiveMesh`: https://docs.godotengine.org/en/stable/classes/class_primitivemesh.html#class-primitivemesh
-- The popular *Shapes* plugin for Unity https://acegikmo.com/shapes/docs/#line
-- Rapier/Parry
+* Unity `PrimitiveObjects`: <https://docs.unity3d.com/Manual/PrimitiveObjects.html>
+* Godot `PrimitiveMesh`: <https://docs.godotengine.org/en/stable/classes/class_primitivemesh.html#class-primitivemesh>
+* The popular *Shapes* plugin for Unity <https://acegikmo.com/shapes/docs/#line>
+* Rapier/Parry
 
 Prior art was used to select the most common types of shape primitive, naming conventions, as well as sensible data structures for bounding, collision, and culling.
 
@@ -530,16 +533,16 @@ What is the best naming scheme, e.g., `2d::Line`/`3d::Line` vs. `Line2d`/`Line3d
 
 ### Out of Scope
 
-- Value types, e.g. float vs. fixed is out of scope. This RFC is focused on the core geometry types and is intended to use Bevy's common rendering value types such as `f32`.
-- Implementation of bounding, collisions, physics, raycasting, meshing, etc.
+* Value types, e.g. float vs. fixed is out of scope. This RFC is focused on the core geometry types and is intended to use Bevy's common rendering value types such as `f32`.
+* Implementation of bounding, collisions, physics, raycasting, meshing, etc.
 
 ## Future possibilities
 
-- Bounding boxes
-- Collisions
-- Frustum Culling
-- Froxels for forward clustered rendering
-- Ray casting
-- Physics
-- SDF rendering
-- Immediate mode debug Rendering (just call `.mesh()`!)
+* Bounding boxes
+* Collisions
+* Frustum Culling
+* Froxels for forward clustered rendering
+* Ray casting
+* Physics
+* SDF rendering
+* Immediate mode debug Rendering (just call `.mesh()`!)
