@@ -15,12 +15,12 @@ There is significant complexity in the way seemingly equivalent shapes are defin
 Geometric primitives are lightweight representations of geometry that describe the type of geometry as well as its dimensions. These primitives are *not* meshes, but the underlying precise mathematical definition. For example, a circle is:
 
 ```rust
-pub struct Circle2d {
+pub struct Circle {
   radius: f32,
 }
 ```
 
-Note that a `Circle2d` does not contain any information about the position of the circle. This is due to how shapes are composed to add more complex functionality. Consider the following common use cases of primitives shapes, as well as the the information (Translation and Rotation) that are needed to fully define the shapes for these cases:
+Note that a `Circle` does not contain any information about the position of the circle. This is due to how shapes are composed to add more complex functionality. Consider the following common use cases of primitives shapes, as well as the the information (Translation and Rotation) that are needed to fully define the shapes for these cases:
 
 | Shape     | Mesh | Bounding | Collision |
 |---        |---|---|---|
@@ -56,10 +56,9 @@ Although bounding and collision are out of scope of this RFC, this helps to expl
 Both 2d and 3d primitives could implement the `Meshable` trait to provide the ability to generate a tri mesh:
 
 ```rust
-let circle_mesh: Mesh = Circle2d{ radius: 2.0 }.mesh();
+let circle_mesh: Mesh = Circle{ radius: 2.0 }.mesh();
 ```
-
-The base primitive types only define the shape (`Circle2d`) and size (`radius`) of the geometry about the origin. Once generated, the mesh can have a transform applied to it like any other mesh, and it is no longer tied to the primitive that generated it. The `Default::default()` implementation of primitives should be a "unit" variant, such as a circle with diameter 1.0, or a box with all edges of length 1.0.
+The base primitive types only define the shape (`Circle`) and size (`radius`) of the geometry about the origin. Once generated, the mesh can have a transform applied to it like any other mesh, and it is no longer tied to the primitive that generated it. The `Default::default()` implementation of primitives should be a "unit" variant, such as a circle with diameter 1.0, or a box with all edges of length 1.0.
 
 Meshing could be naturally extended with other libraries or parameters. For example, a sphere by default might use `Icosphere`, but could be extended to generate UV spheres or quad spheres. For 2d types, we could use a crate such as `lyon` to generate 2d meshes from parameterized primitive shapes within the `Meshable` interface.
 
@@ -73,7 +72,32 @@ Colliders can provide intersection checks against other colliders, as well as ch
 
 ### 3D and 2D
 
-This RFC provides independent 2d and 3d primitives. Recall that the purpose of this is to provide lightweight types, so there are what appear to be duplicates in 2d and 3d, such as `Line` and `Line2d`. Note that the 2d version of a line is smaller than its 3d counterpart because it is only defined in 2d. 3d geometry (or 2d with depth) is assumed to be the default for most cases. The names of the types were chosen with this in mind.
+This RFC provides independent 2d and 3d primitives. Recall that the purpose of this is to provide lightweight types, so there are what appear to be duplicates in 2d and 3d, such as `Line2d` and `Line3d`. Note that the 2d version of a line is smaller than its 3d counterpart because it is only defined in 2d.
+
+| Shape           | 2D              | 3D            |
+|-----------------|-----------------|---------------|
+| Point           | Point2d         | Point3d       |
+| Plane           | Plane2d         | Plane3d       |
+| Direction       | Direction2d     | Direction3d   |
+| Ray             | Ray2d           | Ray3d         |
+| Line            | Line2d          | Line3d        |
+| LineSegment     | LineSegment2d   | LineSegment3d |
+| Polyline        | Polyline2d      | Polyline3d    |
+| Triangle        | Triangle2d      | Triangle3d    |
+| Quad            | Quad2d          | Quad3d        |
+| Sphere          | -               | Sphere        |
+| Box             | -               | Box           |
+| Cylinder        | -               | Cylinder      |
+| Capsule         | -               | Capsule       |
+| Cone            | -               | Cone          |
+| Wedge           | -               | Wedge         |
+| Torus           | -               | Torus         |
+| Frustrum        | -               | Frustrum      |
+| RegularPolygon  | RegularPolygon  | -             |
+| Polygon         | Polygon         | -             |
+| Rectangle       | Rectangle       | -             |
+| Circle          | Circle          | -             |
+
 
 ## Implementation strategy
 
@@ -93,9 +117,9 @@ trait Meshable{
   fn mesh(&self) -> Mesh;
 };
 
-trait Bounding {
-  fn within(&self, other: &impl Bounding) -> bool;
-  fn contains(&self, collider: &impl Collider) -> bool;
+trait Bounding3d {
+  fn within(&self, other: &impl Bounding3d) -> bool;
+  fn contains(&self, collider: &impl Collider3d) -> bool;
 }
 
 trait Bounding2d {
@@ -103,9 +127,9 @@ trait Bounding2d {
   fn contains(&self, collider: &impl Collider2d) -> bool;
 }
 
-trait Collider {
-  fn collide(&self, other: &impl Collider) -> Option(Collision);
-  fn within(&self, bounds: &impl Bounding) -> bool;
+trait Collider3d {
+  fn collide(&self, other: &impl Collider3d) -> Option(Collision3d);
+  fn within(&self, bounds: &impl Bounding3d) -> bool;
 }
 
 trait Collider2d {
@@ -117,54 +141,54 @@ trait Collider2d {
 ### 3D Geometry Types
 
 ```rust
-struct Point(Vec3)
+struct Point3d(Vec3)
 
 /// Vector direction in 3D space that is guaranteed to be normalized through its getter/setter.
-struct Direction(Vec3)
-impl Meshable for Direction {}
+struct Direction3d(Vec3)
+impl Meshable for Direction3d {}
 
-struct Plane {
-  point: Point,
-  normal: Direction,
+struct Plane3d {
+  point: Point3d,
+  normal: Direction3d,
 }
-impl Meshable for Plane {}
+impl Meshable for Plane3d {}
 
 /// Differentiates a line from a ray, where a line is infinite and a ray is directional half-line, although their underlying representation is the same.
-struct Ray(
-  point: Point, 
-  direction: Direction,
+struct Ray3d(
+  point: Point3d, 
+  direction: Direction3d,
 );
-impl Meshable for Ray {}
+impl Meshable for Ray3d {}
 
 // Line types
 
 /// Unbounded line in 3D space with directionality
-struct Line { 
-  point: Point, 
-  direction: Direction,
+struct Line3d { 
+  point: Point3d, 
+  direction: Direction3d,
 }
-impl Meshable for Line {}
+impl Meshable for Line3d {}
 
 /// A line segment bounded by two points
-struct LineSegment { 
-  start: Point, 
-  end: Point,
+struct LineSegment3d { 
+  start: Point3d, 
+  end: Point3d,
 }
-impl Meshable for LineSegment {}
+impl Meshable for LineSegment3d {}
 
 /// A line drawn along a path of points
-struct PolyLine {
-  points: Vec<Point>,
+struct PolyLine3d {
+  points: Vec<Point3d>,
 }
-impl Meshable for PolyLine {}
+impl Meshable for PolyLine3d {}
 
-struct Triangle([Point; 3]);
-impl Meshable for Triangle {}
-impl Collider for Triangle {}
+struct Triangle3d([Point3d; 3]);
+impl Meshable for Triangle3d {}
+impl Collider for Triangle3d {}
 
-struct Quad([Point; 4]);
-impl Meshable for Quad {}
-impl Collider for Quad {}
+struct Quad3d([Point3d; 4]);
+impl Meshable for Quad3d {}
+impl Collider for Quad3d {}
 
 /// Sphere types
 
@@ -302,12 +326,12 @@ impl Meshable for Torus {}
 
 // A 3d frustum used to represent the volume rendered by a camera, defined by the 6 planes that set the frustum limits.
 struct Frustum {
-  near: Plane,
-  far: Plane,
-  top: Plane,
-  bottom: Plane,
-  left: Plane,
-  right: Plane,
+  near: Plane3d,
+  far: Plane3d,
+  top: Plane3d,
+  bottom: Plane3d,
+  left: Plane3d,
+  right: Plane3d,
 }
 impl Meshable for Frustum {}
 
@@ -364,31 +388,31 @@ struct RegularPolygon2d {
 impl Meshable for RegularPolygon2d {}
  
 struct Polygon2d <const N: usize>{
-  points: [Point; N],
+  points: [Point2d; N],
 }
 impl Meshable for Polygon2d {}
 
 /// Circle types
 
-struct Circle2d {
+struct Circle {
   radius: f32,
 }
-impl Meshable for Circle2d {}
+impl Meshable for Circle {}
 
 /* REFERENCE ONLY
 struct BoundingCircle2d {
-  circle: Circle2d,
+  circle: Circle,
   translation: Vec2,
 }
 impl Meshable for BoundingCircle2d {}
 impl Bounding2d for BoundingCircle2d {}
 
-struct CircleCollider2d {
-  sphere: Circle2d,
+struct CircleCollider {
+  sphere: Circle,
   translation: Vec2,
 }
-impl Meshable for CircleCollider2d {}
-impl Collider2d for CircleCollider2d {}
+impl Meshable for CircleCollider {}
+impl Collider2d for CircleCollider {}
 */
 
 // Box Types
@@ -467,8 +491,8 @@ In addition, by defining the frustum as a set of planes, it is also trivial to s
 The bounding volumes sections of this RFC cover how these types could be used for the bounding volumes which are used for accelerating ray casting. In addition, the `Ray` primitive component can be used to naturally represent raycasting rays. Applicable 3d types could implement a `Raycast` trait to extend their functionality.
 
 ```rust
-let ray = Ray::X;
-let sphere = SphereCollider::new{Sphere{1.0}, Point::x(5.0));
+let ray = Ray3d::X;
+let sphere = SphereCollider::new{Sphere{1.0}, Point3d::x(5.0));
 let intersection = sphere.raycast(ray);
 ```
 
@@ -477,12 +501,12 @@ let intersection = sphere.raycast(ray);
 The notes for `Direction` mention it is gauranteed to be normalized through its getter and setter. There are a few ways to do this, but I'd like to propose a zero-cost implementation using the typestate pattern. To absolutely minimize the use of `normalize` on the contained `Vec3`, we can memoize the result _only when accessed_. We don't want to make `Direction` an enum, as that will add a discriminant, and we don't want to have normalized and unnormalized types for of all our primitives. So instead, we could use the typestate pattern to do something like:
 
 ```rust
-struct Plane {
-  point: Point,
-  normal: Direction,
+struct Plane3d {
+  point: Point3d,
+  normal: Direction3d,
 }
 
-struct Direction {
+struct Direction3d {
   direction: impl Normalizable,
 }
 
@@ -494,7 +518,7 @@ impl Normalizable for NormalizedDir {}
 
 ```
 
-When a `Direction` is mutated or built, the direction will be an `UncheckedDir`. Once it is accessed, the `Directions`s getter method will normalize the direction, and swap it out with a `NormalizedDir`. Now the normalized direction is memoized in the `Direction` without increasing the size of the type. This complexity can be completely hidden to users.
+When a `Direction` is mutated or built, the direction will be an `UncheckedDir`. Once it is accessed, the `Directions`s getter method will normalize the direction, and swap it out with a `NormalizedDir`. Now the normalized direction is memoized in the `Direction3d` without increasing the size of the type. This complexity can be completely hidden to users.
 
 ## Drawbacks
 
