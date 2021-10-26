@@ -417,28 +417,28 @@ impl Collider2d for CircleCollider {}
 
 // Box Types
 
-struct Box2d {
+struct Rectangle {
   half_extents: Vec2,
 }
-impl Meshable for Box2d
+impl Meshable for Rectangle
 
 /* REFERENCE ONLY
 struct BoundingBox2d {
-  box: Box2d,
+  box: Rectangle,
   translation: Vec2,
 }
 impl Meshable for BoundingBox2d {}
 impl Bounding2d for BoundingBox2d {}
 type Aabb2d = BoundingBox2d;
 
-struct BoxCollider2d {
-  box: Box2d,
+struct RectangleCollider {
+  box: Rectangle,
   translation: Vec2,
   rotation: Mat2,
 }
-impl Meshable for BoxCollider2d {}
-impl Collider2d for BoxCollider2d {}
-type Obb2d = BoxCollider2d;
+impl Meshable for RectangleCollider {}
+impl Collider2d for RectangleCollider {}
+type Obb2d = RectangleCollider;
 */
 
 // Capsule Types
