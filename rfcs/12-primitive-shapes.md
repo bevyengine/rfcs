@@ -35,7 +35,7 @@ Note that a `Circle2d` does not contain any information about the position of th
 
 ### Bounding vs. Collision
 
-The difference between the two is somewhat semantic. Both bounding and collision check for intersections between bounding volumes or areas. However, bounding volumes are generally used for broad phase checks due to their speed and small size, and are consequently often used in tree structures for spacial queries. Note that both bounding types are not oriented - this reduces the number of comparisons needed to check for intersections during broad phase tests. Bounding spheres or AABBs are generally always preferred for broad phase bounding checks, despite the OBB's name.
+The difference between the two is somewhat semantic. Both bounding and collision check for intersections between bounding volumes or areas. However, bounding volumes are generally used for broad phase checks due to their speed and small size, and are consequently often used in tree structures for spatial queries. Note that both bounding types are not oriented - this reduces the number of comparisons needed to check for intersections during broad phase tests. Bounding spheres or AABBs are generally always preferred for broad phase bounding checks, despite the OBB's name.
 
 **Note that the Bounding/Collision interface is not part of this RFC**, the purpose of this discussion is to present common use cases of these primitive shape types to uncover deficiencies in their design.
 
