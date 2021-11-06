@@ -76,6 +76,10 @@ This RFC provides independent 2d and 3d primitives. Recall that the purpose of t
 
 | Shape           | 2D              | 3D            |
 |-----------------|-----------------|---------------|
+| Rectangle       | Rectangle       | -             |
+| Circle          | Circle          | -             |
+| Polygon         | Polygon         | -             |
+| RegularPolygon  | RegularPolygon  | -             |
 | Point           | Point2d         | Point3d       |
 | Plane           | Plane2d         | Plane3d       |
 | Direction       | Direction2d     | Direction3d   |
@@ -93,11 +97,6 @@ This RFC provides independent 2d and 3d primitives. Recall that the purpose of t
 | Wedge           | -               | Wedge         |
 | Torus           | -               | Torus         |
 | Frustum         | -               | Frustum       |
-| RegularPolygon  | RegularPolygon  | -             |
-| Polygon         | Polygon         | -             |
-| Rectangle       | Rectangle       | -             |
-| Circle          | Circle          | -             |
-
 
 ## Implementation strategy
 
