@@ -72,7 +72,12 @@ Colliders can provide intersection checks against other colliders, as well as ch
 
 ### 2D and 3D
 
-This RFC provides independent 2d and 3d primitives. Recall that the purpose of this is to provide lightweight types, so there are what appear to be duplicates in 2d and 3d, such as `Line2d` and `Line3d`. Note that the 2d version of a line is smaller than its 3d counterpart because it is only defined in 2d.
+This RFC provides independent 2d and 3d primitives. Types that are present in both 2d and 3d space are suffixed with "2d" or "3d" to disambiguate them such as `Line2d` and `Line3d`. Types that only exist in either space have no suffix. 
+
+* 2D shapes have their dimensions defined in `x` and `y`. 
+* 3D shapes have their dimensions defined in `x`, `y` and `z`
+
+The complete overview of shapes, their dimensions and their names can be seen in this table:
 
 | Shape           | 2D              | 3D            | Description                                                                              |
 |-----------------|-----------------|---------------|------------------------------------------------------------------------------------------|
@@ -137,8 +142,6 @@ trait Collider2d {
 }
 ```
 ### 2D Geometry Types
-
-These types exist in 2d space: their dimensions and location are only defined in `x` and `y` unlike their 3d counterparts. Types that are present in both 2d and 3d space are suffixed with "2d" to disambiguate from the 3d types in user code. Types that only exist in 2d space have no "2d" suffix.
 
 ```rust
 struct Point2d(Vec2)
@@ -268,8 +271,6 @@ impl Collider2d for CapsuleCollider2d {}
 ```
 
 ### 3D Geometry Types
-
-These types exist in 3d space: their dimensions and location are defined in `x`, `y` and `z`. Types that are present in both 2d and 3d space are suffixed with "3d" to disambiguate from the 2d types in user code. Types that only exist in 3d space have no "3d" suffix.
 
 ```rust
 struct Point3d(Vec3)
