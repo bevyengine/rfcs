@@ -136,6 +136,129 @@ trait Collider2d {
   fn within(&self, bounds: &impl Bounding2d) -> bool;
 }
 ```
+### 2D Geometry Types
+
+These types only exist in 2d space: their dimensions and location are only defined in `x` and `y` unlike their 3d counterparts. These types are suffixed with "2d" to disambiguate from the 3d types in user code, guide users to using 3d types by default, and remove the need for name-spacing the 2d and 3d types when used in the same scope.
+
+```rust
+struct Point2d(Vec2)
+
+struct Direction2d(Vec2)
+impl Meshable for Direction2d {}
+
+struct Ray2d {
+  point: Point2d, 
+  direction: Direction2d
+}
+impl Meshable for Ray2d {}
+
+struct Line2d {
+  point: Point2d, 
+  direction: Direction2d,
+}
+impl Meshable for Line2d {}
+
+struct LineSegment2d { 
+  start: Point2d, 
+  end: Point2d,
+}
+impl Meshable for LineSegment2d {}
+
+struct PolyLine2d<const N: usize>{
+  points: [Point2d; N],
+}
+impl Meshable for PolyLine2d {}
+
+struct Triangle2d([Point2d; 3]);
+impl Meshable for Triangle2d {}
+
+struct Quad2d([Point2d; 4]);
+impl Meshable for Quad2d {}
+
+/// A regular polygon, such as a square or hexagon.
+struct RegularPolygon2d {
+  /// The circumcircle that all points of the regular polygon lie on.
+  circumcircle: Circle2d,
+  /// Number of faces.
+  faces: u8,
+  /// Clockwise rotation of the polygon about the origin. At zero rotation, a point will always be located at the 12 o'clock position.
+  orientation: Angle,
+}
+impl Meshable for RegularPolygon2d {}
+ 
+struct Polygon2d <const N: usize>{
+  points: [Point2d; N],
+}
+impl Meshable for Polygon2d {}
+
+/// Circle types
+
+struct Circle {
+  radius: f32,
+}
+impl Meshable for Circle {}
+
+/* REFERENCE ONLY
+struct BoundingCircle2d {
+  circle: Circle,
+  translation: Vec2,
+}
+impl Meshable for BoundingCircle2d {}
+impl Bounding2d for BoundingCircle2d {}
+
+struct CircleCollider {
+  sphere: Circle,
+  translation: Vec2,
+}
+impl Meshable for CircleCollider {}
+impl Collider2d for CircleCollider {}
+*/
+
+// Box Types
+
+struct Rectangle {
+  half_extents: Vec2,
+}
+impl Meshable for Rectangle
+
+/* REFERENCE ONLY
+struct BoundingBox2d {
+  box: Rectangle,
+  translation: Vec2,
+}
+impl Meshable for BoundingBox2d {}
+impl Bounding2d for BoundingBox2d {}
+type Aabb2d = BoundingBox2d;
+
+struct RectangleCollider {
+  box: Rectangle,
+  translation: Vec2,
+  rotation: Mat2,
+}
+impl Meshable for RectangleCollider {}
+impl Collider2d for RectangleCollider {}
+type Obb2d = RectangleCollider;
+*/
+
+// Capsule Types
+
+struct Capsule2d {
+  height: f32, // Height of the rectangular section
+  radius: f32, // End cap radius
+}
+impl Meshable for Capsule2d {}
+
+/* REFERENCE ONLY
+struct CapsuleCollider2d {
+  capsule: Capsule2d,
+  translation: Vec2,
+  rotation: Mat2,
+}
+impl Meshable for CapsuleCollider2d {}
+impl Collider2d for CapsuleCollider2d {}
+*/
+
+```
 
 ### 3D Geometry Types
 
@@ -336,129 +459,6 @@ impl Meshable for Frustum {}
 
 ```
 
-### 2D Geometry Types
-
-These types only exist in 2d space: their dimensions and location are only defined in `x` and `y` unlike their 3d counterparts. These types are suffixed with "2d" to disambiguate from the 3d types in user code, guide users to using 3d types by default, and remove the need for name-spacing the 2d and 3d types when used in the same scope.
-
-```rust
-struct Point2d(Vec2)
-
-struct Direction2d(Vec2)
-impl Meshable for Direction2d {}
-
-struct Ray2d {
-  point: Point2d, 
-  direction: Direction2d
-}
-impl Meshable for Ray2d {}
-
-struct Line2d {
-  point: Point2d, 
-  direction: Direction2d,
-}
-impl Meshable for Line2d {}
-
-struct LineSegment2d { 
-  start: Point2d, 
-  end: Point2d,
-}
-impl Meshable for LineSegment2d {}
-
-struct PolyLine2d<const N: usize>{
-  points: [Point2d; N],
-}
-impl Meshable for PolyLine2d {}
-
-struct Triangle2d([Point2d; 3]);
-impl Meshable for Triangle2d {}
-
-struct Quad2d([Point2d; 4]);
-impl Meshable for Quad2d {}
-
-/// A regular polygon, such as a square or hexagon.
-struct RegularPolygon2d {
-  /// The circumcircle that all points of the regular polygon lie on.
-  circumcircle: Circle2d,
-  /// Number of faces.
-  faces: u8,
-  /// Clockwise rotation of the polygon about the origin. At zero rotation, a point will always be located at the 12 o'clock position.
-  orientation: Angle,
-}
-impl Meshable for RegularPolygon2d {}
- 
-struct Polygon2d <const N: usize>{
-  points: [Point2d; N],
-}
-impl Meshable for Polygon2d {}
-
-/// Circle types
-
-struct Circle {
-  radius: f32,
-}
-impl Meshable for Circle {}
-
-/* REFERENCE ONLY
-struct BoundingCircle2d {
-  circle: Circle,
-  translation: Vec2,
-}
-impl Meshable for BoundingCircle2d {}
-impl Bounding2d for BoundingCircle2d {}
-
-struct CircleCollider {
-  sphere: Circle,
-  translation: Vec2,
-}
-impl Meshable for CircleCollider {}
-impl Collider2d for CircleCollider {}
-*/
-
-// Box Types
-
-struct Rectangle {
-  half_extents: Vec2,
-}
-impl Meshable for Rectangle
-
-/* REFERENCE ONLY
-struct BoundingBox2d {
-  box: Rectangle,
-  translation: Vec2,
-}
-impl Meshable for BoundingBox2d {}
-impl Bounding2d for BoundingBox2d {}
-type Aabb2d = BoundingBox2d;
-
-struct RectangleCollider {
-  box: Rectangle,
-  translation: Vec2,
-  rotation: Mat2,
-}
-impl Meshable for RectangleCollider {}
-impl Collider2d for RectangleCollider {}
-type Obb2d = RectangleCollider;
-*/
-
-// Capsule Types
-
-struct Capsule2d {
-  height: f32, // Height of the rectangular section
-  radius: f32, // End cap radius
-}
-impl Meshable for Capsule2d {}
-
-/* REFERENCE ONLY
-struct CapsuleCollider2d {
-  capsule: Capsule2d,
-  translation: Vec2,
-  rotation: Mat2,
-}
-impl Meshable for CapsuleCollider2d {}
-impl Collider2d for CapsuleCollider2d {}
-*/
-
-```
 
 ### Bounding and Collision
 
