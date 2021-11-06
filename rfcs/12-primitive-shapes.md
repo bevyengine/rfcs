@@ -23,15 +23,15 @@ pub struct Circle {
 Note that a `Circle` does not contain any information about the position of the circle. This is due to how shapes are composed to add more complex functionality. Consider the following common use cases of primitives shapes, as well as the the information (Translation and Rotation) that are needed to fully define the shapes for these cases:
 
 | Shape     | Mesh | Bounding | Collision |
-|---        |---|---|---|
-| Sphere    | ✔ | ✔  + Trans | ✔ + Trans |
+|-----------|----|------------------|---|
+| Sphere    | ✔ | ✔  + Trans       | ✔ + Trans |
 | Box       | ✔ | ✔ + Trans (AABB) | ✔ + Trans + Rot (OBB) |
-| Capsule   | ✔ | ❌ | ✔ + Trans + Rot |
-| Cylinder  | ✔ | ❌ | ✔ + Trans + Rot |
-| Cone      | ✔ | ❌ | ✔ + Trans + Rot |
-| Wedge     | ✔ | ❌ | ✔ + Trans + Rot |
-| Plane     | ✔ | ❌ | ✔ |
-| Torus     | ✔ | ❌ | ❌ |
+| Capsule   | ✔ | ❌               | ✔ + Trans + Rot |
+| Cylinder  | ✔ | ❌               | ✔ + Trans + Rot |
+| Cone      | ✔ | ❌               | ✔ + Trans + Rot |
+| Wedge     | ✔ | ❌               | ✔ + Trans + Rot |
+| Plane     | ✔ | ❌               | ✔ |
+| Torus     | ✔ | ❌               | ❌ |
 
 ### Bounding vs. Collision
 
@@ -70,33 +70,33 @@ For use in spatial queries, broad phase collision detection, and raycasting, hyp
 
 Colliders can provide intersection checks against other colliders, as well as check if they are within a bounding volume.
 
-### 3D and 2D
+### 2D and 3D
 
 This RFC provides independent 2d and 3d primitives. Recall that the purpose of this is to provide lightweight types, so there are what appear to be duplicates in 2d and 3d, such as `Line2d` and `Line3d`. Note that the 2d version of a line is smaller than its 3d counterpart because it is only defined in 2d.
 
-| Shape           | 2D              | 3D            |
-|-----------------|-----------------|---------------|
-| Rectangle       | Rectangle       | -             |
-| Circle          | Circle          | -             |
-| Polygon         | Polygon         | -             |
-| RegularPolygon  | RegularPolygon  | -             |
-| Point           | Point2d         | Point3d       |
-| Plane           | Plane2d         | Plane3d       |
-| Direction       | Direction2d     | Direction3d   |
-| Ray             | Ray2d           | Ray3d         |
-| Line            | Line2d          | Line3d        |
-| LineSegment     | LineSegment2d   | LineSegment3d |
-| Polyline        | Polyline2d      | Polyline3d    |
-| Triangle        | Triangle2d      | Triangle3d    |
-| Quad            | Quad2d          | Quad3d        |
-| Sphere          | -               | Sphere        |
-| Box             | -               | Box           |
-| Cylinder        | -               | Cylinder      |
-| Capsule         | -               | Capsule       |
-| Cone            | -               | Cone          |
-| Wedge           | -               | Wedge         |
-| Torus           | -               | Torus         |
-| Frustum         | -               | Frustum       |
+| Shape           | 2D              | 3D            | Description                                                                              |
+|-----------------|-----------------|---------------|------------------------------------------------------------------------------------------|
+| Rectangle       | Rectangle       | -             | A rectangle defined by its width and height                                              |
+| Circle          | Circle          | -             | A circle defined by its radius                                                           |
+| Polygon         | Polygon         | -             | A closed shape in a plane defined by a finite number of line-segments between vertices   |
+| RegularPolygon  | RegularPolygon  | -             | A polygon where all vertices lies on the circumscribed circle, equally far apart         |
+| Point           | Point2d         | Point3d       | A single point in space                                                                  |
+| Plane           | Plane2d         | Plane3d       | An unbounded plane defined by a position and normal                                      |
+| Direction       | Direction2d     | Direction3d   | A normalized vector pointing in a direction                                              |
+| Ray             | Ray2d           | Ray3d         | An infinite half-line pointing in a direction                                            |
+| Line            | Line2d          | Line3d        | An infinite line                                                                         |
+| LineSegment     | LineSegment2d   | LineSegment3d | A finite line between two vertices                                                       |
+| Polyline        | Polyline2d      | Polyline3d    | A line drawn along a path of vertices                                                    |
+| Triangle        | Triangle2d      | Triangle3d    | A polygon with 3 vertices                                                                |
+| Quad            | Quad2d          | Quad3d        | A polygon with 4 vertices                                                                |
+| Sphere          | -               | Sphere        | A sphere defined by its radius                                                           |
+| Box             | -               | Box           | A cuboid with six quadrilateral faces, defined by height, width, depth                   |
+| Cylinder        | -               | Cylinder      | A cylinder with its origin at the center of the volume                                   |
+| Capsule         | -               | Capsule       | A capsule with its origin at the center of the volume                                    |
+| Cone            | -               | Cone          | A cone with the origin located at the center of the circular base                        |
+| Wedge           | -               | Wedge         | A ramp with the origin centered on the width, and coincident with the rear vertical wall |
+| Torus           | -               | Torus         | A torous                                                                                 |
+| Frustum         | -               | Frustum       | The portion of a pyramid that lies between two parallel planes                           |
 
 ## Implementation strategy
 
@@ -138,7 +138,7 @@ trait Collider2d {
 ```
 ### 2D Geometry Types
 
-These types only exist in 2d space: their dimensions and location are only defined in `x` and `y` unlike their 3d counterparts. These types are suffixed with "2d" to disambiguate from the 3d types in user code, guide users to using 3d types by default, and remove the need for name-spacing the 2d and 3d types when used in the same scope.
+These types exist in 2d space: their dimensions and location are only defined in `x` and `y` unlike their 3d counterparts. Types that are present in both 2d and 3d space are suffixed with "2d" to disambiguate from the 3d types in user code. Types that only exist in 2d space have no "2d" suffix.
 
 ```rust
 struct Point2d(Vec2)
@@ -158,12 +158,14 @@ struct Line2d {
 }
 impl Meshable for Line2d {}
 
+/// A finite line between two vertices
 struct LineSegment2d { 
   start: Point2d, 
   end: Point2d,
 }
 impl Meshable for LineSegment2d {}
 
+/// 
 struct PolyLine2d<const N: usize>{
   points: [Point2d; N],
 }
@@ -175,7 +177,14 @@ impl Meshable for Triangle2d {}
 struct Quad2d([Point2d; 4]);
 impl Meshable for Quad2d {}
 
-/// A regular polygon, such as a square or hexagon.
+/// A closed shape in a plane defined by a finite number of line-segments between vertices
+struct Polygon2d <const N: usize>{
+  points: [Point2d; N],
+}
+impl Meshable for Polygon2d {}
+
+/// A polygon where all vertices lies on the circumscribed circle, equally far apart
+/// Example: Square, Triangle, Hexagon
 struct RegularPolygon2d {
   /// The circumcircle that all points of the regular polygon lie on.
   circumcircle: Circle2d,
@@ -185,14 +194,11 @@ struct RegularPolygon2d {
   orientation: Angle,
 }
 impl Meshable for RegularPolygon2d {}
- 
-struct Polygon2d <const N: usize>{
-  points: [Point2d; N],
-}
-impl Meshable for Polygon2d {}
 
-/// Circle types
 
+// Circle types
+
+/// A circle defined by its radius
 struct Circle {
   radius: f32,
 }
@@ -216,6 +222,7 @@ impl Collider2d for CircleCollider {}
 
 // Box Types
 
+/// A rectangle defined by its width and height
 struct Rectangle {
   half_extents: Vec2,
 }
@@ -261,6 +268,8 @@ impl Collider2d for CapsuleCollider2d {}
 ```
 
 ### 3D Geometry Types
+
+These types exist in 3d space: their dimensions and location are defined in `x`, `y` and `z`. Types that are present in both 2d and 3d space are suffixed with "3d" to disambiguate from the 2d types in user code. Types that only exist in 3d space have no "3d" suffix.
 
 ```rust
 struct Point3d(Vec3)
@@ -312,7 +321,7 @@ struct Quad3d([Point3d; 4]);
 impl Meshable for Quad3d {}
 impl Collider for Quad3d {}
 
-/// Sphere types
+// Sphere types
 
 struct Sphere {
   radius: f32,
@@ -446,7 +455,7 @@ struct Torus {
 }
 impl Meshable for Torus {}
 
-// A 3d frustum used to represent the volume rendered by a camera, defined by the 6 planes that set the frustum limits.
+/// A 3d frustum used to represent the volume rendered by a camera, defined by the 6 planes that set the frustum limits.
 struct Frustum {
   near: Plane3d,
   far: Plane3d,
@@ -458,7 +467,6 @@ struct Frustum {
 impl Meshable for Frustum {}
 
 ```
-
 
 ### Bounding and Collision
 
