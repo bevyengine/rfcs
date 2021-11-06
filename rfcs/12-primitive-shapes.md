@@ -100,7 +100,7 @@ The complete overview of shapes, their dimensions and their names can be seen in
 | Capsule         | -               | Capsule       | A capsule with its origin at the center of the volume                                    |
 | Cone            | -               | Cone          | A cone with the origin located at the center of the circular base                        |
 | Wedge           | -               | Wedge         | A ramp with the origin centered on the width, and coincident with the rear vertical wall |
-| Torus           | -               | Torus         | A torous                                                                                 |
+| Torus           | -               | Torus         | A torus, shaped like a donut                                                                           |
 | Frustum         | -               | Frustum       | The portion of a pyramid that lies between two parallel planes                           |
 
 ## Implementation strategy
