@@ -92,7 +92,7 @@ This RFC provides independent 2d and 3d primitives. Recall that the purpose of t
 | Cone            | -               | Cone          |
 | Wedge           | -               | Wedge         |
 | Torus           | -               | Torus         |
-| Frustrum        | -               | Frustrum      |
+| Frustum         | -               | Frustum       |
 | RegularPolygon  | RegularPolygon  | -             |
 | Polygon         | Polygon         | -             |
 | Rectangle       | Rectangle       | -             |
