@@ -13,95 +13,99 @@ such as the ones
 
 ## User-facing explanation
 
+### Terminology
+
+* A **`NavRequest`** is the sum of all possible ui-related user inputs. It's what
+  the algorithm takes as input, on top of the _navigation tree_ to figure out
+  the next focused element.
+* A **`Focusable`** is an Entity that can be navigated-to and highlighted (focused)
+  with a controller or keyboard
+* A **`NavFence`** adds "scope" to `Focusable`s. All `Focusable`s children of a
+  `NavFence` will be isolated from other `Focusable` and will require special
+  rules to access and leave.
+* The **navigation tree** is the logical relationship between all `NavFence`s.
+  `Focusables` are not really part of the tree, as you never break out of the
+  `NavFence` without a special `NavRequest`
+* There is a single `Focused` Entity, which is the currently highlighted/used
+  Entity.
+* There can be several **`Active`** elements, they represent the "path" through the
+  _navigation tree_ to the current `Focused` element (there isn't an exact 1
+  to 1 relationship, see following examples)
+* The navigation algorithm **resolves** a `NavRequest` by finding which `Entity`
+  to next focus to
+* The **active trail** is all the `Active` elements from the outermost
+  `NavFence` up to the innermost `NavFence` containing the `Focused` element.
+
+### Game developer interactions with the system
+
 We add a _navigation tree_ to the UI system, the tree will be used to enable
-key-based navigation of the specified UIs.
+key-based (and joystick controllable) navigation of UI, by allowing users to
+rotate between different UI elements.
 
 Currently, the developer must themselves write the relationship between
 various buttons in the menus and specify which button press leads to other menu
 items, etc. Or more simply, limit themselves to pointer-based navigation to
 avoid having to think about menu navigation.
 
-By including navigation-related components such as `Navigable` and `Container`,
-the developer can quickly get a controller-navigable menu up and running. The
-`Container` accepts various `Plane`s to fine-tune more precisely which keys
-trigger which kind of navigations.
+By including navigation-related components such as `Focusable` and `NavFence`,
+the developer can quickly get a controller-navigable menu up and running.
 
-To interact in real-time with the UI, the developer emits `NavCommand`s events.
+We could also add the `Focusable` component to standard UI widget bundles such
+as `ButtonBundle` and a potential `TextField`. This way, the developer _doesn't
+even need to specify the `Focusable` elements_.
+
+To interact in real-time with the UI, the developer emits `NavRequest`s events.
 The navigation system responds with `NavEvent` events, such as
-`NavEvent::FocusChanged` or `NavEvent::Caught`.
+`NavEvent::FocusChanged` or `NavEvent::Caught`. 
 
 The navigation system doesn't handle itself the state of the UI, but instead
 emits the `FocusChanged` etc. events that the developer will need to read to,
 for example, play an animation showing the change of focus in the game.
 
-Rather than directly reacting to input, we opt to make our system reactive to
-`NavCommand`, this way the developer is free to chose which button does what in
-the game.
+The game developer may also chose to listen to `Changed<Focusable>` and read
+the `Focusable.is_active` and `Focusable.is_focused` fields.
 
-What I want is being able to specify how to navigate a menu (however complex it is)
-without headaches. A simple menu should be dead easy to specify, while a
-complex menu should be possible to specify. Let's start by the simple one.
+Rather than directly reacting to input, we opt to make our system reactive to
+`NavRequest`, this way the developer is free to chose which button does what in
+the game. The developer also has the complete freedom to swap at runtime what
+sends or how those `NavRequest` are generated.
 
 ### Example
 
 Let's start with a practical example, and try figure out how we could specify
 navigation in it:
 
-![Typical RPG tabbed menu](https://user-images.githubusercontent.com/26321040/140542742-0618a428-6841-4e64-94f0-d64f2d03d119.png)
+![Typical RPG tabbed menu](https://user-images.githubusercontent.com/26321040/140716885-eb089626-21d2-4711-a0c9-cf185bc0f19a.png)
 
-You can move UP/DOWN in the submenu, but you see you can also use LT/RT to
-go from one submenu to the other (the _soul_, _body_ etc tabs).
+The tab "soul" and the panel "abc" are highlighted to show the player what menu
+they are down, they are **active** elements. The circle "B" is highlighted
+differently to show it is the **focused** element.
 
-Here is a draft of how I could specify in-code how to navigate this menu.
-`build_ui!` is a theoretical macro that builds a bevy UI without the verbosity
-we currently are accustomed to.
-
-Think of `horizontal`, `vertical`, `panel` etc. as a `NodeBundle`s presets, the
-elements between `{}` are additional `Component`s added to the `NodeBundle` and
-elements within parenthesis following a keyword are children `Entity` added with
-`.with_children(|xyz| {...})`.
-
+You can move `UP`/`DOWN` in the submenu, but you can also use `LT`/`RT` to
+go from one submenu to the other (the _soul_, _body_ etc tabs). This seems to
+be a reasonable API to interact with the focus change events:
 ```rust
-build_ui! {
-  vertical {:container "menu"} (
-    horizontal(
-      tab {:navigable} ("soul")
-      tab {:navigable} ("body")
-      tab {:navigable} ("mind")
-      tab {:navigable} ("all")
-    )
-    horizontal {:container "soul menu"} (
-      vertical(
-        panel {:navigable} (
-          colored_circle(Color::BLUE)
-          title_label("gdk")
-        )
-        panel {:navigable} (
-          colored_circle(Color::GREEN)
-          title_label("kfc")
-        )
-        panel {:navigable} (
-          colored_circle(Color::BEIGE)
-          title_label("abc")
-        )
-      )
-      vertical {:container "abc menu"} (
-        title_label("ABC")
-        grid(
-          circle_letter {:navigable} ("a")    circle_letter {:navigable} ("A")
-          circle_letter {:navigable} ("b")    circle_letter {:navigable} ("B")
-          circle_letter {:navigable} ("c")    circle_letter {:navigable} ("C")
-        )
-      )
-    )
-  )
+fn setup_ui() {
+  // TODO: add an example in the ui-navigation repo and link to it
 }
-fn react_events(events: ResMut<Event<NavEvent>>, game: Res<Game>) {
-  for event in events.iter() {
-    if matches!(event, NavEvent::Caught(NavCommand::Action, game.ui.start_button)) {
-      // start game
+fn ui_events_system(mut ui_events: EventReader<NavEvent>, game: Res<Game>) {
+  for event in ui_events.iter() {
+    match event {
+      NavEvent::Unresolved(NavRequest::Action, button) if button == game.ui.start_game_button => {
+        // Start the game
+      }
+      _ => {}
     }
-    //etc.
+  }
+}
+fn ui_draw_system(focus_changes: Query<(Entity, &Focusable), Changed<Focusable>>) {
+  for (button, focus_state) in focus_changes.iter() {
+    if focus_state.is_focused {
+      // Draw the button as being focused
+    } else if focus_state.is_active {
+      // etc.
+    }
+    // etc.
   }
 }
 ```
@@ -111,17 +115,14 @@ fn react_events(events: ResMut<Event<NavEvent>>, game: Res<Game>) {
 
 ### Basic physical navigation
 
-Let's drop the idea to change submenu with LT/RT for a while. We would change
-submenus by navigating upward with the Dpad or arrow keys to the tab bar and
-selecting the tab with the LEFT and RIGHT keys.
+Let's drop the idea to change submenu with `LT`/`RT` for a while. Let's focus on
+navigating the "ABC menu".
 
 Typical game engine implementation of menu navigation requires the developer to
 specify the "next", "left", "right", "previous" etc.[^1] relationships between
 focusable elements. This is just lame! Our game engine not only already knows
 the position of our UI elements, but it also has knowledge of the logical
-organization of elements through the `Parent`/`Children` relationship. (in this
-case, children are specified in the parenthesis following the element name,
-look at `grid(...)`)
+organization of elements through the `Parent`/`Children` relationship.
 
 Therefore, with the little information we provided through this hand wavy
 specification, we should already have everything setup for the navigation to
@@ -130,159 +131,121 @@ just work™.
 
 ### Dimensionality
 
-Let's go back to our ambition of using LT/RT for navigation now. 
+Let's go back to our ambition of using `LT`/`RT` for navigation now. 
 
 UI navigation is not just 2D, it's N-dimensional. The
-LT/RT to change tabs is like navigating in a 3rd orthogonal dimension to the
-dimensions you navigate with UP DOWN LEFT RIGHT inside the menus.
+`LT`/`RT` to change tabs is like navigating in a 3rd orthogonal dimension to the
+dimensions you navigate with `UP` `DOWN` `LEFT` `RIGHT` inside the menus. And to go
+from one menu to another you most often press `A`/`B`.
 
-I'll call those dimensions `Plane`s because it's easier to type than
-"Dimension", I'll limit the implementation to 3 planes. We can imagine truly
-exotic menu navigation systems with more than 3 dimensions, but I'll not
-worry about that. Our `Plane`s are:
-* `Plane::Menu`: Use LT/RT to move from one element to the next/previous
-* `Plane::Select`: Instead of emitting an `Action` event when left-clicking or
-  pressing A/B, go up-down that direction
-* `Plane::Physical`: Use the `Transform` positioning and navigate with Dpad or
-  arrow keys
-
-Each `NavCommand` moves the focus on a specific `Plane` as follow:
-* `Plane::Menu`: `Previous`, `Next`
-* `Plane::Select`: `Action`, `Cancel`
-* `Plane::Physical`: `MoveUp`, `MoveDown`, `MoveLeft`, `MoveRight`
-
-We should also be able to "loop" the menu, for example going LEFT of "soul"
+We should also be able to "loop" the menu, for example going `LEFT` of "soul"
 loops us back to "all" at the other side of the tab bar.
 
-### Specifying navigation dimensions
+### Specifying navigation between menus
 
-We posited we could easily infer the physical layout and bake a navigation map
-automatically based on the `Transform` positions of the elements. This is not
-the case for the dimensions of our navigation. We can't magically infer the
+We posited we could easily navigate with directional inputs the menu based on
+the position on-screen of each ui elements. This is not
+the case for the other dimensions of navigation. We can't magically infer the
 intent of the developer: They need to specify the dimensionality of their menus.
 
-Let's go back to the menu. In the example code, I refer to `:container` and
-`:navigable`. I've not explained yet what those are. Let's clear things up.
+This is where `NavFence`s become useful. We could specify a fully navigable
+menu with any arbitrary **graphical layout** but without any **navigation
+layout** by not bothering to insert any `NavFence` component. But a serious™
+game oftentimes has deep nested menus with arbitrary limitations on the
+navigation layout to help the player navigate easily the menu.
+The tabbed menu example could be from such a game.
 
-A _navigable_ is an element that can be focused. A _container_ is a node entity
-that contains _navigables_ and 0 or 1 other _container_.
+In our example, we want to be able to go from "soul menu" to "ABC menu" with
+`A`/`B` (Action, Cancel). `Action` let you enter the related submenu, while
+`Cancel` does the opposite.
 
-![The previous tabbed menu example, but with _containers_ and _navigables_ highlighted](https://user-images.githubusercontent.com/26321040/140542768-4fdd5f23-2c2e-43c1-9fa4-cc11fe67c619.png)
+`NavFence` specify the level of nestedness of each menu elements.
 
-The _containers_ are represented as semi-transparent squares; the _navigables_
+![The previous tabbed menu example, but with _fences_ and _focusables_ highlighted](https://user-images.githubusercontent.com/26321040/140716902-bd579243-9cfa-4bdf-a633-572344e15242.png)
+
+The _fences_ are represented as semi-transparent squares; the _focusables_
 are circles.
 
-In rust, it might look like this:
-```rust
-struct Container {
-  inner: Option<Box<Container>>,
-  siblings: NonEmptyVec<Navigable>,
-  active: SiblingIndex,
-  plane: Plane,
-}
-```
-Note: this is the data structure for the navigation algorithm, the ECS
-componenet called `Container` will probably look like this:
+How this relates to dimensionality becomes obvious when drawing the
+relationship between menus as a graph. Here we see that `Action` goes down the
+navigation graph, while `Cancel` goes up:
+
+![Graph menu layout](https://user-images.githubusercontent.com/26321040/140716920-fd298afb-093b-47f9-8309-c4c354c3d40f.png)
+(orange represents `Focused` elements, gold are `Active` elements)
+
+In bevy, a `NavFence` might be nothing else than a component:
 ```rust
 #[derive(Component)]
-struct Container {
-  plane: Plane,
-  loops: bool,
+struct NavFence;
+```
+
+### Navigating the tab bar
+
+However, it's not enough to be able to go up and down the menu hierarchy, we
+also want to be able to directly "speak" with the tab menu and switch from the
+"soul menu" to the "body menu" with a simple press of `RT` without having to
+press `B` twice to get to the tab menu.
+
+To solve this, we add a field to our `NavFence`, 
+```rust
+  sequence_menu: bool,
+```
+With this, when we traverse upward the navigation tree, for the `Next` and
+`Previous` `NavRequest`, we check for this field and try to move within that
+`NavFence`.
+
+
+### Loops
+
+TODO: specify how we solve and deduce loops
+
+### Algorithm
+
+This is a lot of words to describe something that is actually quite simple. An
+implementation is available [in this
+repo](https://github.com/nicopap/ui-navigation), but the focus resolution
+algorithm can be copied here:
+```rust
+/// Change focus within provided set of `siblings`, `None` if impossible.
+fn resolve_within(
+    focused: Entity,
+    request: NavRequest,
+    siblings: &[Entity],
+    transform: &Query<&GlobalTransform>,
+) -> Option<Entity>;
+
+fn resolve(
+    focused: Entity,
+    request: NavRequest,
+    queries: &NavQueries,
+    mut from: Vec<Entity>,
+) -> NavEvent {
+    let nav_fence = match parent_nav_fence(focused, queries) {
+      Some(entity) => entity,
+      None => return NavEvent::Uncaught { request, focused },
+    };
+    let siblings = children_focusables(nav_fence, queries);
+    let focused = get_active(&siblings, &queries.actives);
+    from.push(focused);
+    match resolve_within(focused, request, &siblings, &queries.transform) {
+        Some(to) => NavEvent::FocusChanged { to, from },
+        None => resolve(nav_fence, request, queries, from),
+    }
 }
 ```
+The `NavEvent` can then be used to tell bevy to modify the `Focusable`,
+`Active` and `Focused` component as needed.
 
-For now, let's focus on navigation within a single _container_. The
-_navigables_ are collected by walking through the bevy `Parent`/`Children` 
-hierarchy until we find a `Parent` with the `Container` component. Transitive
-children[^2] `Entity`s marked with `Navigable` are all _navigable siblings_.
-When collecting sibling, we do not traverse _container_ boundaries (ie: the
-_navigables_ of a contain**ed** _container_ are not the _navigables_ of the
-contain**ing** _container_)
-
-A `Container`'s plane field specifies how to navigate between it's contained
-_navigables_. In the case of our menu, it would be `Plane::Menu`. By default it is
-`Plane::Physical`.
-
-So how does that play with `NavCommand`s?  For example: You are focused on "B"
-navigable in the "abc menu" container, and you issue a `Next` `NavCommand` (press
-RT). What happens is this:
-1. What is the `plane` of "abc menu"? It is `Physical`, I must look up the
-   containing `Container`'s plane.
-2. What is the `plane` of "soul menu"? It is `Physical`, I must look up the
-   containing `Container`'s plane.
-3. What is the `plane` of "menu"? It is `Menu`!
-4. Let's take it's current active _navigable_ and look which other _navigable_
-   we can reach with our `NavCommand`
-
-In short, if your focused element is inside a given _container_ and you emit a `NavCommand`, 
-you climb up the container hierarchy until you find one in the plane of your
-`NavCommand`, then lookup the sibling you can reach with the given `NavCommand`.
-
-This algorithm results in three different outcomes:
-1. We find a container with a matching plane and execute a focus change
-2. We find a container with a matching plane, but there is no focus change,
-   for example when we try to go left when we are focused on a leftmost
-   element
-3. We bubble up the container tree without ever finding a matching plane
-
-
-### Navigation boundaries and navigation tree
-
-The navigation tree is the entire container hierarchy, including all nodes (which
-are always `Container`s) and leaves (`Navigable`s). For the previous example,
-it looks like this:
-
-![A diagram of the navigation tree for the tabbed menu example](https://user-images.githubusercontent.com/26321040/140542937-e28eed5e-70d5-4899-9c41-fb89b222469e.png)
-
-Important: The navigation tree is linear: it doesn't have "dead end" branches,
-it has as many nodes as there are depth levels.
-
-The algorithm for finding the next focused element based on a `NavCommand` is:
-```python
-def change_focus(
-    focused: Navigable,
-    cmd: NavCommand,
-    child_stack: List[ChildIndex],
-    traversal_stack: List[Navigable],
-) -> FocusResult:
-  container = focused.parent
-  if container is None:
-    first_focused = traversal_stack.first() or focused
-    return FocusResult.Uncaught(first_focused, cmd)
-
-  next_focused = container.contained_focus_change(focused, cmd)
-  if next_focused.is_caught:
-    first_focused = traversal_stack.first() or focused
-    return FocusResult.Caught(first_focused, container, cmd)
-
-  elif next_focused.is_open:
-    parent_sibling_focused = child_stack.pop()
-    traversal_stack.push(focused)
-
-    return change_focus(parent_sibling_focused, cmd, child_stack, traversal_stack)
-
-  elif next_focused.is_sibling:
-    first_focused = traversal_stack.first() or focused
-    traversal_stack.remove_first()
-
-    return FocusResult.FocusChanged(
-      leaf_from= first_focused,
-      leaf_to= next_focused.sibling,
-      branch_from= traversal_stack,
-    )
-  else:
-    print("This branch should be unreachable!")
-```
 
 ### UI Benchmarks discussion
 
-As mentioned in [this
-RFC](https://github.com/alice-i-cecile/rfcs/blob/ui-central-dogma/rfcs/ui-central-dogma.md),
+As mentioned in [this RFC](https://github.com/alice-i-cecile/rfcs/blob/ui-central-dogma/rfcs/ui-central-dogma.md),
 we should benchmark our design against actual UI examples. I think that the
 one used in this RFC as driving example (the RPG tabbed menu) illustrates well
 enough how we could implement Benchmark 2 (main menu) using our system.
-Benchmark 1 is irrelevant and Benchmark 3 seems to only require a `Physical`
-layer.
+Benchmark 1 is irrelevant. Benchmark 3 could potentially be solved by just
+marking the interactive element with the `Focusable` component and nothing
+else, so that every element can be reached from anywhere.
 
 
 ## Prior art
@@ -323,26 +286,33 @@ accessed by a 3rd party plugin. However as I already mentioned, this solves
 [bevy-specific concerns](https://github.com/bevyengine/bevy/issues/254), and
 bevy would benefit from integrating a good ui navigation system.
 
-### Naming
-
-I'm not comfortable with the names I chose for the various concepts I
-introduced. (such a `Container`, `Plane`, `Physical`) Do not be afraid to
-suggest name changes. Naming is important and I'm already not satisfied with
-the nomenclature I came up with.
-
 ## Drawbacks and design limitations
 
 ### Unique hierarchy
 
-If we implementation this with a cached navigation tree, it's going to be
-easy to assume accidentally that we have a single fully reachable navigation
-tree. This is not obvious, it's easy to just add the `Container` or `Navigable`
-`Component` to an entity that doesn't have itself a `Container` parent more
-than once.
+The proposed navigation tree has a surprising design. The navigation tree only
+manages the path to the current active element and the siblings of the
+fences you have to traverse from the root to get to the focused element.
 
-This needs to be solved, I'm thinking that an error message would be enough in
-this case. But it's worth considering design changes that makes this situation
-a non-issue.
+This has several drawbacks:
+* The user must be aware and understand the expectations of the navigation
+  algorithm. It's easy to detect violations of the expectations, communicating
+  the fix to the user less so. Potentially we could use a runtime error or
+  warning.
+* We don't have any memory beside the activation trail. A good example of focus
+  memory is a classical text editor with multiple tabs. When you go from Tab 2
+  to Tab 1, and back from Tab 1 to Tab 2, you will find the text cursor at the
+  same location you left it. This isn't possible with this system, as the only
+  memory is from the root of the window to the current cursor.
+
+
+I think this is fixable. It's possible to store the entire navigation tree. We
+could simply keep track of the active trail as boolean flags on each branches.
+The focus algorithm only cares about the active path, so there would be very
+little to change on that side.
+
+The focus memory use case is not important for most games. However it will
+be necessary for any complex editor.
 
 ### No concurrent submenus
 
@@ -355,31 +325,36 @@ the focus change leads to a new sub-menu.
 I'm implementing first to see how cumbersome this is, and maybe revise the
 design with learning from that.
 
-Maybe it's possible to integrate more than one `Container` within other
-containers. The only motivation for this currently is that it makes it easier to
-implement and reason about the system.
+The only motivation for this is that it makes it easier to
+implement and reason about the system. It's far easier to implement. In fact
+the current implementation doesn't even use a tree data type, but a vector of
+vectors where each row represents a layer of _focusables_.
+
+It's possible to keep more than one `NavFence` within other fences.
+The solution is that of [the previous section](#unique-hierarchy).
+
 
 ### Inflexible navigation
 
 The developer might want to add arbitrary "jump" relations between various
 menus and buttons. This is not possible with this design. Maybe we could add a
 ```rust
-  bridges: HashMap<NavCommand, Entity>,
+  bridges: HashMap<NavRequest, Entity>,
 ```
-field to the `Container` to reroute `NavCommand`s that failed to change focus
+field to the `NavFence` to reroute `NavRequest`s that failed to change focus
 within the menu. I think this might enable cycling references within the
 hierarchy and break useful assumptions.
 
-## Unresolved questions
+### Mouse support
 
-Building the physical navigation tree seems not-so trivial, I'm not sure how
-feasible it is, although I really think it's not that difficult.
-
+We should add mouse support (pointer devices). Though it is not at all
+mentioned in this RFC, it is self-evident that integrating the navigation-based
+focus with pointer-based focus is the way forward.
 
 ## Isn't this overkill?
 
 Idk. My first design involved even more concepts, such as `Fence`s and `Bubble`
-where each `Container` could be open or closed to specific types of `NavCommand`s.
+where each `NavFence` could be open or closed to specific types of `NavRequest`s.
 After formalizing my thought, I came up with the current design because it
 solved issues with the previous ones, and on top of it, required way less
 concepts.
@@ -387,7 +362,7 @@ concepts.
 For the use-case I considered, I think it's a perfect solution. It seems to
 be a very useful solution to less complex use cases too. Is it overkill for
 that? I think not, because we don't need to define relations at all, especially
-for a menu exclusively in the physical plane. On top of that, I'm not creative
+for a menu without any hierarchy. On top of that, I'm not creative
 enough to imagine more complex use-cases.
 
 [^1]: See [godot documentation](https://github.com/godotengine/godot-docs/blob/master/tutorials/ui/gui_navigation.rst)
