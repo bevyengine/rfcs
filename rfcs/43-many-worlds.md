@@ -151,6 +151,14 @@ If one arises, swapping to a multimap should be easy.
 
 The ability to clone schedules should give us almost everything you might want to do with this.
 
+## Why is this design at the `bevy_app` level, not `bevy_ecs`?
+
+Fundamentally, we need to store schedules and worlds together, and have a way to execute logic on them in a sensible, controllable way.
+`bevy_ecs` has no such abstractions for this, in favor of allowing end users to roll their own wrapping data structures as desired.
+
+For the most part, this is trivial to replicate externally: `App` is still very simple, the hard part is in getting the design right.
+`AppCommands` are the only technically-challenging bit, but those are easy to replicate in a fixed fashion using an external control flow in the event that they are needed, or they can be stolen from `bevy_app` as needed.
+
 ## Prior art
 
 [#16](https://github.com/bevyengine/rfcs/pull/16) covers a related but mutually incompatible sub-world proposal.
@@ -166,6 +174,8 @@ The ability to clone schedules should give us almost everything you might want t
 1. Can we get `App`-level storage of `AppCommandQueue` working properly? Very much the same problem as [bevy #3096](https://github.com/bevyengine/bevy/issues/3096) experienced with `Commands`.
 2. Is the ability to clone entities between worlds critical / essential enough to solve [bevy #1515](https://github.com/bevyengine/bevy/issues/1515) as part of this feature (or before attempting it)?
 3. Should `AppCommands` take a `&mut App`, or something better scoped to reduce borrow-check complexity?
+4. How do we ensure that we can move entities and resources from one `World` to another outside of `bevy_app` without cloning?
+   1. This is important to ensure that stand-alone `bevy_ecs` users can use this feature set smoothly.
 
 ## Future possibilities
 
