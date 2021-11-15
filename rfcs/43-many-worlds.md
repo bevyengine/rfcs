@@ -217,16 +217,69 @@ fn main(){
    .add_plugin(UiPlugin)
    .add_plugin(RenderingPlugin)
    .add_plugin(InputPlugin)
+   // We're sticking to a one-deep search for sanity here
+   .add_system(simulate_action_system)
+   .add_system(choose_action_system)
    .run();
 }
 
 // This system is contained within `GameLogicPlugin`
-fn simulate_action(action: AiActions, app_commands: AppCommands){
-   app_commands
-   .spawn_world(SimulationWorld::new())
+fn simulate_action_system(potential_actions: Res<PotentialActions>, mut app_commands: AppCommands, sim_query: Query<((), With<Simulate>)>){
+   // Create a new world for each potential action
+   for proposed_action in potential_actions.iter() {
+      // These identifiers are uniquely generated and ephemeral
+      let sim_world = SimulationWorld::new();
 
-   // FIXME: figure out the crazy structure needed to make this actually work,
-   // or swap to a simpler example
+      // Making a simulation world that's identical to the main world in all relevant ways
+      app_commands
+         .spawn_world(sim_world)
+         .clone_schedule(GameRulesWorld, sim_world)
+         // As above, blocked by bevy #1515
+         .clone_entities_to_world(sim_query.entities(), sim_world)
+         // This system will evaluate the world state, send it back with an event reporting the values
+         .add_system(evaluate_action_system.to_world(sim_world))
+         .send_event(proposed_action, sim_world);
+   }
+}
+
+struct EvaluateAction {
+   proposed_action: Action,
+   score: Score,
+}
+
+// This system somehow evaluates the goodness of the world state
+// and then sends that information back to the main world
+fn evaluate_action_system(mut proposed_actions: EventReader<ProposedActions>,
+   app_commands: AppCommands, score: Res<Score>,
+   current_world_label: CurrentWorld){
+   
+   // Exactly one proposed action should be sent per world
+   let action: Action = proposed_actions.iter().next().unwrap().into();
+
+   let evaluation = EvaluateAction{
+      action,
+      score: *score,
+   }
+
+   // Report back to the main world
+   app_commands.send_event(evaluation, main_world);
+   // We're only looking ahead one step, so we're done with the world now
+   app_commands.despawn_world(current_world_label);
+}
+
+// Run in the main world, once we've evaluated our actions
+fn choose_action_system(mut eval_events: EventReader<EvaluateAction>, mut action_events: EventWriter<Action>){
+
+   let mut best_action = Action::Pass;
+   let mut best_score = Score(0);
+
+   for evaluation in eval_events.iter(){
+      if evaluation.score >= best_score {
+         best_action = evaluation.action;
+      }
+   }
+
+   action_events.send(best_action);
 }
 ```
 
@@ -298,6 +351,7 @@ The initial set of `AppCommands` needed for this RFC are:
 - `move_query::<Q: WorldQuery, F: WorldQuery + FilterFetch>(origin_world: impl WorldLabel, destination_world: impl WorldLabel)`
   - moves every matching entity to the destination world
 - `move_resource::<R: Resource>(origin_world: impl WorldLabel, destination_world: impl WorldLabel)`
+- `send_events::<E>(event: E, destination_world: impl WorldLabel)`
 - `send_events::<E>(events: Events<E>, destination_world: impl WorldLabel)`
 - `send_commands(commands: Commands, destination_world: impl WorldLabel)`
 - `insert_global(res: impl Resource)`
