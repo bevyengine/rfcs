@@ -24,15 +24,57 @@ A more limited "sub-world" design (see #16 for further discussion) is more feasi
 
 ## User-facing explanation
 
-TODO: write me.
+When you need to fully isolate entities from each other (or make sure logic doesn't actually run on some chunk of them), you can create **multiple worlds** in your Bevy app.
 
-Explain the proposal as if it was already included in the engine and you were teaching it to another Bevy user. That generally means:
+At this point, you should be familiar with the basics of both `Worlds` and `Schedules`.
+Your `App` can store any number of these, each corresponding to a particular `WorldLabel`.
 
-- Introducing new named concepts.
-- Explaining the feature, ideally through simple examples of solutions to concrete problems.
-- Explaining how Bevy users should *think* about the feature, and how it should impact the way they use Bevy. It should explain the impact as concretely as possible.
-- If applicable, provide sample error messages, deprecation warnings, or migration guidance.
-- If applicable, explain how this feature compares to similar existing features, and in what situations the user would use each one.
+During each pass of the game loop, each schedule runs in parallel, modifying the world it is assigned to.
+These worlds are fully isolated: they cannot view or modify any other world, and stages progress independently across schedules.
+Then, the **global world** (which stores common, read-only data) is processed, and any systems in its schedule are run.
+Finally, at the end of each game loop, all of the worlds wait for a synchronization step, and apply any `AppCommands` that were sent.
+
+`AppCommands` allow you to communicate between worlds in various fashions.
+You might:
+
+- `spawn_world` or `despawn_world`, to create and manage new worlds to shard your game or simulate hypothetical futures
+- `add_schedule`, `clone_schedule`, `reassign_schedule` or `remove_schedule` to apply logic to these new worlds
+- `move_resource`, `send_other_world_command` or `send_other_world_event` to communicate between worlds
+- transfer entities between worlds with `move_entities` or `move_query`
+- update the value of global resources that are shared between worlds using `insert_global`
+
+### WorldLabels
+
+Each world has its own label, which must implement the `WorldLabel` trait in the same fashion as the system labels you're already familiar with.
+
+By default, two worlds are added to your app: `CoreWorld::Global` and `CoreWorld::Main`.
+By convention, the main world should contain the vast majority of your logic, while the global world should only contain global resources (and other read-only data) that need to be accessed across worlds.
+
+### Global resources
+
+Each app has its own collection of global resources, which can be viewed (but not modified) in each of the worlds.
+This allows for convenient, non-blocking sharing of things like asset collections, settings and input events.
+
+If needed, you can get a read-only view into the entire global world using the `GlobalWorld` system parameter.
+This is non-blocking, as the global world cannot be modified in any fashion while other schedules are active.
+
+### Example: parallel simulations
+
+TODO: write an example
+
+### Example: world-model AI
+
+TODO: write an example
+
+### Example: entity prefab staging world
+
+TODO: write an example
+
+### Custom strategies for multiple worlds
+
+You can modify the default strategy described above by setting up your own custom runner, which can be used to control the execution of schedules in arbitrary ways.
+
+Note that schedules are initialized on particular worlds, and will not run on a world with a mismatched `WorldLabel`.
 
 ## Implementation strategy
 
@@ -42,16 +84,14 @@ Explain the proposal as if it was already included in the engine and you were te
 pub struct App {
  // WorldId is not very readable; we can steal labelling tech from systems
  pub worlds: HashMap<WorldLabel, World>,
+  // Each Schedule must have a `World`, but not all worlds need schedules
+ pub schedules: HashMap<WorldLabel, Schedule>,
  // This is important to preserve the current ergonomics in the simple case
  pub default_world: WorldLabel,
- // Each Schedule must have a `World`, but not all worlds need schedules
- pub schedules: HashMap<WorldLabel, Schedule>,
+  // This is needed in order to correctly hand out read-only access
+ pub global_world: WorldLabel,
  // Same as before
  pub runner: Box<dyn Fn(App) + 'static, Global>,
- // Designed for storing GlobalRes
- // Read-only access unless you have &mut App
- // Also stores an `AppCommandQueue` in some fashion
- pub global_world: World
 }
 ```
 
@@ -61,9 +101,10 @@ The standard main loop would have the following basic structure:
 2. For each `WorldLabel` in `app.world.keys()`, initialize the corresponding schedule with the correct label.
 3. For each world, run the corresponding schedule if it exists.
    1. Each world is fully independent, and each scheduler can request more threads as needed in a greedy fashion.
-4. At the end of each loop, put the entire `App` back together and run any `AppCommands`.
+4. Run the global schedule.
+5. At the end of each loop, put the entire `App` back together and run any `AppCommands`.
    1. Be sure to apply standard `Commands` to each world.
-5. Go to 2.
+6. Go to 2.
 
 This should be programmed using the default (and minimal) runners.
 Custom schedule and synchronization behavior can be added with a custom runner.
@@ -109,8 +150,23 @@ In order to avoid contention issues and scheduler entanglement, global resources
 Use `AppCommands::insert_global_resource` to modify them.
 They are accessible via `GlobalRes<MyResource>` system parameters in standard systems.
 
-Under the hood, each world gets a `&` to these.
+Under the hood, each other world gets a `&` to these.
 This simplifies system parameter dispatch, and allows them to be accessed in exclusive systems using `World::get_global_resource::<R: Resource>`.
+
+Global resources are stored in their own world, with a corresponding schedule and the `CoreWorld::Global` label (the default world gets `CoreWorld::Main`).
+The default runner special-cases the execution order of our worlds, in order to safely hand out non-blocking read-only access to this world.
+
+### WorldLabel
+
+Steal implementation from system and stage labels.
+This should probably be abstracted out into its own macro at this point.
+
+Remove `WorldId`.
+
+### Plugins
+
+The best stop-gap strategy for dealing with third-party dependencies in this design is going to be to `App::add_plugin_to_world(plugin: impl Plugin, label: impl WorldLabel)`.
+This will change the default world for that plugin to the specified label.
 
 ## Drawbacks
 
