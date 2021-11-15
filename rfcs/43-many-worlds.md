@@ -99,7 +99,9 @@ The initial set of `AppCommands` needed for this RFC are:
 - `init_global::<R: Resource + FromWorld>()`
 - `remove_global::<R: Resource>()`
 
-Schedule modifying commands are obviously a natural extension, but are well outside of the scope of this RFC.
+All of these methods should have an equivalent on `App`, which should be the canonical form called by these commands.
+
+Schedule modifying commands are a natural extension, but are well outside of the scope of this RFC.
 
 ### Global resources
 
@@ -163,6 +165,7 @@ The ability to clone schedules should give us almost everything you might want t
 
 1. Can we get `App`-level storage of `AppCommandQueue` working properly? Very much the same problem as [bevy #3096](https://github.com/bevyengine/bevy/issues/3096) experienced with `Commands`.
 2. Is the ability to clone entities between worlds critical / essential enough to solve [bevy #1515](https://github.com/bevyengine/bevy/issues/1515) as part of this feature (or before attempting it)?
+3. Should `AppCommands` take a `&mut App`, or something better scoped to reduce borrow-check complexity?
 
 ## Future possibilities
 
@@ -179,3 +182,5 @@ The ability to clone schedules should give us almost everything you might want t
    1. Some trickery would be required to avoid self-referential schedule modification.
 5. More fair, responsive or customizable task pool strategies to better predict and balance work between worlds.
 6. Use of app commands to modify schedules, as explored in [bevy #2507](https://github.com/bevyengine/bevy/pull/2507).
+   1. We could *maybe* even pause the app, and then modify the runner.
+7. Fallible `AppCommands` using the technology in [bevy #2241](https://github.com/bevyengine/bevy/pull/2241).
