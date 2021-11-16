@@ -483,6 +483,10 @@ For the most part, this is trivial to replicate externally: `App` is still very 
 3. Should `AppCommands` take a `&mut App`, or something better scoped to reduce borrow-check complexity?
 4. How do we ensure that we can move entities and resources from one `World` to another outside of `bevy_app` without cloning?
    1. This is important to ensure that stand-alone `bevy_ecs` users can use this feature set smoothly.
+5. How can we improve the end user experience when working with custom runners?
+   1. This problem already exists: modifying the `winit` strategy is very painful.
+   2. Split between "schedule logic" and "interfacing logic"?
+6. When writing runners, how precisely do we specify world sync points?
 
 ## Future possibilities
 
