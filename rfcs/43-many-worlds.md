@@ -17,7 +17,7 @@ Some of the more immediate use cases include:
 4. A trivially correct structure for parallel world simulation for scientific simulation use cases.
 5. Look-ahead simulation for AI, where an agent simulates a copy of the world using the systems without actually affecting game state.
 6. Isolation of map chunks.
-7. Roll-back networking.
+7. Temporarily disabling entities in a system-agnostic fashion.
 
 Currently, this flavor of design requires abandoning `bevy_app` completely, carefully limiting *every* system used (including base / external systems) or possibly some very advanced shenanigans with exclusive systems.
 
@@ -417,7 +417,7 @@ The default runner special-cases the execution order of our worlds, in order to 
 Steal implementation from system and stage labels.
 This should probably be abstracted out into its own macro at this point.
 
-Remove `WorldId`.
+Remove `WorldId` in favor of an internal `WorldLabel`, which is exposed as a system parameter so systems can tell which world they're running on.
 
 ## Drawbacks
 
@@ -426,6 +426,10 @@ Remove `WorldId`.
 - makes the need for plugin configurability even more severe
 - sensible API is blocked on [system builder syntax](https://github.com/bevyengine/bevy/pull/2736)
   - until then, we *could* make methods for `add_system_set_to_stage_to_world`...
+- `set_world` makes the `App`'s [order-dependence](https://github.com/bevyengine/bevy/issues/1255) stronger
+  - this is mitigated by the standard plugin architecture
+  - the API created by this is very easy to read and reason about
+  - this surface-level API should be easy to redesign if we decide to coherently tackle that problem
 - heavier use of custom runners increases the need for better reusability of the `DefaultPlugins` `winit` runner; this is a nuisance to hack on for the end user and custom runners for "classical games" are currently painful
 
 ## Rationale and alternatives
@@ -435,27 +439,37 @@ Remove `WorldId`.
 Ownership semantics are substantially harder to code and reason about in a hierarchical structure than in a flat one.
 
 They are significantly less elegant for several use cases (e.g. scientific simulation) where no clear hierarchy of worlds exists.
+In cases where this hierarchy does exist, the presence of a global world and schedule should handle the use cases well.
 
 Things will also get [very weird](https://gatherer.wizards.com/pages/card/details.aspx?name=Shahrazad) if your sub-worlds are creating sub-worlds (as is plausible in an AI design), compared to a flat structure.
+
+Finally, the ergonomics, discoverability and potential for optimization of a custom-built API for this very expressive feature is much better than `Res<World>`-based designs.
 
 ### Why are schedules associated with worlds?
 
 Each system must be initialized from the world it belongs to, in a reasonably expensive fashion.
+We should cache this, which means persistently associating the schedules which store our systems with worlds.
 
 ### Why not store a unified `Vec<(World, Schedule)>`?
 
 This makes our central, very visible API substantially less clear for beginners, and is a pain to work with.
 By moving to a label system, we can promote explicit, extensible designs with type-safe, human readable code.
 
-In addition, this design prevents us from storing schedules which are not associated with any current world, which is annoying for some architectures which aggressively spawn and despawn worlds.
+In addition, the tightly-coupled design makes the following relatively common tasks much more frustrating:
+
+- storing schedules that are not associated with any meaningful world, to later be cloned
+- storing data in worlds that have no meaningful associated schedule, to be operated on using `AppCommands`
+- swapping schedules between worlds
 
 ### Why can't we have multiple schedules per world?
 
 This makes the data access / storage model slightly more complex.
-No pressing use cases have emerged for this, especially since schedules can be nested.
-If one arises, swapping to a multimap should be easy.
+More importantly, it raises the question of "how do we run multiple schedules on the world".
+We could invent an entire DSL to describe all of the different strategies one might use, or force users to write custom runners that are schedule-aware.
 
-The ability to clone schedules should give us almost everything you might want to do with this.
+But, we already have that! This is the entire reasoning behind the ability to nest and compose schedules.
+Those tools may be somewhat lacking (e.g. the ability to properly loop schedules or elegantly describe turn-based games),
+but that problem should be addressed properly, not papered over.
 
 ## Why is this design at the `bevy_app` level, not `bevy_ecs`?
 
@@ -486,6 +500,7 @@ For the most part, this is trivial to replicate externally: `App` is still very 
    1. This problem already exists: modifying the `winit` strategy is very painful.
    2. Split between "schedule logic" and "interfacing logic"?
 6. When writing runners, how precisely do we specify world sync points?
+7. How do we preserve the validity of cross-entity references (relations) when transferring resources and components between worlds?
 
 ## Future possibilities
 
