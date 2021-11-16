@@ -436,7 +436,7 @@ Ownership semantics are substantially harder to code and reason about in a hiera
 
 They are significantly less elegant for several use cases (e.g. scientific simulation) where no clear hierarchy of worlds exists.
 
-Things will also get [very weird](https://gatherer.wizards.com/pages/card/details.aspx?name=Shahrazad) if your sub-worlds are creating sub-weorlds (as is plausible in an AI design), compared to a flat structure.
+Things will also get [very weird](https://gatherer.wizards.com/pages/card/details.aspx?name=Shahrazad) if your sub-worlds are creating sub-worlds (as is plausible in an AI design), compared to a flat structure.
 
 ### Why are schedules associated with worlds?
 
