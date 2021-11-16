@@ -441,7 +441,6 @@ Things will also get [very weird](https://gatherer.wizards.com/pages/card/detail
 ### Why are schedules associated with worlds?
 
 Each system must be initialized from the world it belongs to, in a reasonably expensive fashion.
-Free-floating schedules,
 
 ### Why not store a unified `Vec<(World, Schedule)>`?
 
