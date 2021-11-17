@@ -84,4 +84,3 @@ It should also be configured separately, due to the increased data storage deman
 ## Future work
 
 1. Removal detection (and change detection) could somehow be automatically detected and enabled if systems are present in the schedule that require it.
-2. The hypothetical (and trivial to implement) `Not` query filter modifier will be more useful with the addition of the `Removed` query filter.
