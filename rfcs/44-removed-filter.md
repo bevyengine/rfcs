@@ -36,11 +36,12 @@ As a result, you should prefer the `Removed` query filter where possible.
 
 Steps:
 
-- add a `LastRemoved<C: Component>` marker component, which stores the `change_tick` of the world at the time of entity removal
+- add a `LastRemoved<C: Component>` marker component
 - add an associated `RemovalDetection` bool to the component trait
 - if `RemovalDetection == true`, the `remove` method on `World` also inserts an appropriate `LastRemoved<C>` component to that entity
-- modify `RemovedComponents` to only update when this value is modified
+- modify `RemovedComponents` to only update when this method is called, unifying the opt-in
 - add a `Removed<C: Component>` query filter using the `WorldQuery` trait with `Fetch: FilterFetch`, which fetches the value of `LastRemoved` and appropriately filters entities using the same logic as `Changed` or `Added`
+  - under the hood, this uses the `Added` change ticks of the data-less `LastRemoved<C>` component, which saves us a `u32` per component of duplicated data
 
 ## Drawbacks
 
