@@ -52,7 +52,7 @@ Steps:
 
 1. Removal detection is much rarer than change detection, at least in existing code bases.
 2. More data must be stored: each component that *was* present must store its own `u32`.
-3. Removal detection pollutes the component list of entities in user-visible ways.
+3. Removal detection pollutes the component list of entities in user-visible ways if the type is `pub`.
 
 ### Why can't we simply use a `Removed<C>` component?
 
