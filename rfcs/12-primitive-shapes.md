@@ -85,7 +85,6 @@ The complete overview of shapes, their dimensions and their names can be seen in
 | Circle          | Circle          | -             | A circle defined by its radius                                                           |
 | Polygon         | Polygon         | -             | A closed shape in a plane defined by a finite number of line-segments between vertices   |
 | RegularPolygon  | RegularPolygon  | -             | A polygon where all vertices lies on the circumscribed circle, equally far apart         |
-| Point           | Point2d         | Point3d       | A single point in space                                                                  |
 | Plane           | Plane2d         | Plane3d       | An unbounded plane defined by a position and normal                                      |
 | Direction       | Direction2d     | Direction3d   | A normalized vector pointing in a direction                                              |
 | Ray             | Ray2d           | Ray3d         | An infinite half-line pointing in a direction                                            |
@@ -144,45 +143,43 @@ trait Collider3d {
 ### 2D Geometry Types
 
 ```rust
-struct Point2d(Vec2)
-
 struct Direction2d(Vec2)
 impl Meshable for Direction2d {}
 
 struct Ray2d {
-  point: Point2d, 
+  point: Vec2, 
   direction: Direction2d
 }
 impl Meshable for Ray2d {}
 
 struct Line2d {
-  point: Point2d, 
+  point: Vec2, 
   direction: Direction2d,
 }
 impl Meshable for Line2d {}
 
 /// A finite line between two vertices
 struct LineSegment2d { 
-  start: Point2d, 
-  end: Point2d,
+  start: Vec2, 
+  end: Vec2,
 }
 impl Meshable for LineSegment2d {}
 
 /// A line drawn along a path of vertices 
 struct PolyLine2d<const N: usize>{
-  points: [Point2d; N],
+  points: [Vec2; N],
 }
 impl Meshable for PolyLine2d {}
 
-struct Triangle2d([Point2d; 3]);
+struct Triangle2d([Vec2; 3]);
 impl Meshable for Triangle2d {}
 
-struct Quad2d([Point2d; 4]);
+struct Quad2d([Vec2; 4]);
 impl Meshable for Quad2d {}
 
 /// A closed shape in a plane defined by a finite number of line-segments between vertices
 struct Polygon2d <const N: usize>{
-  points: [Point2d; N],
+  points: [Vec2; N],
 }
 impl Meshable for Polygon2d {}
 
@@ -273,21 +270,19 @@ impl Collider2d for CapsuleCollider2d {}
 ### 3D Geometry Types
 
 ```rust
-struct Point3d(Vec3)
-
 /// Vector direction in 3D space that is guaranteed to be normalized through its getter/setter.
 struct Direction3d(Vec3)
 impl Meshable for Direction3d {}
 
 struct Plane3d {
-  point: Point3d,
+  point: Vec3,
   normal: Direction3d,
 }
 impl Meshable for Plane3d {}
 
 /// Differentiates a line from a ray, where a line is infinite and a ray is directional half-line, although their underlying representation is the same.
 struct Ray3d(
-  point: Point3d, 
+  point: Vec3, 
   direction: Direction3d,
 );
 impl Meshable for Ray3d {}
@@ -296,29 +291,29 @@ impl Meshable for Ray3d {}
 
 /// Unbounded line in 3D space with directionality
 struct Line3d { 
-  point: Point3d, 
+  point: Vec3, 
   direction: Direction3d,
 }
 impl Meshable for Line3d {}
 
 /// A line segment bounded by two points
 struct LineSegment3d { 
-  start: Point3d, 
-  end: Point3d,
+  start: Vec3, 
+  end: Vec3,
 }
 impl Meshable for LineSegment3d {}
 
 /// A line drawn along a path of points
 struct PolyLine3d {
-  points: Vec<Point3d>,
+  points: Vec<Vec3>,
 }
 impl Meshable for PolyLine3d {}
 
-struct Triangle3d([Point3d; 3]);
+struct Triangle3d([Vec3; 3]);
 impl Meshable for Triangle3d {}
 impl Collider for Triangle3d {}
 
-struct Quad3d([Point3d; 4]);
+struct Quad3d([Vec3; 4]);
 impl Meshable for Quad3d {}
 impl Collider for Quad3d {}
 
@@ -500,7 +495,7 @@ The bounding volumes sections of this RFC cover how these types could be used fo
 
 ```rust
 let ray = Ray3d::X;
-let sphere = SphereCollider::new{Sphere{1.0}, Point3d::x(5.0));
+let sphere = SphereCollider::new{Sphere{1.0}, Vec3::x(5.0));
 let intersection = sphere.raycast(ray);
 ```
 
@@ -510,7 +505,7 @@ The notes for `Direction` mention it is gauranteed to be normalized through its 
 
 ```rust
 struct Plane3d {
-  point: Point3d,
+  point: Vec3,
   normal: Direction3d,
 }
 
