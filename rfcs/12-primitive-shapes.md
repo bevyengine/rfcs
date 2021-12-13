@@ -100,7 +100,7 @@ The complete overview of shapes, their dimensions and their names can be seen in
 | Capsule         | -               | Capsule       | A capsule with its origin at the center of the volume                                    |
 | Cone            | -               | Cone          | A cone with the origin located at the center of the circular base                        |
 | Wedge           | -               | Wedge         | A ramp with the origin centered on the width, and coincident with the rear vertical wall |
-| Torus           | -               | Torus         | A torus, shaped like a donut                                                                           |
+| Torus           | -               | Torus         | A torus, shaped like a donut                                                             |
 | Frustum         | -               | Frustum       | The portion of a pyramid that lies between two parallel planes                           |
 
 ## Implementation strategy
@@ -121,24 +121,24 @@ trait Meshable{
   fn mesh(&self) -> Mesh;
 };
 
-trait Bounding3d {
-  fn within(&self, other: &impl Bounding3d) -> bool;
-  fn contains(&self, collider: &impl Collider3d) -> bool;
-}
-
 trait Bounding2d {
   fn within(&self, other: &impl Bounding2d) -> bool;
   fn contains(&self, collider: &impl Collider2d) -> bool;
 }
 
-trait Collider3d {
-  fn collide(&self, other: &impl Collider3d) -> Option(Collision3d);
-  fn within(&self, bounds: &impl Bounding3d) -> bool;
+trait Bounding3d {
+  fn within(&self, other: &impl Bounding3d) -> bool;
+  fn contains(&self, collider: &impl Collider3d) -> bool;
 }
 
 trait Collider2d {
   fn collide(&self, other: &impl Collider2d) -> Option(Collision2d);
   fn within(&self, bounds: &impl Bounding2d) -> bool;
+}
+
+trait Collider3d {
+  fn collide(&self, other: &impl Collider3d) -> Option(Collision3d);
+  fn within(&self, bounds: &impl Bounding3d) -> bool;
 }
 ```
 ### 2D Geometry Types
@@ -168,7 +168,7 @@ struct LineSegment2d {
 }
 impl Meshable for LineSegment2d {}
 
-/// 
+/// A line drawn along a path of vertices 
 struct PolyLine2d<const N: usize>{
   points: [Point2d; N],
 }
