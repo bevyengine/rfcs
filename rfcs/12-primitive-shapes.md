@@ -15,23 +15,23 @@ There is significant complexity in the way seemingly equivalent shapes are defin
 Geometric primitives are lightweight representations of geometry that describe the type of geometry as well as its dimensions. These primitives are *not* meshes, but the underlying precise mathematical definition. For example, a circle is:
 
 ```rust
-pub struct Circle2d {
+pub struct Circle {
   radius: f32,
 }
 ```
 
-Note that a `Circle2d` does not contain any information about the position of the circle. This is due to how shapes are composed to add more complex functionality. Consider the following common use cases of primitives shapes, as well as the the information (Translation and Rotation) that are needed to fully define the shapes for these cases:
+Note that a `Circle` does not contain any information about the position of the circle. This is due to how shapes are composed to add more complex functionality. Consider the following common use cases of primitives shapes, as well as the the information (Translation and Rotation) that are needed to fully define the shapes for these cases:
 
 | Shape     | Mesh | Bounding | Collision |
-|---        |---|---|---|
-| Sphere    | ✔ | ✔  + Trans | ✔ + Trans |
+|-----------|----|------------------|---|
+| Sphere    | ✔ | ✔  + Trans       | ✔ + Trans |
 | Box       | ✔ | ✔ + Trans (AABB) | ✔ + Trans + Rot (OBB) |
-| Capsule   | ✔ | ❌ | ✔ + Trans + Rot |
-| Cylinder  | ✔ | ❌ | ✔ + Trans + Rot |
-| Cone      | ✔ | ❌ | ✔ + Trans + Rot |
-| Wedge     | ✔ | ❌ | ✔ + Trans + Rot |
-| Plane     | ✔ | ❌ | ✔ |
-| Torus     | ✔ | ❌ | ❌ |
+| Capsule   | ✔ | ❌               | ✔ + Trans + Rot |
+| Cylinder  | ✔ | ❌               | ✔ + Trans + Rot |
+| Cone      | ✔ | ❌               | ✔ + Trans + Rot |
+| Wedge     | ✔ | ❌               | ✔ + Trans + Rot |
+| Plane     | ✔ | ❌               | ✔ |
+| Torus     | ✔ | ❌               | ❌ |
 
 ### Bounding vs. Collision
 
@@ -56,10 +56,9 @@ Although bounding and collision are out of scope of this RFC, this helps to expl
 Both 2d and 3d primitives could implement the `Meshable` trait to provide the ability to generate a tri mesh:
 
 ```rust
-let circle_mesh: Mesh = Circle2d{ radius: 2.0 }.mesh();
+let circle_mesh: Mesh = Circle{ radius: 2.0 }.mesh();
 ```
-
-The base primitive types only define the shape (`Circle2d`) and size (`radius`) of the geometry about the origin. Once generated, the mesh can have a transform applied to it like any other mesh, and it is no longer tied to the primitive that generated it. The `Default::default()` implementation of primitives should be a "unit" variant, such as a circle with diameter 1.0, or a box with all edges of length 1.0.
+The base primitive types only define the shape (`Circle`) and size (`radius`) of the geometry about the origin. Once generated, the mesh can have a transform applied to it like any other mesh, and it is no longer tied to the primitive that generated it. The `Default::default()` implementation of primitives should be a "unit" variant, such as a circle with diameter 1.0, or a box with all edges of length 1.0.
 
 Meshing could be naturally extended with other libraries or parameters. For example, a sphere by default might use `Icosphere`, but could be extended to generate UV spheres or quad spheres. For 2d types, we could use a crate such as `lyon` to generate 2d meshes from parameterized primitive shapes within the `Meshable` interface.
 
@@ -71,9 +70,38 @@ For use in spatial queries, broad phase collision detection, and raycasting, hyp
 
 Colliders can provide intersection checks against other colliders, as well as check if they are within a bounding volume.
 
-### 3D and 2D
+### 2D and 3D
 
-This RFC provides independent 2d and 3d primitives. Recall that the purpose of this is to provide lightweight types, so there are what appear to be duplicates in 2d and 3d, such as `Line` and `Line2d`. Note that the 2d version of a line is smaller than its 3d counterpart because it is only defined in 2d. 3d geometry (or 2d with depth) is assumed to be the default for most cases. The names of the types were chosen with this in mind.
+This RFC provides independent 2d and 3d primitives. Types that are present in both 2d and 3d space are suffixed with "2d" or "3d" to disambiguate them such as `Line2d` and `Line3d`. Types that only exist in either space have no suffix. 
+
+* 2D shapes have their dimensions defined in `x` and `y`. 
+* 3D shapes have their dimensions defined in `x`, `y` and `z`
+
+The complete overview of shapes, their dimensions and their names can be seen in this table:
+
+| Shape           | 2D              | 3D            | Description                                                                              |
+|-----------------|-----------------|---------------|------------------------------------------------------------------------------------------|
+| Rectangle       | Rectangle       | -             | A rectangle defined by its width and height                                              |
+| Circle          | Circle          | -             | A circle defined by its radius                                                           |
+| Polygon         | Polygon         | -             | A closed shape in a plane defined by a finite number of line-segments between vertices   |
+| RegularPolygon  | RegularPolygon  | -             | A polygon where all vertices lies on the circumscribed circle, equally far apart         |
+| Point           | Point2d         | Point3d       | A single point in space                                                                  |
+| Plane           | Plane2d         | Plane3d       | An unbounded plane defined by a position and normal                                      |
+| Direction       | Direction2d     | Direction3d   | A normalized vector pointing in a direction                                              |
+| Ray             | Ray2d           | Ray3d         | An infinite half-line pointing in a direction                                            |
+| Line            | Line2d          | Line3d        | An infinite line                                                                         |
+| LineSegment     | LineSegment2d   | LineSegment3d | A finite line between two vertices                                                       |
+| Polyline        | Polyline2d      | Polyline3d    | A line drawn along a path of vertices                                                    |
+| Triangle        | Triangle2d      | Triangle3d    | A polygon with 3 vertices                                                                |
+| Quad            | Quad2d          | Quad3d        | A polygon with 4 vertices                                                                |
+| Sphere          | -               | Sphere        | A sphere defined by its radius                                                           |
+| Box             | -               | Box           | A cuboid with six quadrilateral faces, defined by height, width, depth                   |
+| Cylinder        | -               | Cylinder      | A cylinder with its origin at the center of the volume                                   |
+| Capsule         | -               | Capsule       | A capsule with its origin at the center of the volume                                    |
+| Cone            | -               | Cone          | A cone with the origin located at the center of the circular base                        |
+| Wedge           | -               | Wedge         | A ramp with the origin centered on the width, and coincident with the rear vertical wall |
+| Torus           | -               | Torus         | A torus, shaped like a donut                                                             |
+| Frustum         | -               | Frustum       | The portion of a pyramid that lies between two parallel planes                           |
 
 ## Implementation strategy
 
@@ -93,80 +121,208 @@ trait Meshable{
   fn mesh(&self) -> Mesh;
 };
 
-trait Bounding {
-  fn within(&self, other: &impl Bounding) -> bool;
-  fn contains(&self, collider: &impl Collider) -> bool;
-}
-
 trait Bounding2d {
   fn within(&self, other: &impl Bounding2d) -> bool;
   fn contains(&self, collider: &impl Collider2d) -> bool;
 }
 
-trait Collider {
-  fn collide(&self, other: &impl Collider) -> Option(Collision);
-  fn within(&self, bounds: &impl Bounding) -> bool;
+trait Bounding3d {
+  fn within(&self, other: &impl Bounding3d) -> bool;
+  fn contains(&self, collider: &impl Collider3d) -> bool;
 }
 
 trait Collider2d {
   fn collide(&self, other: &impl Collider2d) -> Option(Collision2d);
   fn within(&self, bounds: &impl Bounding2d) -> bool;
 }
+
+trait Collider3d {
+  fn collide(&self, other: &impl Collider3d) -> Option(Collision3d);
+  fn within(&self, bounds: &impl Bounding3d) -> bool;
+}
+```
+### 2D Geometry Types
+
+```rust
+struct Point2d(Vec2)
+
+struct Direction2d(Vec2)
+impl Meshable for Direction2d {}
+
+struct Ray2d {
+  point: Point2d, 
+  direction: Direction2d
+}
+impl Meshable for Ray2d {}
+
+struct Line2d {
+  point: Point2d, 
+  direction: Direction2d,
+}
+impl Meshable for Line2d {}
+
+/// A finite line between two vertices
+struct LineSegment2d { 
+  start: Point2d, 
+  end: Point2d,
+}
+impl Meshable for LineSegment2d {}
+
+/// A line drawn along a path of vertices 
+struct PolyLine2d<const N: usize>{
+  points: [Point2d; N],
+}
+impl Meshable for PolyLine2d {}
+
+struct Triangle2d([Point2d; 3]);
+impl Meshable for Triangle2d {}
+
+struct Quad2d([Point2d; 4]);
+impl Meshable for Quad2d {}
+
+/// A closed shape in a plane defined by a finite number of line-segments between vertices
+struct Polygon2d <const N: usize>{
+  points: [Point2d; N],
+}
+impl Meshable for Polygon2d {}
+
+/// A polygon where all vertices lies on the circumscribed circle, equally far apart
+/// Example: Square, Triangle, Hexagon
+struct RegularPolygon2d {
+  /// The circumcircle that all points of the regular polygon lie on.
+  circumcircle: Circle2d,
+  /// Number of faces.
+  faces: u8,
+  /// Clockwise rotation of the polygon about the origin. At zero rotation, a point will always be located at the 12 o'clock position.
+  orientation: Angle,
+}
+impl Meshable for RegularPolygon2d {}
+
+
+// Circle types
+
+/// A circle defined by its radius
+struct Circle {
+  radius: f32,
+}
+impl Meshable for Circle {}
+
+/* REFERENCE ONLY
+struct BoundingCircle2d {
+  circle: Circle,
+  translation: Vec2,
+}
+impl Meshable for BoundingCircle2d {}
+impl Bounding2d for BoundingCircle2d {}
+
+struct CircleCollider {
+  sphere: Circle,
+  translation: Vec2,
+}
+impl Meshable for CircleCollider {}
+impl Collider2d for CircleCollider {}
+*/
+
+// Box Types
+
+/// A rectangle defined by its width and height
+struct Rectangle {
+  half_extents: Vec2,
+}
+impl Meshable for Rectangle
+
+/* REFERENCE ONLY
+struct BoundingBox2d {
+  box: Rectangle,
+  translation: Vec2,
+}
+impl Meshable for BoundingBox2d {}
+impl Bounding2d for BoundingBox2d {}
+type Aabb2d = BoundingBox2d;
+
+struct RectangleCollider {
+  box: Rectangle,
+  translation: Vec2,
+  rotation: Mat2,
+}
+impl Meshable for RectangleCollider {}
+impl Collider2d for RectangleCollider {}
+type Obb2d = RectangleCollider;
+*/
+
+// Capsule Types
+
+struct Capsule2d {
+  height: f32, // Height of the rectangular section
+  radius: f32, // End cap radius
+}
+impl Meshable for Capsule2d {}
+
+/* REFERENCE ONLY
+struct CapsuleCollider2d {
+  capsule: Capsule2d,
+  translation: Vec2,
+  rotation: Mat2,
+}
+impl Meshable for CapsuleCollider2d {}
+impl Collider2d for CapsuleCollider2d {}
+*/
+
 ```
 
 ### 3D Geometry Types
 
 ```rust
-struct Point(Vec3)
+struct Point3d(Vec3)
 
 /// Vector direction in 3D space that is guaranteed to be normalized through its getter/setter.
-struct Direction(Vec3)
-impl Meshable for Direction {}
+struct Direction3d(Vec3)
+impl Meshable for Direction3d {}
 
-struct Plane {
-  point: Point,
-  normal: Direction,
+struct Plane3d {
+  point: Point3d,
+  normal: Direction3d,
 }
-impl Meshable for Plane {}
+impl Meshable for Plane3d {}
 
 /// Differentiates a line from a ray, where a line is infinite and a ray is directional half-line, although their underlying representation is the same.
-struct Ray(
-  point: Point, 
-  direction: Direction,
+struct Ray3d(
+  point: Point3d, 
+  direction: Direction3d,
 );
-impl Meshable for Ray {}
+impl Meshable for Ray3d {}
 
 // Line types
 
 /// Unbounded line in 3D space with directionality
-struct Line { 
-  point: Point, 
-  direction: Direction,
+struct Line3d { 
+  point: Point3d, 
+  direction: Direction3d,
 }
-impl Meshable for Line {}
+impl Meshable for Line3d {}
 
 /// A line segment bounded by two points
-struct LineSegment { 
-  start: Point, 
-  end: Point,
+struct LineSegment3d { 
+  start: Point3d, 
+  end: Point3d,
 }
-impl Meshable for LineSegment {}
+impl Meshable for LineSegment3d {}
 
 /// A line drawn along a path of points
-struct PolyLine {
-  points: Vec<Point>,
+struct PolyLine3d {
+  points: Vec<Point3d>,
 }
-impl Meshable for PolyLine {}
+impl Meshable for PolyLine3d {}
 
-struct Triangle([Point; 3]);
-impl Meshable for Triangle {}
-impl Collider for Triangle {}
+struct Triangle3d([Point3d; 3]);
+impl Meshable for Triangle3d {}
+impl Collider for Triangle3d {}
 
-struct Quad([Point; 4]);
-impl Meshable for Quad {}
-impl Collider for Quad {}
+struct Quad3d([Point3d; 4]);
+impl Meshable for Quad3d {}
+impl Collider for Quad3d {}
 
-/// Sphere types
+// Sphere types
 
 struct Sphere {
   radius: f32,
@@ -300,140 +456,16 @@ struct Torus {
 }
 impl Meshable for Torus {}
 
-// A 3d frustum used to represent the volume rendered by a camera, defined by the 6 planes that set the frustum limits.
+/// A 3d frustum used to represent the volume rendered by a camera, defined by the 6 planes that set the frustum limits.
 struct Frustum {
-  near: Plane,
-  far: Plane,
-  top: Plane,
-  bottom: Plane,
-  left: Plane,
-  right: Plane,
+  near: Plane3d,
+  far: Plane3d,
+  top: Plane3d,
+  bottom: Plane3d,
+  left: Plane3d,
+  right: Plane3d,
 }
 impl Meshable for Frustum {}
-
-```
-
-### 2D Geometry Types
-
-These types only exist in 2d space: their dimensions and location are only defined in `x` and `y` unlike their 3d counterparts. These types are suffixed with "2d" to disambiguate from the 3d types in user code, guide users to using 3d types by default, and remove the need for name-spacing the 2d and 3d types when used in the same scope.
-
-```rust
-struct Point2d(Vec2)
-
-struct Direction2d(Vec2)
-impl Meshable for Direction2d {}
-
-struct Ray2d {
-  point: Point2d, 
-  direction: Direction2d
-}
-impl Meshable for Ray2d {}
-
-struct Line2d {
-  point: Point2d, 
-  direction: Direction2d,
-}
-impl Meshable for Line2d {}
-
-struct LineSegment2d { 
-  start: Point2d, 
-  end: Point2d,
-}
-impl Meshable for LineSegment2d {}
-
-struct PolyLine2d<const N: usize>{
-  points: [Point2d; N],
-}
-impl Meshable for PolyLine2d {}
-
-struct Triangle2d([Point2d; 3]);
-impl Meshable for Triangle2d {}
-
-struct Quad2d([Point2d; 4]);
-impl Meshable for Quad2d {}
-
-/// A regular polygon, such as a square or hexagon.
-struct RegularPolygon2d {
-  /// The circumcircle that all points of the regular polygon lie on.
-  circumcircle: Circle2d,
-  /// Number of faces.
-  faces: u8,
-  /// Clockwise rotation of the polygon about the origin. At zero rotation, a point will always be located at the 12 o'clock position.
-  orientation: Angle,
-}
-impl Meshable for RegularPolygon2d {}
- 
-struct Polygon2d <const N: usize>{
-  points: [Point; N],
-}
-impl Meshable for Polygon2d {}
-
-/// Circle types
-
-struct Circle2d {
-  radius: f32,
-}
-impl Meshable for Circle2d {}
-
-/* REFERENCE ONLY
-struct BoundingCircle2d {
-  circle: Circle2d,
-  translation: Vec2,
-}
-impl Meshable for BoundingCircle2d {}
-impl Bounding2d for BoundingCircle2d {}
-
-struct CircleCollider2d {
-  sphere: Circle2d,
-  translation: Vec2,
-}
-impl Meshable for CircleCollider2d {}
-impl Collider2d for CircleCollider2d {}
-*/
-
-// Box Types
-
-struct Box2d {
-  half_extents: Vec2,
-}
-impl Meshable for Box2d
-
-/* REFERENCE ONLY
-struct BoundingBox2d {
-  box: Box2d,
-  translation: Vec2,
-}
-impl Meshable for BoundingBox2d {}
-impl Bounding2d for BoundingBox2d {}
-type Aabb2d = BoundingBox2d;
-
-struct BoxCollider2d {
-  box: Box2d,
-  translation: Vec2,
-  rotation: Mat2,
-}
-impl Meshable for BoxCollider2d {}
-impl Collider2d for BoxCollider2d {}
-type Obb2d = BoxCollider2d;
-*/
-
-// Capsule Types
-
-struct Capsule2d {
-  height: f32, // Height of the rectangular section
-  radius: f32, // End cap radius
-}
-impl Meshable for Capsule2d {}
-
-/* REFERENCE ONLY
-struct CapsuleCollider2d {
-  capsule: Capsule2d,
-  translation: Vec2,
-  rotation: Mat2,
-}
-impl Meshable for CapsuleCollider2d {}
-impl Collider2d for CapsuleCollider2d {}
-*/
 
 ```
 
@@ -467,8 +499,8 @@ In addition, by defining the frustum as a set of planes, it is also trivial to s
 The bounding volumes sections of this RFC cover how these types could be used for the bounding volumes which are used for accelerating ray casting. In addition, the `Ray` primitive component can be used to naturally represent raycasting rays. Applicable 3d types could implement a `Raycast` trait to extend their functionality.
 
 ```rust
-let ray = Ray::X;
-let sphere = SphereCollider::new{Sphere{1.0}, Point::x(5.0));
+let ray = Ray3d::X;
+let sphere = SphereCollider::new{Sphere{1.0}, Point3d::x(5.0));
 let intersection = sphere.raycast(ray);
 ```
 
@@ -477,12 +509,12 @@ let intersection = sphere.raycast(ray);
 The notes for `Direction` mention it is gauranteed to be normalized through its getter and setter. There are a few ways to do this, but I'd like to propose a zero-cost implementation using the typestate pattern. To absolutely minimize the use of `normalize` on the contained `Vec3`, we can memoize the result _only when accessed_. We don't want to make `Direction` an enum, as that will add a discriminant, and we don't want to have normalized and unnormalized types for of all our primitives. So instead, we could use the typestate pattern to do something like:
 
 ```rust
-struct Plane {
-  point: Point,
-  normal: Direction,
+struct Plane3d {
+  point: Point3d,
+  normal: Direction3d,
 }
 
-struct Direction {
+struct Direction3d {
   direction: impl Normalizable,
 }
 
@@ -494,7 +526,7 @@ impl Normalizable for NormalizedDir {}
 
 ```
 
-When a `Direction` is mutated or built, the direction will be an `UncheckedDir`. Once it is accessed, the `Directions`s getter method will normalize the direction, and swap it out with a `NormalizedDir`. Now the normalized direction is memoized in the `Direction` without increasing the size of the type. This complexity can be completely hidden to users.
+When a `Direction` is mutated or built, the direction will be an `UncheckedDir`. Once it is accessed, the `Directions`s getter method will normalize the direction, and swap it out with a `NormalizedDir`. Now the normalized direction is memoized in the `Direction3d` without increasing the size of the type. This complexity can be completely hidden to users.
 
 ## Drawbacks
 
@@ -526,10 +558,6 @@ Perhaps most critically, Parry types are opinionated for physics/raycasting use.
 Prior art was used to select the most common types of shape primitive, naming conventions, as well as sensible data structures for bounding, collision, and culling.
 
 Many game engine docs appear to have oddly-named and disconnected shape primitive types that are completely unrelated. This RFC aims to ensure Bevy doesn't go down this path, and instead derives functionality from common types to take advantage of the composability of components in the ECS.
-
-## Unresolved questions
-
-What is the best naming scheme, e.g., `2d::Line`/`3d::Line` vs. `Line2d`/`Line3d` vs. `Line2d`/`Line`?
 
 ### Out of Scope
 
