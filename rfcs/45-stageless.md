@@ -206,10 +206,15 @@ fn main(){
 }
 ```
 
-**When multiple run criteria are attached to the same system, the system will run if and only if all of those run criteria return true.**
+There are a few important subtleties to bear in mind when working with run criteria:
 
-Run criteria are evaluated "just before" the system that is attached to is run.
-The state that they read from will always be "valid" when the system that they control is being run: this is important to avoid strange bugs caused by race conditions and non-deterministic system ordering.
+- when multiple run criteria are attached to the same system, the system will run if and only if all of those run criteria return true
+- run criteria are evaluated "just before" the system that is attached to is run
+- if a run criteria is attached to a label, a run criteria system will be generated for each system that has that label
+  - this is essential to ensure that run criteria are checking fresh state without creating very difficult to satify ordering constraints
+  - if you need to ensure that all systems behave the same way during a single pass of the schedule or avoid expensive recomputation, precompute the value and store the result in a resource, then read from that in your run criteria instead
+
+The state that run criteria read from will always be "valid" when the system that they control is being run: this is important to avoid strange bugs caused by race conditions and non-deterministic system ordering.
 It is impossible, for example, for a game to be paused *after* the run criteria checked if the game was paused but before the system that relied on the game not being paused completes.
 In order to understand exactly what this means, we need to understand atomic ordering constraints.
 
@@ -234,6 +239,11 @@ allowing you to ensure that the index is still valid when the system using the i
 
 Of course, atomic ordering constraints should be used thoughtfully.
 As the strictest of the three types of system ordering dependency, they can easily result in unsatisfiable schedules if applied to large groups of systems at once.
+For example, consider the simple case, where we have an atomic ordering constraint from system A to system B.
+If for any reason commands must be flushed between systems A and system B, we cannot satisfy the schedule.
+The reason for this is quite simple: the lock on data from system A will not be released when it completes, but we cannot run exclusive systems unless all locks on the `World's` data are clear.
+As we add more of these atomic constraints (particularly if they share a single ancestor), the risk of these problems grows.
+In effect, atomically-connected systems look "almost like" a single system from the scheduler's perspective.
 
 On the other hand, atomic ordering constraints can be helpful when attempting to split large complex systems into multiple parts.
 By guaranteeing that the initial state of your complex system cannot be altered before the later parts of the system are complete,
