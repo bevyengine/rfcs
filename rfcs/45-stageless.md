@@ -95,7 +95,7 @@ A system may be configured in the following ways:
 
 System configuration can be stored in a `SystemConfig` struct. This can be useful to reuse, compose and quickly apply complex configuration strategies, before applying these strategies to labels or individual systems.
 
-If you just want to run your game logic systems in the middle of your schedule, after input is processed but before rendering occurs, add the premade `CoreLabel::GameLogic` to them.
+If you just want to run your game logic systems in the middle of your schedule, after input is processed but before rendering occurs, add the premade `CoreLabel::AppLogic` to them.
 
 ### Label configuration
 
@@ -454,7 +454,7 @@ To do so, we need to check both direct *and* transitive strict ordering dependen
 
 1. This will be a massively breaking change to every single Bevy user.
    1. Any non-trivial control over system ordering will need to be completely reworked.
-   2. Users will typically need to think a bit harder about exactly when they want their gameplay systems to run. In most cases, they should just add the `CoreLabel::GameLogic` label to them.
+   2. Users will typically need to think a bit harder about exactly when they want their gameplay systems to run. In most cases, they should just add the `CoreLabel::AppLogic` label to them.
 2. It will be harder to immediately understand the global structure of Bevy apps.
    1. Powerful system debugging and visualization tools become even more important.
 3. State transitions are no longer queued up in a stack.
