@@ -472,7 +472,10 @@ To do so, we need to check both direct *and* transitive strict ordering dependen
    2. Users will typically need to think a bit harder about exactly when they want their gameplay systems to run. In most cases, they should just add the `CoreLabel::GameLogic` label to them.
 2. It will be harder to immediately understand the global structure of Bevy apps.
    1. Powerful system debugging and visualization tools become even more important.
-3. States will no longer have stacks. This could break some users, but they should be able to write their own replacement easily enough externally.
+3. State transitions are no longer queued up in a stack.
+   1. Arbitrary chains of state transitions can no longer be processed in the same frame, due to the lack of a state stack abstraction.
+   2. This also removes "in-stack" and related system groups / logic.
+   3. This can be easily added later, or third-party plugins can create their own abstraction.
 4. It will become harder to reason about exactly when command flushing occurs.
 5. Ambiguity sets are not directly accounted for in the new design.
    1. They need more thought and are rarely used; we can toss them back on later.
