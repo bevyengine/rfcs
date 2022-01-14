@@ -121,11 +121,11 @@ impl Plugin for PhysicsPlugin{
 
         app
         // We can reuse this shared configuration on each of our labels
-        .configure_label(Forces.configure(common_physics_config).before(Physics::CollisionDetection))
+        .configure_label(Physics::Forces.configure(common_physics_config).before(Physics::CollisionDetection))
         .configure_label(Physics::CollisionDetection.configure(common_physics_config).before(Physics::CollisionHandling))
         .configure_label(Physics::CollisionHandling.configure(common_physics_config))
         // And then apply that config to each of the systems that have this label
-        .add_system(gravity.label(Forces))
+        .add_system(gravity.label(Physics::Forces))
         // These systems have a linear chain of ordering dependencies between them
         // Systems earlier in the chain must run before those later in the chain
         .add_system_chain([broad_pass, narrow_pass].label(Physics::CollisionDetection))
