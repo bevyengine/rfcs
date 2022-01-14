@@ -257,6 +257,10 @@ allowing you to ensure that the index is still valid when the system using the i
 Of course, atomic ordering constraints should be used thoughtfully.
 As the strictest of the three types of system ordering dependency, they can easily result in unsatisfiable schedules if applied to large groups of systems at once.
 
+On the other hand, atomic ordering constraints can be helpful when attempting to split large complex systems into multiple parts.
+By guaranteeing that the initial state of your complex system cannot be altered before the later parts of the system are complete,
+you can safely parallelize the rest of the work into seperate systems, improving both performance and maintainability.
+
 ### States
 
 **States** are one particularly common and powerful form of run criteria, allowing you to toggle systems on-and-off based on the value of a given resource and smoothly handle transitions between states by running cleanup and initialization systems.
