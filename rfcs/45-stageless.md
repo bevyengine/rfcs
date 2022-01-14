@@ -144,7 +144,9 @@ This **exclusive system** (meaning, it can modify the entire `World` in arbitrar
 
 Commands (commonly used to spawn and despawn entities or add and remove components) will not take effect until this system is run, so be sure that you run a copy of the `flush_commands` system before relying on the result of a command!
 
-TODO: create more sugar for this, then make an example!
+This pattern is so common that a special form of ordering constraint exists for it: **command-flushed ordering constraints**.
+If system `A` is `before_and_flush` system `B`, the schedule will be unsatisfiable unless there is an intervening `flush_commands` system.
+Note that **this does not insert new copies of a `flush_commands` system**: instead, it is merely used to verify that your schedule has been set up correctly according the specified constraint.
 
 ### Run criteria
 
@@ -234,16 +236,18 @@ On-enter and on-exit systems are stored in dedicated schedules, two per state, w
 These schedules can be configured in all of the ordinary ways, but, as they live in different schedules, ordering cannot be defined relative to systems in the main schedule.
 
 Due to their disruptive and far-reaching effects, state transitions do not occur immediately.
-Instead, they are deferred (like commands), until the next `state_transition::<S: State>` exclusive system runs.
+Instead, they are deferred (like commands), until the next `flush_state<S: State>` exclusive system runs.
 This system first runs the `on_exit` schedule of the previous state on the world, then runs the `on_enter` schedule of the new state on the world.
 Once that is complete, the exclusive system ends and control flow resumes as normal.
 
-When states are added using `App::add_state::<S: State>(initial_state)`, one `state_transition` system is added to the app, with the `GeneratedLabel::StateTransition<S>` label.
+When states are added using `App::add_state::<S: State>(initial_state)`, one `flush_state<S>` system is added to the app, with the `GeneratedLabel::StateTransition<S>` label.
 You can configure when and if this system is scheduled by configuring this label, and you can add additional copies of this system to your schedule where you see fit.
+Just like with commands, **state-flushed ordering constraints** can be used to verify that state transitions have run at the appropriate time.
+If system `A` is `before_and_flush_state::<S>` system `B`, the schedule will be unsatisfiable unless there is an intervening `flush_state<S>` system.
 
 Apps can have multiple orthogonal states representing independent facets of your game: these operate fully independently.
 States can also be defined as a nested enum: these work as you may expect, with each leaf node representing a distinct group of systems.
-If you wish to share behavior among siblings, add the systems repeatedly to each sibling, typically by saving a schedule and then using `Shedule::merge` to combine that into the specialized schedule of choice.
+If you wish to share behavior among siblings, add the systems repeatedly to each sibling, typically by saving a schedule and then using `Schedule::merge` to combine that into the specialized schedule of choice.
 
 ### Complex control flow
 
@@ -321,7 +325,6 @@ Verifying that the cache is still valid will require access to the data anyways,
 
 - Should we allow users to compose run criteria in more complex ways?
   - How does this work for run criteria that are not locally defined?
-- How do we ergonomically allow users to specify that commands must be flushed between two systems?
 - If we want to support a simple `add_system_chain` API as a precursor to a system graph API, what do we rename "system chaining" to?
 
 ## \[Optional\] Future possibilities
