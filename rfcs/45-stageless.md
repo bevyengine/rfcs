@@ -134,6 +134,8 @@ There are two basic forms of system ordering constraints:
    2. In 99% of cases, this is the desired behavior. Unless you are using interior mutability, systems that are compatible will always be **commutative**: their ordering doesn't matter.
 
 Applying an ordering constraint to or from a label causes a ordering constraint to be created between all individual members of that label.
+If an ordering is defined relative to a non-existent system or label, it will have no effect, emitting a warning.
+This relatively gentle failure mode is important to ensure that plugins can order their systems with relatively strong assumptions that the default system labels exist, but continue to (mostly) work if those systems or labels are not present.
 
 In addition to the `.before` and `.after` methods, you can use **system chains** to create very simple linear dependencies between the succesive members of an array of systems.
 
@@ -271,6 +273,18 @@ When writing this section be mindful of the following [repo guidelines](https://
 2. It will be harder to immediately understand the global structure of Bevy apps.
 
 ## Rationale and alternatives
+
+### Doesn't label-configuration allow you to configure systems added by third-party plugins?
+
+Yes. This is, in fact, a large part of the point.
+
+The complete inability to configure plugins is the source of [significant user pain](https://github.com/bevyengine/bevy/issues/2160).
+Plugin authors cannot know all of the needs of the end user's app, and so some degree of control must be handed back to the end users.
+
+This control is carefully limited though: systems can only be configured if they are given a public label, and all of the systems under a common label are configured as a group.
+In addition, configuration defined by a private label (or directly on systems) cannot be altered, extended or removed by the app: it cannot be named, and so cannot be altered.
+
+These limitation allows plugin authors to carefully design a public API, ensure critical invariants hold, and make serious internal changes without breaking their dependencies (as long as the public labels and their meanings are relatively stable).
 
 ### Why can't you label labels?
 
