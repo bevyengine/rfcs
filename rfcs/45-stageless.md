@@ -361,7 +361,9 @@ struct Schedule{
    // Each schedule is associated with exactly one `World`, as systems must be initiliazed on it
    world_id: WorldId
    // We need to be able to quickly look up specific systems and iterate over them
-   // `SystemId` should be a unique identifier, atomically generated on system insertion
+   // `SystemId` should be a unique opaque identifier, generated on system insertion
+   // We cannot use a Vec + a `usize` index as the identifier,
+   // as the identifier would not be stable when systems were removed, risking serious bugs
    systems: HashMap<SystemId, ConfiguredSystem>,
    // Label configuration must be stored at the schedule level,
    // rather than attached to specific label instances
