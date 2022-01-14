@@ -65,6 +65,16 @@ However, each system will continue to work hand-in-hand with a small number of c
 By configuring our systems with straightforward, local rules, we can allow the scheduler to pick one of the possible valid paths, optimizing as it sees fit without breaking our logic.
 Just as importantly, we are not over-constraining our ordering, allowing subtle ordering bugs to surface quickly and then be stamped out with a well-considered rule.
 
+### The `App` stores multiple schedules
+
+The `App` can store multiple `Schedules` in a `HashMap<Box<dyn ScheduleLabel>, Schedule>` storage.
+This is used for the enter and exit schedules of states, but can also be used to store, mutate and access additional schedules.
+You can even mutate the schedule that you are in, although you cannot mutate systems that are currently running (leading to a runtime panic), as that would be UB.
+
+You can access the schedules stored in the app using the `&Schedules` or `&mut Schedules` system parameters.
+Unsurprisingly, these never conflict with entities or resources in the `World`, as they are stored one level higher.
+The main schedule can be accessed using the `MainSchedule` unit struct as a schedule label.
+
 ### Introduction to system configuration
 
 When a function is added to a schedule, it is turned into a `RawSystem` and combined with a `SystemConfig` struct to create a `ConfiguredSystem`.
@@ -232,7 +242,7 @@ Each state is associated with three sets of systems:
 Update systems are by far the simplest: they're simply powered by run criteria.
 `.in_state` is precisely equivalent to `run_if_resource_is`, except with an additional trait bound that the resource must implement `State`.
 
-On-enter and on-exit systems are stored in dedicated schedules, two per state, within the `App`.
+On-enter and on-exit systems are stored in dedicated schedules, two per state, within the `App's` `Schedules`.
 These schedules can be configured in all of the ordinary ways, but, as they live in different schedules, ordering cannot be defined relative to systems in the main schedule.
 
 Due to their disruptive and far-reaching effects, state transitions do not occur immediately.
@@ -254,11 +264,7 @@ If you wish to share behavior among siblings, add the systems repeatedly to each
 Occasionally, you may find yourself yearning for more complex system control flow than "every system runs once in a loop".
 When that happens: **reach for an exclusive and run a schedule in it.**
 
-The `App` can store multiple `Schedules` in a `HashMap<Box<dyn ScheduleLabel>, Schedule>`.
-This is used for the enter and exit schedules of states, but can also be used to store mutate and access additional schedules.
-You can even mutate the schedule that you are in, although you cannot mutate systems that are currently running (leading to a runtime panic), as that would be UB.
-
-Within an exclusive system, you can freely use `Schedule::run(&mut world)`, applying each of the systems in that schedule a single time to the world of the exclusive system.
+Within an exclusive system, you can freely fetch the desired schedule from the `App` with the `&Schedules` (or `&mut Schedules`) system parameter and use `Schedule::run(&mut world)`, applying each of the systems in that schedule a single time to the world of the exclusive system.
 However, because you're in an ordinary Rust function you're free to use whatever logic and control flow you desire: branch and loop in whatever convoluted fashion you need!
 
 This can be helpful when:
