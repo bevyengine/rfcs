@@ -16,7 +16,7 @@ Of particular note:
 - Plugins can add new, standalone stages.
 - Run criteria (including states!) cannot be composed.
 - The stack-driven state model is overly elaborate and does not enable enough use cases to warrant its complexity.
-- Fixed timestep run criteria do not behave in a fashion that supports.
+- Fixed timestep run criteria do not correctly handle the logic needed for robust game physics.
 - The architecture for turn-based games and other even slightly unusual patterns is not obvious.
 - We cannot easily implement a builder-style strategy for configuring systems.
 
@@ -139,7 +139,7 @@ impl Plugin for PhysicsPlugin{
 }
 ```
 
-If you just want to run your game logic systems in the middle of your stage, after input is processed but before rendering occurs, add the `CoreLabel::GameLogic` to them.
+If you just want to run your game logic systems in the middle of your schedule, after input is processed but before rendering occurs, add the `CoreLabel::GameLogic` to them.
 
 You can apply the same label(s) to many systems at once using **system sets** with the `App::add_system_set(systems: impl SystemIterator, labels: impl SystemLabelIterator)` method.
 
@@ -285,7 +285,7 @@ However, because you're in an ordinary Rust function you're free to use whatever
 This can be helpful when:
 
 - you want to run multiple steps of a set of game logic during a single frame (as you might see in complex turn-based games)
-- you need to branch to handle a
+- you need to branch the entire schedule to handle a particularly complex bit of game logic
 - you need to integrate a complex external service, like scripting or a web server
 - you want to switch the executor used for some portion of your systems
 
