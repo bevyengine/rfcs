@@ -352,6 +352,65 @@ However, doing so will break approximately the entire engine, and tests will not
 
 Lets explore some of the more critical and challenging details.
 
+### Storing and configuring systems
+
+Schedules store systems in a configured, initialized form.
+
+```rust
+struct Schedule{
+   // Each schedule is associated with exactly one `World`, as systems must be initiliazed on it
+   world_id: WorldId
+   // We need to be able to quickly look up specific systems and iterate over them
+   // `SystemId` should be a unique identifier, atomically generated on system insertion
+   systems: HashMap<SystemId, ConfiguredSystem>,
+   // Label configuration must be stored at the schedule level,
+   // rather than attached to specific label instances
+   labels: HashMap<Box<dyn SystemLabel>, SystemConfig>,
+}
+```
+
+Configured systems are composed of a raw system and its configuration.
+
+```rust
+struct ConfiguredSystem{
+   raw_system: RawSystem,
+   config: SystemConfig,
+}
+```
+
+Raw systems store metadata, cached state, `Local` system parameters and the function pointer to the actual function to be executed:
+
+```rust
+struct RawSystem {
+   function: F,
+   // Contains all metadata and state
+   meta: SystemMeta
+   last_change_tick: u32,
+}
+```
+
+System configuration stores ordering dependencies, run criteria and labels.
+It can be created raw, or stored in association with either system labels or systems.
+
+```rust
+enum OrderingTarget {
+   Label(Box<dyn SystemLabel>),
+   System(SystemId),
+}
+
+struct SystemConfig {
+   strict_ordering_before: Vec<OrderingTarget>,
+   if_needed_ordering_before: Vec<OrderingTarget>,
+   atomic_ordering_before: Vec<OrderingTarget>,
+   strict_ordering_after: Vec<OrderingTarget>,
+   if_needed_ordering_after: Vec<OrderingTarget>,
+   atomic_ordering_after: Vec<OrderingTarget>,
+   run_criteria: Vec<SystemId>,
+   // This vector is always empty when this struct is used for labels
+   labels: Vec<Box dyn SystemLabel>,
+}
+```
+
 ## Drawbacks
 
 1. This will be a massively breaking change to every single Bevy user.
@@ -361,6 +420,8 @@ Lets explore some of the more critical and challenging details.
    1. Powerful system debugging and visualization tools become even more important.
 3. States will no longer have stacks. This could break some users, but they should be able to write their own replacement easily enough externally.
 4. It will become harder to reason about exactly when command flushing occurs.
+5. Ambiguity sets are not directly accounted for in the new design.
+   1. They need more thought and are rarely used; we can toss them back on later.
 
 ## Rationale and alternatives
 
