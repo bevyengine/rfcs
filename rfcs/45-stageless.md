@@ -120,7 +120,7 @@ impl Plugin for PhysicsPlugin{
 
 ### System ordering
 
-The most important way in which we can configure systems is by specifying **when** they run.
+The most important way we can configure systems is by telling the scheduler *when* they should be run.
 The ordering of systems is always defined relative to other systems: either directly or by checking the systems that belong to a label.
 
 There are two basic forms of system ordering constraints:
@@ -145,6 +145,47 @@ Commands (commonly used to spawn and despawn entities or add and remove componen
 TODO: create more sugar for this, then make an example!
 
 ### Run criteria
+
+While ordering constraints determine *when* a system will run, **run criteria** will determine *if* it will run at all.
+A run criteria is a special kind of system, which can read data from the `World` and returns a boolean value.
+If its output is `true`, the system it is attached to will run during this pass of the `Schedule`;
+if it is `false`, the system will be skipped.
+Systems that are skipped are considered completed for the purposes of ordering constraints.
+
+Let's examine a few ways we can specify run criteria:
+
+```rust
+// This function can be used as a run criteria system,
+// because it only reads from the `World` and returns `bool`
+fn construction_timer_finished(timer: Res<ConstructionTimer>) -> bool {
+    timer.finished()
+}
+
+fn main(){
+    App::new()
+    .add_plugins(DefaultPlugins)
+    // We can add functions as run criteria
+    .add_system(update_construction_progress.run_if(construction_timer_finished))
+    // We can use closures for simple one-off run criteria, 
+    // which automatically fetch the appropriate data from the `World`
+    .add_system(spawn_more_enemies.run_if(|difficulty: Res<Difficulty>| difficulty >= 9000))
+    // The `run_if_resource_is` method is convenient syntactic sugar that generates a run criteria
+    // for when you want to check the value of a resource (commonly an enum)
+    .add_system(gravity.run_if_resource_equals(Gravity::Enabled))
+    // Run criteria can be attached to labels: a copy of the run criteria will be applied to each system with that label
+    .configure_label(GameLabel::Physics, |label: impl SystemLabel| {label.run_if_resource_equals(Paused(false))} )
+    .run()
+}
+```
+
+When multiple run criteria are attached to the same system, the system will run if and only if all of those run criteria return true.
+
+Run criteria are evaluated "just before" the system that is attached to is run.
+The state that they read from will always be "valid" when the system that they control is being run: this is important to avoid strange bugs caused by race conditions and non-deterministic system ordering.
+It is impossible, for example, for a game to be paused *after* the run criteria checked if the game was paused but before the system that relied on the game not being paused completes.
+In order to understand exactly what this means, we need to understand atomic ordering constraints.
+
+### Atomic ordering constraints
 
 ### States
 
@@ -196,11 +237,18 @@ On the other hand, it *will* result in pointless and surprising blocking behavio
 If-needed ordering is the corret stategy in virtually cases: in Bevy, interior mutability at the component or resource level is rare, almost never needed and results in other serious and subtle bugs.
 As we move towards specifying system ordering dependencies at scale, it is critical to avoid spuriously breaking users schedules, and silent, pointless performance hits are never good.
 
+### Why can't we just use system chaining for run criteria?
+
+There are two reasons why this doesn't work:
+
+1. The system we're applying a run criteria does not have an input type.
+2. System chaining does not work if the chained systems are incompatible. This is far too limiting.
+
 ## Unresolved questions
 
-- What parts of the design do you expect to resolve through the RFC process before this gets merged?
-- What parts of the design do you expect to resolve through the implementation of this feature before the feature PR is merged?
-- What related issues do you consider out of scope for this RFC that could be addressed in the future independently of the solution that comes out of this RFC?
+- Should we allow users to compose run criteria in more complex ways?
+  - How does this work for run criteria that are not locally defined?
+- How do we ergonomically allow users to specify that commands must be flushed between two systems?
 
 ## \[Optional\] Future possibilities
 
