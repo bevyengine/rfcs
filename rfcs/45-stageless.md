@@ -121,9 +121,9 @@ impl Plugin for PhysicsPlugin{
 
         app
         // We can reuse this shared configuration on each of our labels
-        .add_label(Forces.configure(common_physics_config).before(Physics::CollisionDetection))
-        .add_label(Physics::CollisionDetection.configure(common_physics_config).before(Physics::CollisionHandling))
-        .add_label(Physics::CollisionHandling.configure(common_physics_config))
+        .configure_label(Forces.configure(common_physics_config).before(Physics::CollisionDetection))
+        .configure_label(Physics::CollisionDetection.configure(common_physics_config).before(Physics::CollisionHandling))
+        .configure_label(Physics::CollisionHandling.configure(common_physics_config))
         // And then apply that config to each of the systems that have this label
         .add_system(gravity.label(Forces))
         // These systems have a linear chain of ordering dependencies between them
@@ -135,30 +135,6 @@ impl Plugin for PhysicsPlugin{
     }
 }
 ```
-
-Or, you can apply labels to your systems, and then configure them later:
-
-```rust
-impl Plugin for PhysicsPlugin{
-
-   // This code has the exact same effect as the snipped above
-    fn build(app: &mut App){
-        let mut common_physics_config = SystemConfig::new().after(CoreLabel::InputHandling).before(CoreLabel::Rendering);
-
-        app
-        .add_system(gravity.label(Forces))
-        .add_system_chain([broad_pass, narrow_pass].label(Physics::CollisionDetection))
-        .add_system_set([compute_forces, collision_damage], Physics::CollisionHandling)
-        // This adds the new configuration constraints to the labels in an additive fashion
-        .configure_label(Physics::Forces.configure(common_physics_config).before(Physics::CollisionDetection))
-        .configure_label(Physics::CollisionDetection.configure(common_physics_config).before(Physics::CollisionHandling))
-        .configure_label(Physics::CollisionHandling.configure(common_physics_config));
-    }
-}
-```
-
-For the most part, this is a matter of code organization and style: defining the properties of your labels up-front helps keep your code clean and your configuration centralized.
-On the other hand, configuring labels later allows you to modify the configuration of labels added by external plugins, customizing them to fit your game's needs.
 
 You can apply the same label(s) to many systems at once using **system sets** with the `App::add_system_set(systems: impl SystemIterator, labels: impl SystemLabelIterator)` method.
 
