@@ -322,6 +322,7 @@ Verifying that the cache is still valid will require access to the data anyways,
 - Should we allow users to compose run criteria in more complex ways?
   - How does this work for run criteria that are not locally defined?
 - How do we ergonomically allow users to specify that commands must be flushed between two systems?
+- If we want to support a simple `add_system_chain` API as a precursor to a system graph API, what do we rename "system chaining" to?
 
 ## \[Optional\] Future possibilities
 
