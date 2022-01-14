@@ -196,7 +196,7 @@ fn main(){
     // We can use closures for simple one-off run criteria, 
     // which automatically fetch the appropriate data from the `World`
     .add_system(spawn_more_enemies.run_if(|difficulty: Res<Difficulty>| difficulty >= 9000))
-    // The `run_if_resource_is` method is convenient syntactic sugar that generates a run criteria
+    // The `run_if_resource_equals` method is convenient syntactic sugar that generates a run criteria
     // for when you want to check the value of a resource (commonly an enum)
     .add_system(gravity.run_if_resource_equals(Gravity::Enabled))
     // Run criteria can be attached to labels: a copy of the run criteria will be applied to each system with that label
@@ -256,7 +256,7 @@ Each state is associated with three sets of systems:
    1. `app.add_system(autosave.on_exit(GameState::Playing))`
 
 Update systems are by far the simplest: they're simply powered by run criteria.
-`.in_state` is precisely equivalent to `run_if_resource_is`, except with an additional trait bound that the resource must implement `State`.
+`.in_state` is precisely equivalent to `run_if_resource_equals`, except with an additional trait bound that the resource must implement `State`.
 
 On-enter and on-exit systems are stored in dedicated schedules, two per state, within the `App's` `Schedules`.
 These schedules can be configured in all of the ordinary ways, but, as they live in different schedules, ordering cannot be defined relative to systems in the main schedule.
