@@ -41,9 +41,10 @@ The following elements are substantially reworked:
 ### Scheduling overview and intent-based configuration
 
 Systems in Bevy are stored in a `Schedule`: a collection of **configured systems**.
-Each frame, the `App`'s `runner` function will run the schedule,
+In each iteration of the schedule (typically corresponding to a single frame), the `App`'s `runner` function will run the schedule,
 causing the **scheduler** to run the systems in parallel using a strategy that respects all of the configured constraints.
 If these constraints cannot be met (for example, a system may want to run both before and after another system), the schedule is said to be **unsatisfiable**, and the scheduler will panic.
+Schedules can be nested and branched from within **exclusive systems** (which have mutable access to the entire `World`), allowing you to encode arbitrarily complex control flow using ordinary Rust constructs.
 
 In the beginning, each `Schedule` is entirely unordered: systems will be selected in an arbitrary order and run if and only if all of the data that it must access is free.
 Just like with standard borrow checking, multiple systems can read from the same data at once, but writing to the data requires an exclusive lock.
@@ -147,11 +148,11 @@ The ordering of systems is always defined relative to other systems: either dire
 There are two basic forms of system ordering constraints:
 
 1. **Strict ordering constraints:** `strictly_before` and `strictly_after`
-   1. A system cannot be scheduled until "strictly before" systems must have been completed this frame.
+   1. A system cannot be scheduled until "strictly before" systems must have been completed during this iteration of the schedule.
    2. Simple and explicit.
    3. Can cause unneccessary blocking, particularly when systems are configured at a high-level.
 2. **If-needed ordering constraints:** `.before` and `.after`
-   1. A system cannot be scheduled until any "before" systems that it is incompatible with have completed this frame.
+   1. A system cannot be scheduled until any "before" systems that it is incompatible with have completed during this iteration of the schedule.
    2. In the vast majority of cases, this is the desired behavior. Unless you are using interior mutability, systems that are compatible will always be **commutative**: their ordering doesn't matter.
 
 Applying an ordering constraint to or from a label causes a ordering constraint to be created between all individual members of that label.
@@ -248,7 +249,7 @@ These are typically (but not necessarily) enums, where each distinct state is re
 
 Each state is associated with three sets of systems:
 
-1. **Update systems:** these systems run each frame if and only if the value of the state resource matches the provided value.
+1. **Update systems:** these systems run each schedule iteration if and only if the value of the state resource matches the provided value.
    1. `app.add_system(apply_damage.in_state(GameState::Playing))`
 2. **On-enter systems:** these systems run once when the specified state is entered.
    1. `app.add_system(generate_map.on_enter(GameState::Playing))`
@@ -458,7 +459,7 @@ To do so, we need to check both direct *and* transitive strict ordering dependen
 2. It will be harder to immediately understand the global structure of Bevy apps.
    1. Powerful system debugging and visualization tools become even more important.
 3. State transitions are no longer queued up in a stack.
-   1. Arbitrary chains of state transitions can no longer be processed in the same frame, due to the lack of a state stack abstraction.
+   1. Arbitrary chains of state transitions are no longer be processed in the same schedule pass, due to the lack of a state stack abstraction.
    2. This also removes "in-stack" and related system groups / logic.
    3. This can be easily added later, or third-party plugins can create their own abstraction.
 4. It will become harder to reason about exactly when command flushing occurs.
