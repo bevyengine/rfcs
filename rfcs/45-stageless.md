@@ -86,7 +86,7 @@ A system may be configured in the following ways:
   - labels are used by other systems to determine ordering constraints
   - e.g. `.add_system(gravity.label(GameLogic::Physics))`
   - labels themselves may be configured, allowing you to define high-level structure in your `App` in a single place
-    - e.g `app.configure_label(GameLogic::Physics, SystemConfig::new().label(GameLogic::Physics).after(GameLogic::Input))`
+    - e.g `app.configure_label(GameLogic::Physics.after(GameLogic::Input))`
 - it may have ordering constraints, causing it to run before or after other systems
   - there are several subtly different types of ordering constraints, see the next section for details
   - e.g. `.add_system(player_controls.before(GameLabels::Physics).after(CoreLabels::Input))`
