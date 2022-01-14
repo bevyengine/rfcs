@@ -151,6 +151,7 @@ A run criteria is a special kind of system, which can read data from the `World`
 If its output is `true`, the system it is attached to will run during this pass of the `Schedule`;
 if it is `false`, the system will be skipped.
 Systems that are skipped are considered completed for the purposes of ordering constraints.
+If for some reason run criteria are themselves skipped, they are considered to have returned `true`.
 
 Let's examine a few ways we can specify run criteria:
 
@@ -178,7 +179,7 @@ fn main(){
 }
 ```
 
-When multiple run criteria are attached to the same system, the system will run if and only if all of those run criteria return true.
+**When multiple run criteria are attached to the same system, the system will run if and only if all of those run criteria return true.**
 
 Run criteria are evaluated "just before" the system that is attached to is run.
 The state that they read from will always be "valid" when the system that they control is being run: this is important to avoid strange bugs caused by race conditions and non-deterministic system ordering.
@@ -186,6 +187,26 @@ It is impossible, for example, for a game to be paused *after* the run criteria 
 In order to understand exactly what this means, we need to understand atomic ordering constraints.
 
 ### Atomic ordering constraints
+
+**Atomic ordering constraints** are a form of ordering constraints that ensure that two systems are run directly after each other.
+At least, as far as "directly after" is a meaningful concept in a parallel, nonlinear ordering.
+Like the atom, they are indivisible: nothing can get between them!
+
+To be fully precise, if we have system `A` that runs "atomically before" system `B` (`.add_system(a.atomically_before(b))`):
+
+- `A` is strictly before `B`
+- the data locks (in terms of read and write accesses to the `World`) of system `A` will not be released until system `B` has completed
+- the data locks from system `A` are ignored for the purposes of checking if system `B` can run
+  - after all, they're not actualy locked, merely reserved
+  - competing read-locks caused by other systems will still need to complete before a data store can be mutated; the effect is to "ignore the locks of `A`", not "skip the check completely"
+
+In addition to their use in run criteria, atomic ordering constraints are extremely useful for forcing tight interlocking behavior between systems.
+They allow us to ensure that the state read from and written to the earlier system cannot be invalidated.
+This functionality is extremely useful when updating indexes (used to look up components by value):
+allowing you to ensure that the index is still valid when the system using the index uses it.
+
+Of course, atomic ordering constraints should be used thoughtfully.
+As the strictest of the three types of system ordering dependency, they can easily result in unsatisfiable schedules if applied to large groups of systems at once.
 
 ### States
 
@@ -243,6 +264,11 @@ There are two reasons why this doesn't work:
 
 1. The system we're applying a run criteria does not have an input type.
 2. System chaining does not work if the chained systems are incompatible. This is far too limiting.
+
+### Why aren't run criteria cached?
+
+In practice, almost all run criteria are extremely simple, and fast to check.
+Verifying that the cache is still valid will require access to the data anyways, and involve more overhead than simple computations on one or two resources.
 
 ## Unresolved questions
 
