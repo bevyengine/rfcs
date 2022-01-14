@@ -69,7 +69,7 @@ Just as importantly, we are not over-constraining our ordering, allowing subtle 
 
 The `App` can store multiple `Schedules` in a `HashMap<Box<dyn ScheduleLabel>, Schedule>` storage.
 This is used for the enter and exit schedules of states, but can also be used to store, mutate and access additional schedules.
-You can even mutate the schedule that you are in, although you cannot mutate systems that are currently running (leading to a runtime panic), as that would be UB.
+You can even mutate the schedule that you are in, although you cannot mutate systems that are currently running (failing with an error), as that would be UB.
 
 The main and startup schedules can be accessed using the `CoreSchedule::Main` and `CoreSchedule::Startup` labels respectively.
 By default systems are added to the main schedule.
