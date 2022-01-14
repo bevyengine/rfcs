@@ -358,7 +358,8 @@ Storing the schedules in the `App` alleviates this, as exclusive systems are now
 
 ## Unresolved questions
 
-- If we want to support a simple `add_system_chain` API as a precursor to a system graph API, what do we rename "system chaining" to?
+- If we want to support a simple `add_system_chain` API as a precursor to a system-graph-specification API, what do we rename "system chaining" to?
+  - System welding? System fusing? System handling?
 
 ## Future possibilities
 
@@ -372,3 +373,5 @@ Despite the large scope of this RFC, it leaves quite a bit of interesting follow
 6. More complex strategies for run criteria composition.
    1. This would be very useful, but is a large design that can largely be considered independently of this work.
    2. How does this work for run criteria that are not locally defined?
+7. A more cohesive look at plugin definition and configuration strategies.
+8. A graph-based system ordering API for dense, complex dependencies.
