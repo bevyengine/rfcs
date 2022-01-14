@@ -78,8 +78,6 @@ You can add startup systems with the `.add_startup_system(on_startup)` method on
 
 ### Introduction to system configuration
 
-When a function is added to a schedule, it is turned into a `RawSystem` and combined with a `SystemConfig` struct to create a `ConfiguredSystem`.
-
 A system may be configured in the following ways:
 
 - it may have any number of **labels** (which implement the `SystemLabel` trait)
