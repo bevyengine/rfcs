@@ -366,6 +366,9 @@ struct Schedule{
    // Label configuration must be stored at the schedule level,
    // rather than attached to specific label instances
    labels: HashMap<Box<dyn SystemLabel>, SystemConfig>,
+   // Used to quickly look up system ids by the type ids of their underlying function
+   // when checking atomic ordering constraints
+   system_function_type_map: HashMap<TypeId, Vec<SystemId>>,
 }
 ```
 
@@ -375,6 +378,12 @@ Configured systems are composed of a raw system and its configuration.
 struct ConfiguredSystem{
    raw_system: RawSystem,
    config: SystemConfig,
+   // All of the ordering constraints from `SystemConfig` 
+   // are converted into individual systems.
+   // Only the systems that this system are after are stored here.
+   // This is what is actually checked by the scheduler to see if this system can be run.
+   // All if-needed orderings are either converted to strict orderings at this step or removed.
+   cached_ordering: CachedOrdering, 
 }
 ```
 
@@ -405,11 +414,32 @@ struct SystemConfig {
    strict_ordering_after: Vec<OrderingTarget>,
    if_needed_ordering_after: Vec<OrderingTarget>,
    atomic_ordering_after: Vec<OrderingTarget>,
+   // The `TypeId` here is the type id of the flushing system
+   flushed_ordering_before: Vec<(TypeId, OrderingTarget)>,
+   flushed_ordering_after: Vec<(TypeId, OrderingTarget)>,
    run_criteria: Vec<SystemId>,
    // This vector is always empty when this struct is used for labels
    labels: Vec<Box dyn SystemLabel>,
 }
 ```
+
+### Flushed ordering constraints
+
+Being able to assert that commands are processed (or state is flushed) between two systems is a critical requirement for being able to specify logically-meaningful ordering of systems without a global view of the schedule.
+
+However, the exact logic involved in doing this is quite complex.
+We need to:
+
+1. **When validating the schedule:** ensure that a flushing system of the appropriate type *could* occur between the pair of systems.
+2. **When executing the schedule:** ensure that a flushing system of the appropriate type *does* occur between the pair of systems.
+
+For this RFC, let's begin with the very simplest strategy: for each pair of systems with a flushed ordering constraint, ensure that a flushing system of the appropriate type is strictly after the first system, and strictly before the second.
+
+We can check if the flushing system is of the appropriate type by checking the type id of the function pointer stored in the `RawSystem`.
+This is cached in the `system_function_type_map` field of the `Schedule` for efficient lookup, yielding the relevant `SystemIds`.
+
+With the ids of the relevant systems in hand, we can check each constraint: for each pair of systems, we must check that at least one of the relevant flushing systems is between them.
+To do so, we need to check both direct *and* transitive strict ordering dependencies, using a depth-first search to walk backwards from the later system using the `CachedOrdering` until a flushing system is reached, and then walking back further from that flushing system until the originating system is reached.
 
 ## Drawbacks
 
@@ -496,7 +526,7 @@ Storing the schedules in the `App` alleviates this, as exclusive systems are now
 
 Despite the large scope of this RFC, it leaves quite a bit of interesting follow-up work to be done:
 
-1. Opt-in automatic inference of command and state synchronizing systems (see discussion in [RFC #34](https://github.com/bevyengine/rfcs/pull/34)).
+1. Opt-in automatic insertion of flushing systems for command and state (see discussion in [RFC #34](https://github.com/bevyengine/rfcs/pull/34)).
 2. First-class indexes, built using atomic ordering constraints (and likely automatic inference).
 3. Multiple worlds (see [RFC #16](https://github.com/bevyengine/rfcs/pull/43), [RFC #43](https://github.com/bevyengine/rfcs/pull/43)), as a natural extension of the way that apps can store multiple schedules.
 4. Opt-in stack-based states (likely in an external crate).
