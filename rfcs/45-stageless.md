@@ -251,25 +251,36 @@ If you wish to share behavior among siblings, add the systems repeatedly to each
 
 ### Complex control flow
 
+Occasionally, you may find yourself yearning for more complex system control flow than "every system runs once in a loop".
+When that happens: **reach for an exclusive and run a schedule in it.**
+
+The `App` can store multiple `Schedules` in a `HashMap<Box<dyn ScheduleLabel>, Schedule>`.
+This is used for the enter and exit schedules of states, but can also be used to store mutate and access additional schedules.
+You can even mutate the schedule that you are in, although you cannot mutate systems that are currently running (leading to a runtime panic), as that would be UB.
+
+Within an exclusive system, you can freely use `Schedule::run(&mut world)`, applying each of the systems in that schedule a single time to the world of the exclusive system.
+However, because you're in an ordinary Rust function you're free to use whatever logic and control flow you desire: branch and loop in whatever convoluted fashion you need!
+
+This can be helpful when:
+
+- you want to run multiple steps of a set of game logic during a single frame (as you might see in complex turn-based games)
+- you need to branch to handle a
+- you need to integrate a complex external service, like scripting or a web server
+
+If you need absolute control over the entire schedule, consider having a single root-level exclusive system.
+
 #### Fixed time steps
+
+Running a set of systems (typically physics) according to a fixed time step is a particularly critical case of this complex control flow.
+These systems should run a fixed number of times for each wall-clock second elapsed.
+The number of times these systems should be run varies (it may be 0, 1 or more each frame, depending on the time that the frame took to complete).
+
+Simply adding run criteria is inadequate: run criteria can only cause our systems to run a single time, or not run at all.
+By moving this logic into its own schedule within an exclusive system, we can loop until the accumulated time has been spent, running the schedule repeatedly and ensuring that our physics always uses the same elapsed delta-time and stays synced with the wall-clock, even in the face of serious stutters.
 
 ## Implementation strategy
 
-This is the technical portion of the RFC.
-Try to capture the broad implementation strategy,
-and then focus in on the tricky details so that:
-
-- Its interaction with other features is clear.
-- It is reasonably clear how the feature would be implemented.
-- Corner cases are dissected by example.
-
-When necessary, this section should return to the examples given in the previous section and explain the implementation details that make them work.
-
-When writing this section be mindful of the following [repo guidelines](https://github.com/bevyengine/rfcs):
-
-- **RFCs should be scoped:** Try to avoid creating RFCs for huge design spaces that span many features. Try to pick a specific feature slice and describe it in as much detail as possible. Feel free to create multiple RFCs if you need multiple features.
-- **RFCs should avoid ambiguity:** Two developers implementing the same RFC should come up with nearly identical implementations.
-- **RFCs should be "implementable":** Merged RFCs should only depend on features from other merged RFCs and existing Bevy features. It is ok to create multiple dependent RFCs, but they should either be merged at the same time or have a clear merge order that ensures the "implementable" rule is respected.
+TODO: WRITE.
 
 ## Drawbacks
 
@@ -336,15 +347,4 @@ Storing the schedules in the `App` alleviates this, as exclusive systems are now
 
 ## \[Optional\] Future possibilities
 
-Think about what the natural extension and evolution of your proposal would
-be and how it would affect Bevy as a whole in a holistic way.
-Try to use this section as a tool to more fully consider other possible
-interactions with the engine in your proposal.
-
-This is also a good place to "dump ideas", if they are out of scope for the
-RFC you are writing but otherwise related.
-
-Note that having something written down in the future-possibilities section
-is not a reason to accept the current or a future RFC; such notes should be
-in the section on motivation or rationale in this or subsequent RFCs.
-If a feature or change has no direct value on its own, expand your RFC to include the first valuable feature that would build on it.
+TODO: WRITE.
