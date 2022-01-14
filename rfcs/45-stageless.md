@@ -129,6 +129,8 @@ impl Plugin for PhysicsPlugin{
         .add_system(gravity.label(Physics::Forces))
         // These systems have a linear chain of ordering dependencies between them
         // Systems earlier in the chain must run before those later in the chain
+		// Other systems can run in between these systems;
+		// use `add_atomic_system_chain` if this is not desired
         .add_system_chain([broad_pass, narrow_pass].label(Physics::CollisionDetection))
         // System sets apply a set of labels to a collection of systems
         // and are helpful for reducing boilerplate
@@ -159,6 +161,7 @@ If an ordering is defined relative to a non-existent system or label, it will ha
 This relatively gentle failure mode is important to ensure that plugins can order their systems with relatively strong assumptions that the default system labels exist, but continue to (mostly) work if those systems or labels are not present.
 
 In addition to the `.before` and `.after` methods, you can use **system chains** to create very simple linear dependencies between the succesive members of an array of systems.
+(Note to readers: this is not the same as "system chaining" in Bevy 0.6 and earlier: that concept has been renamed to "system handling".)
 
 When discussing system ordering, it is particularly important to call out the `flush_commands` system.
 This **exclusive system** (meaning, it can modify the entire `World` in arbitrary ways and cannot be run in parallel with other systems) collects all created commands and applies them to the `World`.
@@ -341,10 +344,14 @@ Let's take a look at what implementing this would take:
    2. Implement on-update states as sugar for simple run criteria
    3. Create on-enter and on-exit schedules
    4. Create sugar for adding systems to these schedules
-9. Add new examples
-   1. Complex control flow with supplementary schedules
-   2. Fixed time-step pattern
-10. Port the entire engine to the new paradigm
+9. Rename "system chaining" to "system handling"
+   1. Usage was very confusing for new users
+   2. Almost exclusively used for error handling
+   3. New concept of "systems with a linear graph of ordering constraints between them" is naturally described as a chain
+10. Add new examples
+    1. Complex control flow with supplementary schedules
+    2. Fixed time-step pattern
+11. Port the entire engine to the new paradigm
     1. We almost certainly need to port the improved ambiguity checker over to make this reliable
 
 Given the massive scope, that sounds relatively straightforward!
@@ -493,12 +500,12 @@ On the other hand, it *will* result in pointless and surprising blocking behavio
 If-needed ordering is the corret stategy in virtually cases: in Bevy, interior mutability at the component or resource level is rare, almost never needed and results in other serious and subtle bugs.
 As we move towards specifying system ordering dependencies at scale, it is critical to avoid spuriously breaking users schedules, and silent, pointless performance hits are never good.
 
-### Why can't we just use system chaining for run criteria?
+### Why can't we just use system handling (previously system chaining) for run criteria?
 
 There are two reasons why this doesn't work:
 
 1. The system we're applying a run criteria does not have an input type.
-2. System chaining does not work if the chained systems are incompatible. This is far too limiting.
+2. System handling does not work if the `SystemParam` of the original and handling systems are incompatible. This is far too limiting.
 
 ### Why aren't run criteria cached?
 
@@ -514,8 +521,6 @@ Storing the schedules in the `App` alleviates this, as exclusive systems are now
 
 ## Unresolved questions
 
-- If we want to support a simple `add_system_chain` API as a precursor to a system-graph-specification API, what do we rename "system chaining" to?
-  - System welding? System fusing? System handling?
 - What is the best way to handle the migration process from an organizational perspective?
   - Get an RFC approved, and then merge a massive PR developed on a off-org branch?
     - Straightforward, but very hard to review
