@@ -562,3 +562,4 @@ Despite the large scope of this RFC, it leaves quite a bit of interesting follow
    2. How does this work for run criteria that are not locally defined?
 6. A more cohesive look at plugin definition and configuration strategies.
 7. A graph-based system ordering API for dense, complex dependencies.
+8. Store systems in the `World` as entities.
