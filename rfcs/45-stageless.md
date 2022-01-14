@@ -73,7 +73,7 @@ Unsurprisingly, these never conflict with entities or resources in the `World`, 
 Startup systems are stored in their own schedule, with the `CoreSchedule::Startup` label.
 When using the runner added by `MinimalPlugins` and `DefaultPlugins`, this schedule will run exactly once on app startup.
 
-You can add startup systems with the `.add_startup_system(my_system)` method on `App`, which is simply sugar for `.add_system(my_system.to_schedule(CoreSchedule::Startup))`.
+You can add startup systems with the `.add_startup_system(on_startup)` method on `App`, which is simply sugar for `.add_system(on_startup.to_schedule(CoreSchedule::Startup))`.
 
 ### Introduction to system configuration
 
@@ -271,11 +271,11 @@ These are typically (but not necessarily) enums, where each distinct state is re
 Each state is associated with three sets of systems:
 
 1. **Update systems:** these systems run each frame if and only if the value of the state resource matches the provided value.
-   1. `app.add_system(my_system.in_state(GameState::Playing))`
+   1. `app.add_system(apply_damage.in_state(GameState::Playing))`
 2. **On-enter systems:** these systems run once when the specified state is entered.
-   1. `app.add_system(my_system.on_enter(GameState::Playing))`
+   1. `app.add_system(generate_map.on_enter(GameState::Playing))`
 3. **On-exit systems:** these systems run once when the specified stated is exited.
-   1. `app.add_system(my_system.on_enter(GameState::Playing))`
+   1. `app.add_system(autosave.on_exit(GameState::Playing))`
 
 Update systems are by far the simplest: they're simply powered by run criteria.
 `.in_state` is precisely equivalent to `run_if_resource_is`, except with an additional trait bound that the resource must implement `State`.
