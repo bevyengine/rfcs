@@ -95,11 +95,20 @@ A system may be configured in the following ways:
   - **states** are a special, more complex pattern that use run criteria to determine whether or not a system should run in a current state
   - e.g. `.add_system(physics.run_if(GameLogic::Physics))`
 
-Defining system configuration in a `SystemConfig` struct, can be useful to reuse, compose and quickly apply complex configuration strategies, before applying these strategies to labels or individual systems:
+System configuration can be stored in a `SystemConfig` struct. This can be useful to reuse, compose and quickly apply complex configuration strategies, before applying these strategies to labels or individual systems.
+
+If you just want to run your game logic systems in the middle of your schedule, after input is processed but before rendering occurs, add the premade `CoreLabel::GameLogic` to them.
+
+### Label configuration
+
+Each system label has its own associated `SystemConfig`, stored in the corresponding `Schedule`.
+This configuration is applied in an additive fashion to each system with that label.
+
+You can define labels in a standalone fashion, configuring them at the time of creation:
 
 ```rust
 #[derive(SystemLabel)]
-enum PhysicsLabel {
+enum Physics {
     Forces,
     CollisionDetection,
     CollisionHandling,
@@ -108,28 +117,49 @@ enum PhysicsLabel {
 impl Plugin for PhysicsPlugin{
 
     fn build(app: &mut App){
-        // Import all of the `PhysicsLabel` variants for brevity
-        use PhysicsLabel::*;
-
         // Within each frame, physics logic needs to occur after input handling, but before rendering
         let mut common_physics_config = SystemConfig::new().after(CoreLabel::InputHandling).before(CoreLabel::Rendering);
 
         app
         // We can reuse this shared configuration on each of our labels
-        .add_label(Forces.configure(common_physics_config).before(CollisionDetection))
-        .add_label(CollisionDetection.configure(common_physics_config).before(CollisionHandling))
-        .add_label(CollisionHandling.configure(common_physics_config))
+        .add_label(Forces.configure(common_physics_config).before(Physics::CollisionDetection))
+        .add_label(Physics::CollisionDetection.configure(common_physics_config).before(Physics::CollisionHandling))
+        .add_label(Physics::CollisionHandling.configure(common_physics_config))
         // And then apply that config to each of the systems that have this label
         .add_system(gravity.label(Forces))
         // These systems have a linear chain of ordering dependencies between them
         // Systems earlier in the chain must run before those later in the chain
-        .add_system_chain([broad_pass, narrow_pass].label(CollisionDetection))
-        .add_system(compute_forces.label(CollisionHandling))
+        .add_system_chain([broad_pass, narrow_pass].label(Physics::CollisionDetection))
+        // System sets apply a set of labels to a collection of systems
+        // and are helpful for reducing boilerplate
+        .add_system_set([compute_forces, collision_damage], Physics::CollisionHandling);
     }
 }
 ```
 
-If you just want to run your game logic systems in the middle of your schedule, after input is processed but before rendering occurs, add the `CoreLabel::GameLogic` to them.
+Or, you can apply labels to your systems, and then configure them later:
+
+```rust
+impl Plugin for PhysicsPlugin{
+
+   // This code has the exact same effect as the snipped above
+    fn build(app: &mut App){
+        let mut common_physics_config = SystemConfig::new().after(CoreLabel::InputHandling).before(CoreLabel::Rendering);
+
+        app
+        .add_system(gravity.label(Forces))
+        .add_system_chain([broad_pass, narrow_pass].label(Physics::CollisionDetection))
+        .add_system_set([compute_forces, collision_damage], Physics::CollisionHandling)
+        // This adds the new configuration constraints to the labels in an additive fashion
+        .configure_label(Physics::Forces.configure(common_physics_config).before(Physics::CollisionDetection))
+        .configure_label(Physics::CollisionDetection.configure(common_physics_config).before(Physics::CollisionHandling))
+        .configure_label(Physics::CollisionHandling.configure(common_physics_config));
+    }
+}
+```
+
+For the most part, this is a matter of code organization and style: defining the properties of your labels up-front helps keep your code clean and your configuration centralized.
+On the other hand, configuring labels later allows you to modify the configuration of labels added by external plugins, customizing them to fit your game's needs.
 
 You can apply the same label(s) to many systems at once using **system sets** with the `App::add_system_set(systems: impl SystemIterator, labels: impl SystemLabelIterator)` method.
 
@@ -193,8 +223,8 @@ fn main(){
     // for when you want to check the value of a resource (commonly an enum)
     .add_system(gravity.run_if_resource_equals(Gravity::Enabled))
     // Run criteria can be attached to labels: a copy of the run criteria will be applied to each system with that label
-    .configure_label(GameLabel::Physics, |label: impl SystemLabel| {label.run_if_resource_equals(Paused(false))} )
-    .run()
+    .configure_label(GameLabel::Physics.run_if_resource_equals(Paused(false)))
+    .run();
 }
 ```
 
