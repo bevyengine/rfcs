@@ -189,11 +189,17 @@ fn construction_timer_finished(timer: Res<ConstructionTimer>) -> bool {
     timer.finished()
 }
 
+// Timers need to be ticked!
+fn tick_construction_timer(timer: ResMut<ConstructionTimer>, time: Res<Time>){
+	timer.tick(time.delta());
+}
+
 fn main(){
     App::new()
     .add_plugins(DefaultPlugins)
-    // We can add functions as run criteria
-    .add_system(update_construction_progress.run_if(construction_timer_finished))
+	// We can add functions with read-only system parameters as run criteria
+	.add_system_chain([tick_construction_timer, 
+					   update_construction_progress.run_if(construction_timer_finished)])
     // We can use closures for simple one-off run criteria, 
     // which automatically fetch the appropriate data from the `World`
     .add_system(spawn_more_enemies.run_if(|difficulty: Res<Difficulty>| difficulty >= 9000))
