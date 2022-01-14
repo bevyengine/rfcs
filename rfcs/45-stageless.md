@@ -49,7 +49,7 @@ In the beginning, each `Schedule` is entirely unordered: systems will be selecte
 Just like with standard borrow checking, multiple systems can read from the same data at once, but writing to the data requires an exclusive lock.
 Systems which cannot be run in parallel are said to be **incompatible**.
 
-Bevy controls the ordering of its schedule(s) The solution via **intent-based configuration**: record the exact, minimal set of constraints needed for a scheduling strategy to be valid, and then let the scheduler figure it out!
+In Bevy, schedules are ordered via **intent-based configuration**: record the exact, minimal set of constraints needed for a scheduling strategy to be valid, and then let the scheduler figure it out!
 As the number of systems in your app grows, the number of possible scheduling strategies grows exponentially, and the set of *valid* scheduling strategies grows almost as quickly.
 However, each system will continue to work hand-in-hand with a small number of closely-related systems, interlocking in a straightforward and comprehensible way.
 
