@@ -35,7 +35,7 @@ The following elements are substantially reworked:
 - exclusive systems (no longer special-cased)
 - command processing (now performed in a `flush_commands` exclusive system)
 - labels (can now be directly configured)
-- system sets (yeet)
+- system sets (now just used to mass-apply a label to a group of systems)
 - stages (yeet)
 
 ### Scheduling overview and intent-based configuration
@@ -138,6 +138,10 @@ impl Plugin for PhysicsPlugin{
     }
 }
 ```
+
+If you just want to run your game logic systems in the middle of your stage, after input is processed but before rendering occurs, add the `CoreLabel::GameLogic` to them.
+
+You can apply the same label(s) to many systems at once using **system sets** with the `App::add_system_set(systems: impl SystemIterator, labels: impl SystemLabelIterator)` method.
 
 ### System ordering
 
