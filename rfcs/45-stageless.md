@@ -26,17 +26,17 @@ Unfortunately, all of these problems are deeply interwoven. Despite our best eff
 
 This explanation is, in effect, user-facing documentation for the new design.
 In addition to a few new concepts, it throws out much of the current system scheduling design that you may be familiar with.
-The following elements are radically reworked:
+The following elements are substantially reworked:
 
 - schedules (flattened)
 - run criteria (can no longer loop, are now systems)
-- states (simplified, no longer run-criteria powered)
+- states (simplified, no longer purely run-criteria powered)
 - fixed time steps (no longer a run criteria)
 - exclusive systems (no longer special-cased)
 - command processing (now performed in a `flush_commands` exclusive system)
 - labels (can now be directly configured)
-- stages (yeet)
 - system sets (yeet)
+- stages (yeet)
 
 ### Scheduling overview and intent-based configuration
 
@@ -71,9 +71,20 @@ The `App` can store multiple `Schedules` in a `HashMap<Box<dyn ScheduleLabel>, S
 This is used for the enter and exit schedules of states, but can also be used to store, mutate and access additional schedules.
 You can even mutate the schedule that you are in, although you cannot mutate systems that are currently running (leading to a runtime panic), as that would be UB.
 
+The main and startup schedules can be accessed using the `CoreSchedule::Main` and `CoreSchedule::Startup` labels respectively.
+By default systems are added to the main schedule.
+You can control this by adding the `.to_schedule(MySchedule::Variant)` system descriptor to your system.
+
 You can access the schedules stored in the app using the `&Schedules` or `&mut Schedules` system parameters.
 Unsurprisingly, these never conflict with entities or resources in the `World`, as they are stored one level higher.
-The main schedule can be accessed using the `MainSchedule` unit struct as a schedule label.
+
+#### Startup systems
+
+Startup systems are stored in their own schedule, with the `CoreSchedule::Startup` label.
+When using the runner added by `MinimalPlugins` and `DefaultPlugins`, this schedule will run exactly once on app startup.
+
+You can add startup systems with the `.add_startup_system(my_system)` method on `App`, which is simply sugar for `.add_system(my_system.to_schedule(CoreSchedule::Startup))`.
+Startup systems can be run again by running this schedule from within an exclusive system.
 
 ### Introduction to system configuration
 
