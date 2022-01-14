@@ -36,7 +36,7 @@ The following elements are substantially reworked:
 - command processing (now performed in a `flush_commands` exclusive system)
 - labels (can now be directly configured)
 - system sets (now just used to mass-apply a label to a group of systems)
-- stages (yeet)
+- stages (yoten)
 
 ### Scheduling overview and intent-based configuration
 
