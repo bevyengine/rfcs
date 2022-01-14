@@ -60,7 +60,7 @@ Just as importantly, we are not over-constraining our ordering, allowing subtle 
 
 The `App` can store multiple `Schedules` in a `HashMap<Box<dyn ScheduleLabel>, Schedule>` storage.
 This is used for the enter and exit schedules of states, but can also be used to store, mutate and access additional schedules.
-You can even mutate the schedule that you are in, although you cannot mutate systems that are currently running (failing with an error), as that would be UB.
+For safety reasons, you cannot mutate schedules that are currently being run: instead, you can defer their modification until the end of the main loop using `ScheduleCommands`.
 
 The main and startup schedules can be accessed using the `CoreSchedule::Main` and `CoreSchedule::Startup` labels respectively.
 By default systems are added to the main schedule.
@@ -369,6 +369,8 @@ struct Schedule{
    // Used to quickly look up system ids by the type ids of their underlying function
    // when checking atomic ordering constraints
    system_function_type_map: HashMap<TypeId, Vec<SystemId>>,
+   // Used to check if mutation is allowed
+   currently_running: bool,
 }
 ```
 
