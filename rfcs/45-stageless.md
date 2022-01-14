@@ -172,8 +172,8 @@ Note that **this does not insert new copies of a `flush_commands` system**: inst
 
 ### Run criteria
 
-While ordering constraints determine *when* a system should run, **run criteria** will determine *if* it will run at all.
-A run criteria is a special kind of system, which can read data from the `World` and returns a boolean value.
+While ordering constraints determine *when* a system will run, **run criteria** will determine *if* it will run at all.
+A run criteria is a special kind of system, which can read (but not write) data from the `World` and returns a boolean value.
 If its output is `true`, the system it is attached to will run during this pass of the `Schedule`;
 if it is `false`, the system will be skipped.
 Systems that are skipped are considered completed for the purposes of ordering constraints.
