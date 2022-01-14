@@ -341,10 +341,17 @@ Storing the schedules in the `App` alleviates this, as exclusive systems are now
 
 ## Unresolved questions
 
-- Should we allow users to compose run criteria in more complex ways?
-  - How does this work for run criteria that are not locally defined?
 - If we want to support a simple `add_system_chain` API as a precursor to a system graph API, what do we rename "system chaining" to?
 
-## \[Optional\] Future possibilities
+## Future possibilities
 
-TODO: WRITE.
+Despite the large scope of this RFC, it leaves quite a bit of interesting follow-up work to be done:
+
+1. System-builder syntax (see [RFC #31](https://github.com/bevyengine/rfcs/pull/31)). This will likely be done as part of the rewrite.
+2. Opt-in automatic inference of command and state synchronizing systems (see discussion in [RFC #34](https://github.com/bevyengine/rfcs/pull/34)).
+3. First-class indexes, built using atomic ordering constraints (and likely automatic inference).
+4. Multiple worlds (see [RFC #16](https://github.com/bevyengine/rfcs/pull/43), [RFC #43](https://github.com/bevyengine/rfcs/pull/43)), as a natural extension of the way that apps can store multiple schedules.
+5. Opt-in stack-based states (likely in an external crate).
+6. More complex strategies for run criteria composition.
+   1. This would be very useful, but is a large design that can largely be considered independently of this work.
+   2. How does this work for run criteria that are not locally defined?
