@@ -210,6 +210,39 @@ As the strictest of the three types of system ordering dependency, they can easi
 
 ### States
 
+**States** are one particularly common and powerful form of run criteria, allowing you to toggle systems on-and-off based on the value of a given resource and smoothly handle transitions between states by running cleanup and initialization systems.
+Typically, these are used for relatively complex, far-reaching facets of the game like pausing, loading assets or entering into menus.
+
+The current value of each state is stored in a resource, which must derive the `State` trait.
+These are typically (but not necessarily) enums, where each distinct state is represented as an enum variant.
+
+Each state is associated with three sets of systems:
+
+1. **Update systems:** these systems run each frame if and only if the value of the state resource matches the provided value.
+   1. `app.add_system(my_system.in_state(GameState::Playing))`
+2. **On-enter systems:** these systems run once when the specified state is entered.
+   1. `app.add_system(my_system.on_enter(GameState::Playing))`
+3. **On-exit systems:** these systems run once when the specified stated is exited.
+   1. `app.add_system(my_system.on_enter(GameState::Playing))`
+
+Update systems are by far the simplest: they're simply powered by run criteria.
+`.in_state` is precisely equivalent to `run_if_resource_is`, except with an additional trait bound that the resource must implement `State`.
+
+On-enter and on-exit systems are stored in dedicated schedules, two per state, within the `App`.
+These schedules can be configured in all of the ordinary ways, but, as they live in different schedules, ordering cannot be defined relative to systems in the main schedule.
+
+Due to their disruptive and far-reaching effects, state transitions do not occur immediately.
+Instead, they are deferred (like commands), until the next `state_transition::<S: State>` exclusive system runs.
+This system first runs the `on_exit` schedule of the previous state on the world, then runs the `on_enter` schedule of the new state on the world.
+Once that is complete, the exclusive system ends and control flow resumes as normal.
+
+When states are added using `App::add_state::<S: State>(initial_state)`, one `state_transition` system is added to the app, with the `GeneratedLabel::StateTransition<S>` label.
+You can configure when and if this system is scheduled by configuring this label, and you can add additional copies of this system to your schedule where you see fit.
+
+Apps can have multiple orthogonal states representing independent facets of your game: these operate fully independently.
+States can also be defined as a nested enum: these work as you may expect, with each leaf node representing a distinct group of systems.
+If you wish to share behavior among siblings, add the systems repeatedly to each sibling, typically by saving a schedule and then using `Shedule::merge` to combine that into the specialized schedule of choice.
+
 ### Complex control flow
 
 #### Fixed time steps
