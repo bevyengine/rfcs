@@ -91,7 +91,7 @@ A system may be configured in the following ways:
   - there are several variations on this, see the next section for details
   - e.g. `.add_system(player_controls.before(GameLogic::Physics))`
 - it may have one or more **run criteria** attached
-  - a system is only executed if all of its run criteria returns `true`
+  - a system is only executed if all of its run criteria return `true`
   - **states** are a special, more complex pattern that use run criteria to determine whether or not a system should run in a current state
   - e.g. `.add_system(physics.run_if(GameLogic::Physics))`
 
