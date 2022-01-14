@@ -42,7 +42,8 @@ The following elements are substantially reworked:
 
 Systems in Bevy are stored in a `Schedule`: a collection of **configured systems**.
 Each frame, the `App`'s `runner` function will run the schedule,
-causing the **scheduler** to run the systems in parallel using a strategy that respects all of the configured constraints (or panic, if it is **unsatisfiable**).
+causing the **scheduler** to run the systems in parallel using a strategy that respects all of the configured constraints.
+If these constraints cannot be met (for example, a system may want to run both before and after another system), the schedule is said to be **unsatisfiable**, and the scheduler will panic.
 
 In the beginning, each `Schedule` is entirely unordered: systems will be selected in an arbitrary order and run if and only if all of the data that it must access is free.
 Just like with standard borrow checking, multiple systems can read from the same data at once, but writing to the data requires an exclusive lock.
