@@ -321,6 +321,13 @@ There are two reasons why this doesn't work:
 In practice, almost all run criteria are extremely simple, and fast to check.
 Verifying that the cache is still valid will require access to the data anyways, and involve more overhead than simple computations on one or two resources.
 
+### Why do we want to store multiple schedules in the `App`?
+
+We could store these in a resource in the `World`.
+Unfortunately, this seriously impacts the ergonomics of running schedules in exclusive systems due to borrow checker woes.
+
+Storing the schedules in the `App` alleviates this, as exclusive systems are now just ordinary systems: `&mut World` is compatible with `&mut Schedules`!
+
 ## Unresolved questions
 
 - Should we allow users to compose run criteria in more complex ways?
