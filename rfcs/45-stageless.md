@@ -325,7 +325,7 @@ Let's take a look at what implementing this would take:
    3. Allow systems to be labelled
    4. Store `ConfiguredSystems` in the schedule
    5. Add `.add_system_set` method
-   6. Use [system builder syntax]((https://github.com/bevyengine/rfcs/pull/31), rather than adding more complex methods to `App`
+   6. Use [system builder syntax](https://github.com/bevyengine/rfcs/pull/31), rather than adding more complex methods to `App`
 5. Add basic ordering constraints: basic data structures and configuration methods
    1. Begin with strict ordering constraints: simplest and most fundamental
    2. Add if-needed ordering constraints
