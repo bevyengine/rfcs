@@ -152,7 +152,7 @@ There are two basic forms of system ordering constraints:
    3. Can cause unneccessary blocking, particularly when systems are configured at a high-level.
 2. **If-needed ordering constraints:** `.before` and `.after`
    1. A system cannot be scheduled until any "before" systems that it is incompatible with have completed this frame.
-   2. In 99% of cases, this is the desired behavior. Unless you are using interior mutability, systems that are compatible will always be **commutative**: their ordering doesn't matter.
+   2. In the vast majority of cases, this is the desired behavior. Unless you are using interior mutability, systems that are compatible will always be **commutative**: their ordering doesn't matter.
 
 Applying an ordering constraint to or from a label causes a ordering constraint to be created between all individual members of that label.
 If an ordering is defined relative to a non-existent system or label, it will have no effect, emitting a warning.
