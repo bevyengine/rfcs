@@ -302,7 +302,55 @@ By moving this logic into its own schedule within an exclusive system, we can lo
 
 ## Implementation strategy
 
-TODO: WRITE.
+Let's take a look at what implementing this would take:
+
+1. Completely rip out:
+   1. `Stage`
+   2. `Schedule`
+   3. `SystemDescriptor`
+   4. `IntoExclusiveSystem`
+2. Build out a basic schedule abstraction:
+   1. Create a `ScheduleLabel` trait
+   2. Store multiple schedules in an `App` using a dictionary approach
+   3. Support adding systems to the schedule
+      1. These should be initialized by definition: see [PR #2777](https://github.com/bevyengine/bevy/pull/2777)
+   4. Support adding systems to specific schedules and create startup system API
+   5. Special-cased data access control for "the entire world" and `Schedules` to support exclusive systems
+3. Rebuild core command processing machinery
+   1. Begin with trivial event-style commands
+   2. Explore how to regain parallelism
+4. Add system configuration
+   1. Create `SystemConfig` type
+   2. Systems labels store a `SystemConfig`
+   3. Allow systems to be labelled
+   4. Store `ConfiguredSystems` in the schedule
+   5. Add `.add_system_set` method
+   6. Use [system builder syntax]((https://github.com/bevyengine/rfcs/pull/31), rather than adding more complex methods to `App`
+5. Add basic ordering constraints: basic data structures and configuration methods
+   1. Begin with strict ordering constraints: simplest and most fundamental
+   2. Add if-needed ordering constraints
+6. Add atomic ordering constraints
+7. Add run criteria
+   1. Create `IntoRunCriteriaSystem` machinery
+   2. Store the run criteria of each `ConfiguredSystem` in the schedule
+   3. Add atomic ordering constraints
+   4. Check the values of the run-criteria of systems before deciding whether it can be run
+   5. Add methods to configure run criteria
+8. Add states
+   1. Create `State` trait
+   2. Implement on-update states as sugar for simple run criteria
+   3. Create on-enter and on-exit schedules
+   4. Create sugar for adding systems to these schedules
+9. Add new examples
+   1. Complex control flow with supplementary schedules
+   2. Fixed time-step pattern
+10. Port the entire engine to the new paradigm
+    1. We almost certainly need to port the improved ambiguity checker over to make this reliable
+
+Given the massive scope, that sounds relatively straightforward!
+However, doing so will break approximately the entire engine, and tests will not pass again until step 10.
+
+Lets explore some of the more critical and challenging details.
 
 ## Drawbacks
 
@@ -370,18 +418,29 @@ Storing the schedules in the `App` alleviates this, as exclusive systems are now
 
 - If we want to support a simple `add_system_chain` API as a precursor to a system-graph-specification API, what do we rename "system chaining" to?
   - System welding? System fusing? System handling?
+- What is the best way to handle the migration process from an organizational perspective?
+  - Get an RFC approved, and then merge a massive PR developed on a off-org branch?
+    - Straightforward, but very hard to review
+    - Risks divergence and merge conflicts
+  - Use an official branch with delegated authority?
+    - Easier to review, requires delegation, ultimately creates a large PR that needs to be reviewed
+    - Risks divergence and merge conflicts
+  - Develop on main as `bevy_ecs2`?
+    - Some annoying machinery to set up
+    - Requires more delegation and trust to ECS team
+    - Avoids divergence and merge conflicts
+    - Clutters the main branch
 
 ## Future possibilities
 
 Despite the large scope of this RFC, it leaves quite a bit of interesting follow-up work to be done:
 
-1. System-builder syntax (see [RFC #31](https://github.com/bevyengine/rfcs/pull/31)). This will likely be done as part of the rewrite.
-2. Opt-in automatic inference of command and state synchronizing systems (see discussion in [RFC #34](https://github.com/bevyengine/rfcs/pull/34)).
-3. First-class indexes, built using atomic ordering constraints (and likely automatic inference).
-4. Multiple worlds (see [RFC #16](https://github.com/bevyengine/rfcs/pull/43), [RFC #43](https://github.com/bevyengine/rfcs/pull/43)), as a natural extension of the way that apps can store multiple schedules.
-5. Opt-in stack-based states (likely in an external crate).
-6. More complex strategies for run criteria composition.
+1. Opt-in automatic inference of command and state synchronizing systems (see discussion in [RFC #34](https://github.com/bevyengine/rfcs/pull/34)).
+2. First-class indexes, built using atomic ordering constraints (and likely automatic inference).
+3. Multiple worlds (see [RFC #16](https://github.com/bevyengine/rfcs/pull/43), [RFC #43](https://github.com/bevyengine/rfcs/pull/43)), as a natural extension of the way that apps can store multiple schedules.
+4. Opt-in stack-based states (likely in an external crate).
+5. More complex strategies for run criteria composition.
    1. This would be very useful, but is a large design that can largely be considered independently of this work.
    2. How does this work for run criteria that are not locally defined?
-7. A more cohesive look at plugin definition and configuration strategies.
-8. A graph-based system ordering API for dense, complex dependencies.
+6. A more cohesive look at plugin definition and configuration strategies.
+7. A graph-based system ordering API for dense, complex dependencies.
