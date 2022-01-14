@@ -287,6 +287,7 @@ This can be helpful when:
 - you want to run multiple steps of a set of game logic during a single frame (as you might see in complex turn-based games)
 - you need to branch to handle a
 - you need to integrate a complex external service, like scripting or a web server
+- you want to switch the executor used for some portion of your systems
 
 If you need absolute control over the entire schedule, consider having a single root-level exclusive system.
 
@@ -306,7 +307,12 @@ TODO: WRITE.
 ## Drawbacks
 
 1. This will be a massively breaking change to every single Bevy user.
+   1. Any non-trivial control over system ordering will need to be completely reworked.
+   2. Users will typically need to think a bit harder about exactly when they want their gameplay systems to run. In most cases, they should just add the `CoreLabel::GameLogic` label to them.
 2. It will be harder to immediately understand the global structure of Bevy apps.
+   1. Powerful system debugging and visualization tools become even more important.
+3. States will no longer have stacks. This could break some users, but they should be able to write their own replacement easily enough externally.
+4. It will become harder to reason about exactly when command flushing occurs.
 
 ## Rationale and alternatives
 
