@@ -252,7 +252,7 @@ Each state is associated with three sets of systems:
    1. `app.add_system(apply_damage.in_state(GameState::Playing))`
 2. **On-enter systems:** these systems run once when the specified state is entered.
    1. `app.add_system(generate_map.on_enter(GameState::Playing))`
-3. **On-exit systems:** these systems run once when the specified stated is exited.
+3. **On-exit systems:** these systems run once when the specified state is exited.
    1. `app.add_system(autosave.on_exit(GameState::Playing))`
 
 Update systems are by far the simplest: they're simply powered by run criteria.
