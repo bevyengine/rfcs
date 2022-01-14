@@ -88,8 +88,8 @@ A system may be configured in the following ways:
   - labels themselves may be configured, allowing you to define high-level structure in your `App` in a single place
     - e.g `app.configure_label(GameLogic::Physics, SystemConfig::new().label(GameLogic::Physics).after(GameLogic::Input))`
 - it may have ordering constraints, causing it to run before or after other systems
-  - there are several variations on this, see the next section for details
-  - e.g. `.add_system(player_controls.before(GameLogic::Physics))`
+  - there are several subtly different types of ordering constraints, see the next section for details
+  - e.g. `.add_system(player_controls.before(GameLabels::Physics).after(CoreLabels::Input))`
 - it may have one or more **run criteria** attached
   - a system is only executed if all of its run criteria return `true`
   - **states** are a special, more complex pattern that use run criteria to determine whether or not a system should run in a current state
