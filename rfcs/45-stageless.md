@@ -62,7 +62,7 @@ The `App` can store multiple `Schedules` in a `HashMap<Box<dyn ScheduleLabel>, S
 This is used for the enter and exit schedules of states, but can also be used to store, mutate and access additional schedules.
 For safety reasons, you cannot mutate schedules that are currently being run: instead, you can defer their modification until the end of the main loop using `ScheduleCommands`.
 
-The main and startup schedules can be accessed using the `CoreSchedule::Main` and `CoreSchedule::Startup` labels respectively.
+The main and startup schedules can be accessed using the `DefaultSchedule::Main` and `DefaultSchedule::Startup` labels respectively.
 By default systems are added to the main schedule.
 You can control this by adding the `.to_schedule(MySchedule::Variant)` system descriptor to your system.
 
@@ -71,10 +71,10 @@ Unsurprisingly, these never conflict with entities or resources in the `World`, 
 
 #### Startup systems
 
-Startup systems are stored in their own schedule, with the `CoreSchedule::Startup` label.
+Startup systems are stored in their own schedule, with the `DefaultSchedule::Startup` label.
 When using the runner added by `MinimalPlugins` and `DefaultPlugins`, this schedule will run exactly once on app startup.
 
-You can add startup systems with the `.add_startup_system(on_startup)` method on `App`, which is simply sugar for `.add_system(on_startup.to_schedule(CoreSchedule::Startup))`.
+You can add startup systems with the `.add_startup_system(on_startup)` method on `App`, which is simply sugar for `.add_system(on_startup.to_schedule(DefaultSchedule::Startup))`.
 
 ### Introduction to system configuration
 
