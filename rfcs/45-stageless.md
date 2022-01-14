@@ -74,7 +74,6 @@ Startup systems are stored in their own schedule, with the `CoreSchedule::Startu
 When using the runner added by `MinimalPlugins` and `DefaultPlugins`, this schedule will run exactly once on app startup.
 
 You can add startup systems with the `.add_startup_system(my_system)` method on `App`, which is simply sugar for `.add_system(my_system.to_schedule(CoreSchedule::Startup))`.
-Startup systems can be run again by running this schedule from within an exclusive system.
 
 ### Introduction to system configuration
 
