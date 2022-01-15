@@ -233,7 +233,8 @@ Like the atom, they are indivisible: nothing can get between them!
 To be fully precise, if we have system `A` that runs "atomically before" system `B` (`.add_system(a.atomically_before(b))`):
 
 - `A` is strictly before `B`
-- the data locks (in terms of read and write accesses to the `World`) of system `A` will not be released until system `B` has completed
+- the "write" data locks of system `A` are relaxed to "read" data locks upon system `A`'s completion
+- "read" data locks of system `A` will not be released until system `B` (and all other atomic dependents) has completed
 - the data locks from system `A` are ignored for the purposes of checking if system `B` can run
   - after all, they're not actualy locked, merely reserved
   - competing read-locks caused by other systems will still need to complete before a data store can be mutated; the effect is to "ignore the locks of `A`", not "skip the check completely"
