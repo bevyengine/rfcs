@@ -178,7 +178,7 @@ A run criteria is a special kind of system, which can read (but not write) data 
 If its output is `true`, the system it is attached to will run during this pass of the `Schedule`;
 if it is `false`, the system will be skipped.
 Systems that are skipped are considered completed for the purposes of ordering constraints.
-If for some reason run criteria are themselves skipped, they are considered to have returned `true`.
+Run criteria cannot themselves have run criteria: they are always executed.
 
 Let's examine a few ways we can specify run criteria:
 
