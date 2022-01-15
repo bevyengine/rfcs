@@ -157,7 +157,7 @@ There are two basic forms of system ordering constraints:
    2. In the vast majority of cases, this is the desired behavior. Unless you are using interior mutability, systems that are compatible will always be **commutative**: their ordering doesn't matter.
 
 Applying an ordering constraint to or from a label causes a ordering constraint to be created between all individual members of that label.
-If an ordering is defined relative to a non-existent system or label, it will have no effect, emitting a warning.
+If an ordering is defined relative to a non-existent system or an unused label, it will have no effect, emitting a warning.
 This relatively gentle failure mode is important to ensure that plugins can order their systems with relatively strong assumptions that the default system labels exist, but continue to (mostly) work if those systems or labels are not present.
 
 In addition to the `.before` and `.after` methods, you can use **system chains** to create very simple linear dependencies between the succesive members of an array of systems.
