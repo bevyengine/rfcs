@@ -64,7 +64,7 @@ This is used for the enter and exit schedules of states, but can also be used to
 For safety reasons, you cannot mutate schedules that are currently being run: instead, you can defer their modification until the end of the main loop using `ScheduleCommands`.
 
 The main and startup schedules can be accessed using the `DefaultSchedule::Main` and `DefaultSchedule::Startup` labels respectively.
-By default systems are added to the main schedule.
+By default, systems are added to the main schedule.
 You can control this by adding the `.to_schedule(MySchedule::Variant)` system descriptor to your system.
 
 You can access the schedules stored in the app using the `&Schedules` or `&mut Schedules` system parameters.
