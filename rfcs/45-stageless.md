@@ -231,7 +231,7 @@ In order to understand exactly what this means, we need to understand atomic ord
 At least, as far as "directly after" is a meaningful concept in a parallel, nonlinear ordering.
 Like the atom, they are indivisible: nothing can get between them!
 
-To be more precise, if a system `A` is `atomically_before` system `B`, nothing (other than system `B`) can mutate the data that system `A` could access.
+To be more precise, if a system `A` is `atomically_before` system `B`, nothing (other than system `B`) can mutate the data that system `A` could access until `B` completes.
 
 In addition to their use in run criteria, atomic ordering constraints are extremely useful for forcing tight interlocking behavior between systems.
 They allow us to ensure that the state read from and written to the earlier system cannot be invalidated.
