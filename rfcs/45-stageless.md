@@ -548,6 +548,10 @@ Storing the schedules in the `App` alleviates this, as exclusive systems are now
 
 ## Unresolved questions
 
+- Are the access restrictions imposed by atomic ordering constraints correct and minimal?
+- Should on-update systems of stages be handled using run criteria?
+  - Currently, all of the update systems of the next state will be handled on the same frame
+- Is automatic inference of sync points required in order to make this design sufficiently ergonomic?
 - What is the best way to handle the migration process from an organizational perspective?
   - Get an RFC approved, and then merge a massive PR developed on a off-org branch?
     - Straightforward, but very hard to review
@@ -555,7 +559,7 @@ Storing the schedules in the `App` alleviates this, as exclusive systems are now
   - Use an official branch with delegated authority?
     - Easier to review, requires delegation, ultimately creates a large PR that needs to be reviewed
     - Risks divergence and merge conflicts
-  - Develop on main as `bevy_ecs2`?
+  - Develop `bevy_schedule3` on the `main` branch as a partial fork of `bevy_ecs`?
     - Some annoying machinery to set up
     - Requires more delegation and trust to ECS team
     - Avoids divergence and merge conflicts
