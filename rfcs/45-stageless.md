@@ -93,7 +93,7 @@ A system may be configured in the following ways:
 - it may have one or more **run criteria** attached
   - a system is only executed if all of its run criteria return `true`
   - **states** are a special, more complex pattern that use run criteria to determine whether or not a system should run in a current state
-  - e.g. `.add_system(physics.run_if(GameLogic::Physics))`
+  - e.g. `.add_system(physics.run_if_resource_equals(EnablePhysics(true)))`
 
 System configuration can be stored in a `SystemConfig` struct. This can be useful to reuse, compose and quickly apply complex configuration strategies, before applying these strategies to labels or individual systems.
 
