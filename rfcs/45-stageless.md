@@ -181,7 +181,7 @@ if it is `false`, the system will be skipped.
 Systems that are skipped are considered completed for the purposes of ordering constraints.
 Run criteria cannot be labelled, otherwise ordered or themselves have run criteria: order other systems relative to the system they control instead.
 
-Let's examine a few ways we can specify run criteria:
+You can specify run criteria in several different ways:
 
 ```rust
 // This function can be used as a run criterion system,
