@@ -31,7 +31,7 @@ The following elements are substantially reworked:
 - schedules (flattened)
 - run criteria (can no longer loop, are now systems)
 - states (simplified, no longer purely run-criteria powered)
-- fixed time steps (no longer a run criteria)
+- fixed time steps (no longer a run criterion)
 - exclusive systems (no longer special-cased)
 - command processing (now performed in a `flush_commands` exclusive system)
 - labels (can now be directly configured)
@@ -175,7 +175,7 @@ Note that **this does not insert new copies of a `flush_commands` system**: inst
 ### Run criteria
 
 While ordering constraints determine *when* a system will run, **run criteria** will determine *if* it will run at all.
-A run criteria is a special kind of system, which can read (but not write) data from the `World` and returns a boolean value.
+A run criterion is a special kind of system, which can read (but not write) data from the `World` and returns a boolean value.
 If its output is `true`, the system it is attached to will run during this pass of the `Schedule`;
 if it is `false`, the system will be skipped.
 Systems that are skipped are considered completed for the purposes of ordering constraints.
@@ -184,7 +184,7 @@ Run criteria cannot be labelled, otherwise ordered or themselves have run criter
 Let's examine a few ways we can specify run criteria:
 
 ```rust
-// This function can be used as a run criteria system,
+// This function can be used as a run criterion system,
 // because it only reads from the `World` and returns `bool`
 fn construction_timer_finished(timer: Res<ConstructionTimer>) -> bool {
     timer.finished()
@@ -204,7 +204,7 @@ fn main(){
     // We can use closures for simple one-off run criteria, 
     // which automatically fetch the appropriate data from the `World`
     .add_system(spawn_more_enemies.run_if(|difficulty: Res<Difficulty>| difficulty >= 9000))
-    // The `run_if_resource_equals` method is convenient syntactic sugar that generates a run criteria
+    // The `run_if_resource_equals` method is convenient syntactic sugar that generates a run criterion
     // for when you want to check the value of a resource (commonly an enum)
     .add_system(gravity.run_if_resource_equals(Gravity::Enabled))
     // Run criteria can be attached to labels: a copy of the run criteria will be applied to each system with that label
@@ -217,7 +217,7 @@ There are a few important subtleties to bear in mind when working with run crite
 
 - when multiple run criteria are attached to the same system, the system will run if and only if all of those run criteria return true
 - run criteria are evaluated "just before" the system that is attached to is run
-- if a run criteria is attached to a label, a run criteria system will be generated for each system that has that label
+- if a run criterion is attached to a label, a run-criterion-system will be generated for each system that has that label
   - this is essential to ensure that run criteria are checking fresh state without creating very difficult to satify ordering constraints
   - if you need to ensure that all systems behave the same way during a single pass of the schedule or avoid expensive recomputation, precompute the value and store the result in a resource, then read from that in your run criteria instead
 
