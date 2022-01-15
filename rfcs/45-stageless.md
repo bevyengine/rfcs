@@ -291,7 +291,8 @@ If you wish to share behavior among siblings, add the systems repeatedly to each
 ### Complex control flow
 
 Occasionally, you may find yourself yearning for more complex system control flow than "every system runs once in a loop".
-When that happens: **reach for an exclusive and run a schedule in it.**
+When that happens: **create an exclusive system and run a schedule in it.**
+
 
 Within an exclusive system, you can freely fetch the desired schedule from the `App` with the `&Schedules` (or `&mut Schedules`) system parameter and use `Schedule::run(&mut world)`, applying each of the systems in that schedule a single time to the world of the exclusive system.
 However, because you're in an ordinary Rust function you're free to use whatever logic and control flow you desire: branch and loop in whatever convoluted fashion you need!
