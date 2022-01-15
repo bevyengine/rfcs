@@ -272,6 +272,7 @@ Update systems are by far the simplest: they're simply powered by run criteria.
 On-enter and on-exit systems are stored in dedicated schedules, two per state, within the `App's` `Schedules`.
 These schedules can be configured in all of the ordinary ways, but, as they live in different schedules, ordering cannot be defined relative to systems in the main schedule.
 
+You can change which variant of a state you are in by requesting the state as a mutable resource, then using the `State::transition_to` method within your system.
 Due to their disruptive and far-reaching effects, state transitions do not occur immediately.
 Instead, they are deferred (like commands), until the next `flush_state<S: State>` exclusive system runs.
 This system first runs the `on_exit` schedule of the previous state on the world, then runs the `on_enter` schedule of the new state on the world.
