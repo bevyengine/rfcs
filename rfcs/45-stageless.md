@@ -525,7 +525,8 @@ It is also a problem for our tools, forcing a recursive architecture when genera
 Strict ordering is simple and explicit, and will never result in strange logic errors.
 On the other hand, it *will* result in pointless and surprising blocking behavior, possibly leading to unsatisfiable schedules.
 
-If-needed ordering is the corret stategy in virtually cases: in Bevy, interior mutability at the component or resource level is rare, almost never needed and results in other serious and subtle bugs.
+If-needed ordering is the correct strategy in virtually all cases: in Bevy, interior mutability at the component or resource level is rare, almost never needed and results in other serious and subtle bugs.
+
 As we move towards specifying system ordering dependencies at scale, it is critical to avoid spuriously breaking users schedules, and silent, pointless performance hits are never good.
 
 ### Why can't we just use system handling (previously system chaining) for run criteria?
