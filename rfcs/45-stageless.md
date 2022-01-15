@@ -55,7 +55,7 @@ As the number of systems in your app grows, the number of possible scheduling st
 However, each system will continue to work hand-in-hand with a small number of closely-related systems, interlocking in a straightforward and comprehensible way.
 
 By configuring our systems with straightforward, local rules, we can allow the scheduler to pick one of the possible valid paths, optimizing as it sees fit without breaking our logic.
-Just as importantly, we are not over-constraining our ordering, allowing subtle ordering bugs to surface quickly and then be stamped out with a well-considered rule.
+Just as importantly, we are not over-constraining our ordering. Subtle ordering bugs will surface quickly and then be stamped out with a well-considered rule.
 
 ### The `App` stores multiple schedules
 
