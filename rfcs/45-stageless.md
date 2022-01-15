@@ -46,7 +46,7 @@ causing the **scheduler** to run the systems in parallel using a strategy that r
 If these constraints cannot be met (for example, a system may want to run both before and after another system), the schedule is said to be **unsatisfiable**, and the scheduler will panic.
 Schedules can be nested and branched from within **exclusive systems** (which have mutable access to the entire `World`), allowing you to encode arbitrarily complex control flow using ordinary Rust constructs.
 
-In the beginning, each `Schedule` is entirely unordered: systems will be selected in an arbitrary order and run if and only if all of the data that it must access is free.
+In the beginning, each `Schedule` is entirely unordered: systems will be selected in an arbitrary order and run if and only if all of the data that they must access are free.
 Just like with standard borrow checking, multiple systems can read from the same data at once, but writing to the data requires an exclusive lock.
 Systems which cannot be run in parallel are said to be **incompatible**.
 
