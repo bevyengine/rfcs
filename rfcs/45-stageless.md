@@ -273,6 +273,7 @@ Due to their disruptive and far-reaching effects, state transitions do not occur
 Instead, they are deferred (like commands), until the next `flush_state<S: State>` exclusive system runs.
 This system first runs the `on_exit` schedule of the previous state on the world, then runs the `on_enter` schedule of the new state on the world.
 Once that is complete, the exclusive system ends and control flow resumes as normal.
+Note that commands are not automatically flushed between state transitions: if this is required, add a copy of `flush_commands` to your schedule.
 
 When states are added using `App::add_state::<S: State>(initial_state)`, one `flush_state<S>` system is added to the app, with the `GeneratedLabel::StateTransition<S>` label.
 You can configure when and if this system is scheduled by configuring this label, and you can add additional copies of this system to your schedule where you see fit.
