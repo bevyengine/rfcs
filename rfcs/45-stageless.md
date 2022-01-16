@@ -443,6 +443,19 @@ struct SystemConfig {
 }
 ```
 
+### If-needed ordering constraints
+
+During schedule intialization, if-needed ordering constraints are either converted to strict ordering constraints, or removed.
+They can be removed if and only if the schedule is *unobservably* different (ignoring interior mutability), regardless of the relative order of the two systems.
+
+In the case where we only have two systems with an if-needed ordering, this is relatively simple.
+If neither system can write to the data the other reads, we *cannot tell* which order they ran in, and so any ordering constraint between them is pointless.
+This, of course, is equivalent to the two systems being compatible.
+
+Subtly, this compatibility, like the compatibility used to determined if system parameters conflict or if schedules are ambiguous, must occur statically: on the basis of the filtered access to component and resource types `FilteredAccessSet<ComponentId>`.
+By contrast, incompatibility at the time of schedule execution is done based on the actual archetype-components that the systems access.
+Just like strict ordering constraints though, ordering constraints inferred on the basis of if-needed ordering constraints are respected at the time of schedule execution, even if there is no data conflict at the time the systems are being run.
+
 ### Atomic ordering constraints
 
 To be fully precise, if we have system `A` that runs "atomically before" system `B` (`.add_system(a.atomically_before(b))`):
