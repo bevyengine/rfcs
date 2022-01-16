@@ -487,12 +487,15 @@ To do so, we need to check both direct *and* transitive strict ordering dependen
 2. It will be harder to immediately understand the global structure of Bevy apps.
    1. Powerful system debugging and visualization tools become even more important.
 3. State transitions are no longer queued up in a stack.
-   1. By default, arbitrarily long chains of state transitions are no longer be processed in the same schedule pass.
-   2. However, users can add as many copies of the `flush_state` system as they would like, and loop it within an exclusive system.
-   3. This also removes "in-stack" and related system groups / logic.
-   4. This can be easily added later, or third-party plugins can create their own abstraction.
-4. It will become harder to reason about exactly when command flushing occurs.
-5. Ambiguity sets are not directly accounted for in the new design.
+   1. This also removes "in-stack" and related system groups / logic.
+   2. This can be easily added later, or third-party plugins can create their own abstraction.
+4. When a state transition occurs, the systems in the on-update set are no longer applied immediately.
+   1. Instead, the normal flow of logic continues.
+   2. Users can duplicate critical logic in the on-update and on-enter collections.
+   3. Similarly, arbitrarily long chains of state transitions are no longer be processed in the same schedule pass.
+   4. However, users can add as many copies of the `flush_state` system as they would like, and loop it within an exclusive system.
+5. It will become harder to reason about exactly when command flushing occurs.
+6. Ambiguity sets are not directly accounted for in the new design.
    1. They need more thought and are rarely used; we can toss them back on later.
 
 ## Rationale and alternatives
