@@ -170,7 +170,8 @@ Commands (commonly used to spawn and despawn entities or add and remove componen
 
 This pattern is so common that a special form of ordering constraint exists for it: **command-flushed ordering constraints**.
 If system `A` is `before_and_flush` system `B`, the schedule will be unsatisfiable unless there is an intervening `flush_commands` system.
-Note that **this does not insert new copies of a `flush_commands` system**: instead, it is merely used to verify that your schedule has been set up correctly according the specified constraint.
+Note that **this does not insert new copies of a `flush_commands` system**: instead, it functions like an `assert!` statement.
+It has no direct effect, and is merely used to verify that your schedule has been set up correctly according the specified constraint.
 
 ### Run criteria
 
@@ -292,7 +293,6 @@ If you wish to share behavior among siblings, add the systems repeatedly to each
 
 Occasionally, you may find yourself yearning for more complex system control flow than "every system runs once in a loop".
 When that happens: **create an exclusive system and run a schedule in it.**
-
 
 Within an exclusive system, you can freely fetch the desired schedule from the `App` with the `&Schedules` (or `&mut Schedules`) system parameter and use `Schedule::run(&mut world)`, applying each of the systems in that schedule a single time to the world of the exclusive system.
 However, because you're in an ordinary Rust function you're free to use whatever logic and control flow you desire: branch and loop in whatever convoluted fashion you need!
