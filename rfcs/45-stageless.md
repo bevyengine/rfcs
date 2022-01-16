@@ -256,14 +256,14 @@ These are typically (but not necessarily) enums, where each distinct state is re
 Each state is associated with three sets of systems:
 
 1. **Update systems:** these systems run each schedule iteration if and only if the value of the state resource matches the provided value.
-   1. `app.add_system(apply_damage.in_state(GameState::Playing))`
+   1. `app.add_system(apply_damage.run_in_state(GameState::Playing))`
 2. **On-enter systems:** these systems run once when the specified state is entered.
-   1. `app.add_system(generate_map.on_enter(GameState::Playing))`
+   1. `app.add_system(generate_map.run_on_enter(GameState::Playing))`
 3. **On-exit systems:** these systems run once when the specified state is exited.
-   1. `app.add_system(autosave.on_exit(GameState::Playing))`
+   1. `app.add_system(autosave.run_on_exit(GameState::Playing))`
 
 Update systems are by far the simplest: they're simply powered by run criteria.
-`.in_state` is precisely equivalent to `run_if_resource_equals`, except with an additional trait bound that the resource must implement `State`.
+`.run_in_state` is precisely equivalent to `run_if_resource_equals`, except with an additional trait bound that the resource must implement `State`.
 
 On-enter and on-exit systems are stored in dedicated schedules, two per state, within the `App's` `Schedules`.
 These schedules can be configured in all of the ordinary ways, but, as they live in different schedules, ordering cannot be defined relative to systems in the main schedule.
