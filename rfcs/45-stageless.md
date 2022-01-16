@@ -402,7 +402,7 @@ Configured systems are composed of a raw system and its configuration.
 
 ```rust
 struct ConfiguredSystem{
-   raw_system: RawSystem,
+   raw_system: System,
    config: SystemConfig,
 }
 ```
@@ -410,7 +410,7 @@ struct ConfiguredSystem{
 Raw systems store metadata, cached state, `Local` system parameters and the function pointer to the actual function to be executed:
 
 ```rust
-struct RawSystem {
+struct System {
    function: F,
    // Contains all metadata and state
    meta: SystemMeta
@@ -483,7 +483,7 @@ We need to:
 
 For this RFC, let's begin with the very simplest strategy: for each pair of systems with a flushed ordering constraint, ensure that a flushing system of the appropriate type is strictly after the first system, and strictly before the second.
 
-We can check if the flushing system is of the appropriate type by checking the type id of the function pointer stored in the `RawSystem`.
+We can check if the flushing system is of the appropriate type by checking the type id of the function pointer stored in the `System`.
 This is cached in the `system_function_type_map` field of the `Schedule` for efficient lookup, yielding the relevant `SystemIds`.
 
 With the ids of the relevant systems in hand, we can check each constraint: for each pair of systems, we must check that at least one of the relevant flushing systems is between them.
