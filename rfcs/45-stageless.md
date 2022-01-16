@@ -136,6 +136,10 @@ impl Plugin for PhysicsPlugin{
 }
 ```
 
+As a natural consequence of the fact that each lavel stores a `SystemConfig`, labels can themselves be labelled, causing the contained labels to apply to all systems that this label is attached to.
+With great power comes great responsibility: use this feature sparingly (e.g. to label external systems that you cannot access directly).
+Excessively tight constraints make it harder for a schedule to be both scheduled in parallel and satisfied at all, and deeply nested label trees will quickly make your code base incomprehensible.
+
 ### System ordering
 
 The most important way we can configure systems is by telling the scheduler *when* they should be run.
@@ -521,17 +525,6 @@ This control is carefully limited though: systems can only be configured if they
 In addition, configuration defined by a private label (or directly on systems) cannot be altered, extended or removed by the app: it cannot be named, and so cannot be altered.
 
 These limitation allows plugin authors to carefully design a public API, ensure critical invariants hold, and make serious internal changes without breaking their dependencies (as long as the public labels and their meanings are relatively stable).
-
-### Why can't you label labels?
-
-If each label is associated with a `SystemConfig`, and part of this struct is which labels are applied, why can't we label labels themselves?
-
-In short: this way lies madness.
-While at first it may seem appealing to be able create nested hierarchies of labels, this ends up recreating many of the problems of a stage-based design's global perspective.
-If labels can themselves cause other labels to be applied, it becomes dramatically harder to track how systems are configured, and why they are configured in that way.
-
-This is a problem for users, as it makes code much harder to read, reason about and maintain.
-It is also a problem for our tools, forcing a recursive architecture when generating schedules and limiting the ability for developer tools to communicate both the how and why of a system's configuration.
 
 ### Why is if-needed the correct default ordering strategy?
 
