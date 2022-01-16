@@ -28,7 +28,7 @@ This explanation is, in effect, user-facing documentation for the new design.
 In addition to a few new concepts, it throws out much of the current system scheduling design that you may be familiar with.
 The following elements are substantially reworked:
 
-- schedules (flattened)
+- schedules (simplified, each `App` can store multiple dynamically modifiable schedules)
 - run criteria (can no longer loop, are now systems)
 - states (simplified, no longer purely run-criteria powered)
 - fixed time steps (no longer a run criterion)
