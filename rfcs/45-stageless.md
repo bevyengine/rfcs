@@ -379,6 +379,14 @@ struct Schedule{
    // We cannot use a Vec + a `usize` index as the identifier,
    // as the identifier would not be stable when systems were removed, risking serious bugs
    systems: HashMap<SystemId, ConfiguredSystem>,
+   // Stores the fully initialized, efficient graph of ordering constraints
+   // for all systems in the schedule.
+   // All labels are converted to specific systems,
+   // and all if-needed ordering constraints are either 
+   // solidified to strict ordering constraints or removed.
+   // `Graph` is a bikeshed-avoidance graph storage structure,
+   // the exact strategy should be benchmarked
+   ordering_constraints: Graph<SystemId>,
    // Label configuration must be stored at the schedule level,
    // rather than attached to specific label instances
    labels: HashMap<Box<dyn SystemLabel>, SystemConfig>,
@@ -396,12 +404,6 @@ Configured systems are composed of a raw system and its configuration.
 struct ConfiguredSystem{
    raw_system: RawSystem,
    config: SystemConfig,
-   // All of the ordering constraints from `SystemConfig` 
-   // are converted into individual systems.
-   // Only the systems that this system are after are stored here.
-   // This is what is actually checked by the scheduler to see if this system can be run.
-   // All if-needed orderings are either converted to strict orderings at this step or removed.
-   cached_ordering: CachedOrdering, 
 }
 ```
 
