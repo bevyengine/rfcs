@@ -220,8 +220,8 @@ There are a few important subtleties to bear in mind when working with run crite
   - this is essential to ensure that run criteria are checking fresh state without creating very difficult-to-satisfy ordering constraints
   - if you need to ensure that all systems behave the same way during a single pass of the schedule or avoid expensive recomputation, precompute the value and store the result in a resource, then read from that in your run criteria instead
 
-The state that run criteria read from will always be "valid" when the system that they control is being run: this is important to avoid strange bugs caused by race conditions and non-deterministic system ordering.
-It is impossible, for example, for a game to be paused *after* the run criteria checked if the game was paused but before the system that relied on the game not being paused completes.
+Run criteria are always executed "just before" the system that they are controlling is run: it is impossible to modify the data that they rely on in an observable way before the system completes.
+This is important to ensure that the state of the world always matches the state expected by the system at the time it is executed.
 In order to understand exactly what this means, we need to understand atomic ordering constraints.
 
 ### Atomic ordering constraints
@@ -230,7 +230,7 @@ In order to understand exactly what this means, we need to understand atomic ord
 At least, as far as "directly after" is a meaningful concept in a parallel, nonlinear ordering.
 Like the atom, they are indivisible: nothing can get between them!
 
-To be more precise, if a system `A` is `atomically_before` system `B`, nothing (other than system `B`) can mutate the data that system `A` could access until `B` completes.
+To be more precise, if a system `A` is `atomically_before` system `B`, no external systems can mutate the data that both system `A` and `B` access until `B` completes.
 
 In addition to their use in run criteria, atomic ordering constraints are extremely useful for forcing tight interlocking behavior between systems.
 They allow us to ensure that the state read from and written to the earlier system cannot be invalidated.
@@ -460,20 +460,58 @@ Subtly, this compatibility, like the compatibility used to determined if system 
 By contrast, incompatibility at the time of schedule execution is done based on the actual archetype-components that the systems access (via `Access<ArchetypeComponentId>`).
 Just like strict ordering constraints though, ordering constraints inferred on the basis of if-needed ordering constraints are respected at the time of schedule execution, even if there is no data conflict at the time the systems are being run.
 
-### Atomic ordering constraints
+TODO: discuss transitivity.
 
-To be fully precise, if we have system `A` that runs "atomically before" system `B` (`.add_system(a.atomically_before(b))`):
+### Atomic ordering constraints and atomic system groups
+
+If we have system `A` that runs "atomically before" system `B` (`.add_system(a.atomically_before(b))`):
 
 - `A` is strictly before `B`
-- the "write" data locks of system `A` are relaxed to "read" data locks upon system `A`'s completion
-- "read" data locks of system `A` will not be released until system `B` (and all other atomic dependents) have completed
-- the data locks from system `A` are ignored for the purposes of checking if system `B` can run
-  - after all, they're not actualy locked, merely reserved
-  - competing read-locks caused by other systems will still need to complete before a data store can be mutated; the effect is to "ignore the locks of `A`", not "skip the check completely"
-  - if and only if `A` has multiple atomic dependents, they cannot mutate the data read by `A`, as that would invalidate the state created by `A` that other dependents may be relying on
+- `A` and `B` are part of the same **atomic system group**
+  - this concept can be fleshed out further in later work
+  - for now, we're going to use the simplest form in order to get run criteria working correctly
 
-In addition, atomic ordering constraints introduce a new form of schedule unsatisfiability.
-If a system must run between `A` and `B`, but can mutate data that `A` has access to, the schedule is unsatisfiable.
+For all systems that are part of the same atomic system group:
+
+- When a system in an atomic group completes, its write-locks and read-locks are downgraded to **virtual locks**.
+- Virtual locks are treated as if they were real locks for all systems outside of the atomic group.
+- Virtual locks are ignored by systems in the same atomic group.
+
+This can be modelled as:
+
+```rust
+enum DataLock{
+   Read,
+   Write,
+   VirtualRead(Box<dyn SystemLabel>),
+   VirtualWrite(Box<dyn SystemLabel>),
+}
+```
+
+Each atomic group has its own label (implicitly generated if needed), and the atomicity of a label can be controlled via the `.set_atomicity(level: AtomicityLevel)` method.
+Atomic groups are a (very) advanced feature that can be used to carefully control how much information other systems can see about the internal state of a group of systems while they are executing.
+
+There are three levels of atomicity:
+
+```rust
+enum AtomicityLevel {
+   // Read and write-locks are released when a system completes
+   None,
+   // Read and write-locks are downgraded to a virtual read lock when a system completes
+   Coherent,
+   // Read and write-locks are converted to an equivalent virtual lock when a system completes
+   Isolated,
+}
+```
+
+Labels are non-atomic by default, and atomic ordering constraints create coherent atomic groups.
+Isolated atomic groups are relatively niche, used only when you want to be certain that no information about internal progress can leak out.
+
+Multiple virtual locks on the same data can exist at once, and membership in an atomic system group is *not* transitive.
+Suppose we have two atomic groups, `GroupX = {A, B}` and `GroupY = {B, C}`.
+Systems `A` and `C` do not share an atomic group, and data that is virtually locked by both `GroupX` and `GroupY` can only be accessed by system `B`.
+
+This reduces the risk of an unsatisfiable schedule by allowing locks to be released in a maximally permissive fashion.
 
 ### Flushed ordering constraints
 
@@ -492,6 +530,17 @@ This is cached in the `system_function_type_map` field of the `Schedule` for eff
 
 With the ids of the relevant systems in hand, we can check each constraint: for each pair of systems, we must check that at least one of the relevant flushing systems is between them.
 To do so, we need to check both direct *and* transitive strict ordering dependencies, using a depth-first search to walk backwards from the later system using the `CachedOrdering` until a flushing system is reached, and then walking back further from that flushing system until the originating system is reached.
+
+### Schedule unsatisfiability
+
+Schedules can be unsatsfiable for several reasons:
+
+1. The graph of label ordering constraints contains a cycle.
+   1. Each label is treated as a node, and each type of ordering constraint is treated as the same type of edge.
+   2. This is technically stricter than is necessary: a label could be both if-needed-before and if-needed-after another label. This would work as long as there were no incompatible systems, but this is almost certainly a logic bug that we should fail on.
+2. The cached schedule graph contains a cycle.
+   1. This is computed after if-needed orderings are resolved into strict orderings.
+3. A system wishes to mutate data that is shared between two systems of an atomic group, and wishes to run between those members of the group.
 
 ## Drawbacks
 
