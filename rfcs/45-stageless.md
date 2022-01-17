@@ -29,7 +29,7 @@ In addition to a few new concepts, it throws out much of the current system sche
 The following elements are substantially reworked:
 
 - schedules (simplified, each `App` can store multiple dynamically modifiable schedules)
-- run criteria (can no longer loop, are now systems)
+- run criteria (can no longer loop, are now evaluated immediately before the systems they control)
 - states (simplified, no longer purely run-criteria powered)
 - fixed time steps (no longer a run criterion)
 - exclusive systems (no longer special-cased)
@@ -222,11 +222,12 @@ fn main(){
 ### Run criteria
 
 While ordering constraints determine *when* a system will run, **run criteria** will determine *if* it will run at all.
-A run criterion is a special kind of system which can read (but not write) data from the `World` and returns a boolean value.
-If its output is `true`, the system it is attached to will run during this pass of the `Schedule`;
-if it is `false`, the system will be skipped.
+Each system can have any number of run criteria, which read data from the world to control whether or not that system runs.
+If (and only if) all of its run criteria return `true`, the system will run.
+If any of the run criteria are `false`, the system will be skipped.
 Systems that are skipped are considered completed for the purposes of ordering constraints.
-Run criteria cannot be labelled, otherwise ordered or themselves have run criteria: order other systems relative to the system they control instead.
+
+Run criteria are not systems, but can be created from systems which can read (but not write) data from the `World` and returns a boolean value.
 
 You can specify run criteria in several different ways:
 
@@ -250,7 +251,7 @@ fn main(){
     // We can use closures for simple one-off run criteria, 
     // which automatically fetch the appropriate data from the `World`
     .add_system(spawn_more_enemies.run_if(|difficulty: Res<Difficulty>| difficulty >= 9000))
-    // The `run_if_resource_equals` method is convenient syntactic sugar that generates a run criterion
+    // The `run_if_resource_equals` method is fast, special-cased syntax that generates a run criterion
     // for when you want to check the value of a resource (commonly an enum)
     .add_system(gravity.run_if_resource_equals(Gravity::Enabled))
     // Run criteria can be attached to labels: a copy of the run criteria will be applied to each system with that label
@@ -269,22 +270,41 @@ There are a few important subtleties to bear in mind when working with run crite
 
 Run criteria are always executed "just before" the system that they are controlling is run: it is impossible to modify the data that they rely on in an observable way before the system completes.
 This is important to ensure that the state of the world always matches the state expected by the system at the time it is executed.
-In order to understand exactly what this means, we need to understand atomic ordering constraints.
+In order to understand exactly what this means, we need to understand the basics of atomic groups.
 
-### Atomic ordering constraints
+### Atomic groups and atomic ordering constraints
+
+**Atomic groups** are collections of systems (and run criteria) that must be executed "together": once the group has been started, no systems can mutate data that they rely on.
+Like the atom, they are indivisible: nothing can get between them!
+Run criteria are always part of the same atomic group as the systems they control.
 
 **Atomic ordering constraints** are a form of ordering constraints that ensure that two systems are run directly after each other.
 At least, as far as "directly after" is a meaningful concept in a parallel, nonlinear ordering.
-Like the atom, they are indivisible: nothing can get between them!
 
-To be more precise, if a system `A` is `atomically_before` system `B`, no external systems can mutate the data that both system `A` and `B` access until `B` completes.
-
-In addition to their use in run criteria, atomic ordering constraints are extremely useful for forcing tight interlocking behavior between systems.
+In addition to their use in run criteria, atomic groups are a useful (if quite advanced) feature for forcing tight interlocking behavior between systems, preserving plugin privacy and avoiding leaking sensitive timing information.
 They allow us to ensure that the state read from and written to the earlier system cannot be invalidated.
 This functionality is extremely useful when updating indexes (used to look up components by value):
 allowing you to ensure that the index is still valid when the system using the index uses it.
 
-Of course, atomic ordering constraints should be used thoughtfully.
+The **atomicity** of each label can be controlled using `.configure_label(MySystemLabel::Variant.set_atomicity(AtomicityLevel::Coherent))`:
+
+```rust
+enum AtomicityLevel {
+   // Read and write-locks are released when a system completes
+   None,
+   // Read and write-locks are held until they are no longer needed by a member of this atomic group
+   Coherent,
+   // Read and write-locks are only released when this atomic group is complete
+   Isolated,
+}
+```
+
+Labels are non-atomic by default, and atomic ordering constraints create coherent atomic groups.
+Isolated atomic groups are relatively niche, used only when you want to be certain that no information about internal progress can leak out.
+
+Calling `a.atomically_before(b)` will create a strict ordering constraint between `a` and `b`, and add them to the same atomic group (with a uniquely-generated system label).
+
+Of course, atomic groups (and thus atomic ordering constraints) should be used thoughtfully.
 As the strictest of the three types of system ordering dependency, they can easily result in unsatisfiable schedules if applied to large groups of systems at once.
 For example, consider the simple case, where we have an atomic ordering constraint from system A to system B.
 If for any reason commands must be flushed between systems A and system B, we cannot satisfy the schedule.
@@ -574,10 +594,8 @@ enum OrderingTarget {
 struct SystemConfig {
    strict_ordering_before: Vec<OrderingTarget>,
    if_needed_ordering_before: Vec<OrderingTarget>,
-   atomic_ordering_before: Vec<OrderingTarget>,
    strict_ordering_after: Vec<OrderingTarget>,
    if_needed_ordering_after: Vec<OrderingTarget>,
-   atomic_ordering_after: Vec<OrderingTarget>,
    // The `TypeId` here is the type id of the flushing system
    flushed_ordering_before: Vec<(TypeId, OrderingTarget)>,
    flushed_ordering_after: Vec<(TypeId, OrderingTarget)>,
@@ -620,20 +638,15 @@ In order to achieve this, the following algorithm is used:
    1. Each pair of systems can only have one strict ordering constraint between them.
    2. Any edges that are implied by the transitive property can be removed.
 
-### Atomic ordering constraints and atomic system groups
-
-If we have system `A` that runs "atomically before" system `B` (`.add_system(a.atomically_before(b))`):
-
-- `A` is strictly before `B`
-- `A` and `B` are part of the same **atomic system group**
-  - this concept can be fleshed out further in later work
-  - for now, we're going to use the simplest form in order to get run criteria working correctly
+### Atomic groups
 
 For all systems that are part of the same atomic system group:
 
 - When a system in an atomic group completes, its write-locks and read-locks are downgraded to **virtual locks**.
 - Virtual locks are treated as if they were real locks for all systems outside of the atomic group.
 - Virtual locks are ignored by systems in the same atomic group.
+- If the atomic group is **coherent**, virtual locks are removed once all systems in the atomic group have finished with it.
+- If the atomic group is **isolated**, virtual locks are held until all systems in the atomic group complete.
 
 This can be modelled as:
 
@@ -646,30 +659,18 @@ enum DataLock{
 }
 ```
 
-Each atomic group has its own label (implicitly generated if needed), and the atomicity of a label can be controlled via the `.set_atomicity(level: AtomicityLevel)` method.
-Atomic groups are a (very) advanced feature that can be used to carefully control how much information other systems can see about the internal state of a group of systems while they are executing.
-
-There are three levels of atomicity:
-
-```rust
-enum AtomicityLevel {
-   // Read and write-locks are released when a system completes
-   None,
-   // Read and write-locks are downgraded to a virtual read lock when a system completes
-   Coherent,
-   // Read and write-locks are converted to an equivalent virtual lock when a system completes
-   Isolated,
-}
-```
-
-Labels are non-atomic by default, and atomic ordering constraints create coherent atomic groups.
-Isolated atomic groups are relatively niche, used only when you want to be certain that no information about internal progress can leak out.
-
-Multiple virtual locks on the same data can exist at once, and membership in an atomic system group is *not* transitive.
+Multiple virtual locks on the same data can exist at once, and membership in an atomic group is *not* transitive.
 Suppose we have two atomic groups, `GroupX = {A, B}` and `GroupY = {B, C}`.
 Systems `A` and `C` do not share an atomic group, and data that is virtually locked by both `GroupX` and `GroupY` can only be accessed by system `B`.
 
 This reduces the risk of an unsatisfiable schedule by allowing locks to be released in a maximally permissive fashion.
+
+### Run criteria
+
+Run criteria are not themselves systems, but are coercable from systems.
+A system can only be scheduled once all information needed by its run criteria are available to be read from.
+
+As run criteria are evaluated, their virtual locks are released as if they were systems in the atomic group, respecting the isolated versus coherent distinction outlined above.
 
 ### Flushed ordering constraints
 
