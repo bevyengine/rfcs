@@ -361,7 +361,7 @@ This can be helpful to clean up execution order ambiguities that you genuinely d
 Note that execution order ambiguities are based on **hypothetical incompatibility**: the scheduler cannot know that entities with both a `Player` and `Tile` component will never exist.
 You can fix these slightly silly execution order ambiguities by adding `Without` filters to your queries.
 
-### Spurious ordering dependencies
+### Spurious ordering constraints
 
 While if-needed ordering dependencies can be useful for configuring the relative behavior of large groups of systems in an unrestrictive way,
 their transitive behavior can lead to some silly results in cases where there's no need for ordering.
@@ -392,6 +392,19 @@ Eventually they become *load-bearing* spurious ordering constraints, and removin
 
 As a result, the schedule will warn you each time you have a **spurious** ordering constraint: an if-needed ordering constraint that has no effect for any system that it is connecting.
 Don't be like Bavy: try to clean these up ASAP, and then resolve any resulting execution order ambiguities with carefully thought-out constraints.
+
+Like with execution order ambiguities, this behavior can be configured using the `SpuriousOrderingConstraints` resource.
+
+```rust
+enum SpuriousOrderingConstraints{
+   /// The schedule will not be checked for spurious ordering constraints
+   Allow,
+   /// The details of each spurious ordering cosntraint is reported to the console
+   Warn,
+   /// The schedule will panic if an spurious ordering constraint is found
+   Forbid,
+}
+```
 
 ## Implementation strategy
 
