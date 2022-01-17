@@ -163,6 +163,22 @@ This relatively gentle failure mode is important to ensure that plugins can orde
 In addition to the `.before` and `.after` methods, you can use **system chains** to create very simple linear dependencies between the successive members of an array of systems.
 (Note to readers: this is not the same as "system chaining" in Bevy 0.6 and earlier: that concept has been renamed to "system handling".)
 
+```rust
+fn main(){
+   App::new()
+   // This systems are connected using a string of if-needed ordering constraints
+   .add_system_chain([compute_attack, 
+                      compute_defense,
+                      check_for_crits,
+                      compute_damage,
+                      deal_damage,
+                      check_for_death]
+                      // We can configure and label all systems in the chain at once
+                      .label(GameLabel::Combat))
+   .run()
+}
+```
+
 #### Ordering with `Commands`
 
 When discussing system ordering, it is particularly important to call out the `flush_commands` system.
