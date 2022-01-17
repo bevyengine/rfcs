@@ -153,7 +153,7 @@ There are two basic forms of system ordering constraints:
    3. Can cause unnecessary blocking, particularly when systems are configured at a high-level.
 2. **If-needed ordering constraints:** `.before` and `.after`
    1. A system cannot be scheduled until any "before" systems that it is incompatible with have completed during this iteration of the schedule.
-   2. In the vast majority of cases, this is the desired behavior. Unless you are using interior mutability, systems that are compatible will always be **commutative**: their ordering doesn't matter.
+   2. In the vast majority of cases, this is the desired behavior. Unless you are using interior mutability (or accessing something outside of the ECS), systems that are compatible will always be **commutative**: their ordering doesn't matter, and these constraints behave "as-if" they were strict.
    3. Note that if-needed ordering constraints are transitive. `a.before(b)` and `b.before(c)` implies `a.before(c)`. This behavior, while intuitive, can have some unexpected effects: it occurs even if the chain is broken by a **spurious** constraint (in which the two systems are compatible).
 
 Applying an ordering constraint to or from a label causes a ordering constraint to be created between all individual members of that label.
@@ -547,64 +547,18 @@ Subtly, this **hypothetical compatibility** (also used to determined if system p
 By contrast, **factual incompatibility** at the time of schedule execution is done based on the actual archetype-components that the systems access (via `Access<ArchetypeComponentId>`).
 Just like strict ordering constraints though, ordering constraints inferred on the basis of if-needed ordering constraints are respected at the time of schedule execution, even if there is no data conflict at the time the systems are being run.
 
-Unfortunately, this becomes more complex as we consider transitivity.
-If `A` is before `B`, and `B` is before `C`, must `A` be before `C`?
+If-needed ordering constraints are intended to behave exactly like strict ordering constraints (unless interior mutability or other strangeness is involved), and so they are transitive.
+In order to achieve this, the following algorithm is used:
 
-Naturally, this seems like it must be the case: time is well-ordered after all!
-But if either the `A-B` or `B-C` edges are dissolved due to compatibility (and the `A-C` edge matters due to incompatibility), then `C` could be executed before `A`!
-
-There are two possible models that we could handle this important edge case:
-
-- **Model 1:** Infer if-needed-ordering constraints over each subgraph.
-  - Transitivity holds, as expected.
-  - Non-transitive if-needed ordering constraints cannot be represented.
-  - Significant computational overhead, as we must create, evaluate and then deduplicate if-needed ordering constraints over each subgraph.
-- **Model 2:** Do nothing, report execution order ambiguities and allow the user to resolve this by adding additional constraints.
-  - If-needed constraints that have no effect at all are reported.
-  - Reduces risk of accidentally creating unneccessary constraints.
-  - More explicit, and thus more verbose.
-  - Relies on users checking and resolving execution order ambiguities.
-
-In both cases, we will want to simplify the final strict ordering graph created to remove redundant edges for performance reasons (although dramatically more redundant edges will be created under Model 1).
-
-But which behavior is correct?
-Consider the following concrete case:
-
-We have five relevant systems:
-
-1. `determine_player_movement`: reads `Input`, writes `PlayerIntent`
-2. `collision_detection`: reads `Position` and `Velocity`, writes `Events<Collisions>`
-3. `collision_handling`: reads `Events<Collision>`, writes `Velocity`
-4. `apply_player_movement:` reads `PlayerIntent`, writes `Velocity`
-5. `apply_velocity:` reads `Velocity`, writes `Position`
-
-Suppose our user specifies the following if-needed ordering constraints:
-
-1. `determine_player_movement` is before `collision_detection`
-   1. Spurious: these systems are compatible.
-2. `collision_detection` is before `collision_handling`
-   1. Real: these systems conflict on `Events<Collisions>`
-3. `collision_handling` is before `apply_velocity`
-   1. Real: these systems conflict on `Velocity`
-4. `apply_player_movement` is after `collision_handling`
-   1. Spurious: these systems are compatible.
-5. `apply_player_movement` is before `apply_velocity`
-   1. Real: these systems conflict on `Velocity`
-
-The problem here is that there's no direct link between `determine_player_movement` and `apply_player_movement`: they are ambigious under Model 2, and the player may move according to stale input!
-
-Under the transitive Model 1, additional if-needed constraints are created between `determine_player_movement` and `apply_player_movement` via the constraint chain (1, 2, 4).
-Then, the inferred constraint between `determine_player_movement` and `apply_player_movement` is converted into a strict ordering constraint, as the systems are incompatible.
-Finally, all redundant strict ordering constraints (such as between `collision_detection` and `apply_velocity`) are discarded for performance reasons.
-
-Under Model 2, the behavior is much simpler:
-
-- the schedule reports an ambiguity between `determine_player_movement` and `apply_player_movement`
-- the schedule reports two spurious constraints: between `determine_player_movement` and `collision_detection` and between `apply_player_movement` and `collision_handling`
-- the user removes the spurious constraints, replacing them with the logically correct constraint between the player movement systems
-
-Model 1 preserves the "logical" behavior, but in a very implicit fashion that is hard to reason about.
-Model 2 breaks loudly (if users are being warned about spurious constraints and ambiguities), and helps users replaces constraints that don't make sense with those that do.
+1. For each system that is at the start of an if-needed constraint:
+   1. Walk down the tree of if-needed ordering constraints and identify all downstream systems.
+   2. Add an if-needed ordering constraint between the root system and each downstream system.
+2. For each if-needed ordering constraint:
+   1. If the two systems are compatible, remove the constraint.
+   2. If they are incompatible, promote it to a strict ordering constraint.
+3. Deduplicate all strict ordering constraints.
+   1. Each pair of systems can only have one strict ordering constraint between them.
+   2. Any edges that are implied by the transitive property can be removed.
 
 ### Atomic ordering constraints and atomic system groups
 
@@ -749,12 +703,66 @@ Unfortunately, this seriously impacts the ergonomics of running schedules in exc
 
 Storing the schedules in the `App` alleviates this, as exclusive systems are now just ordinary systems: `&mut World` is compatible with `&mut Schedules`!
 
+## Should if=needed ordering constraints be transitive?
+
+If `A` is before `B`, and `B` is before `C`, must `A` be before `C`?
+
+Naturally, this seems like it must be the case: strict ordering constraints are transitive, and time is well-ordered after all!
+But if either the `A-B` or `B-C` edges are dissolved due to compatibility (and the `A-C` edge matters due to incompatibility), then `C` could be executed before `A`!
+
+There are two possible models that we could handle this important edge case:
+
+- **Model 1:** Infer if-needed-ordering constraints over each subgraph.
+  - Transitivity holds, as expected.
+  - Non-transitive if-needed ordering constraints cannot be represented.
+  - Some computational overhead, as we must create, evaluate and then deduplicate if-needed ordering constraints over each subgraph.
+- **Model 2:** Do nothing, report execution order ambiguities and allow the user to resolve this by adding additional constraints.
+  - Reduces risk of accidentally creating unnecessary constraints.
+  - More explicit, and thus more verbose.
+  - Relies on users checking and resolving execution order ambiguities.
+
+But which behavior is correct?
+Consider the following concrete case:
+
+We have five relevant systems:
+
+1. `determine_player_movement`: reads `Input`, writes `PlayerIntent`
+2. `collision_detection`: reads `Position` and `Velocity`, writes `Events<Collisions>`
+3. `collision_handling`: reads `Events<Collision>`, writes `Velocity`
+4. `apply_player_movement:` reads `PlayerIntent`, writes `Velocity`
+5. `apply_velocity:` reads `Velocity`, writes `Position`
+
+Suppose our user specifies the following if-needed ordering constraints:
+
+1. `determine_player_movement` is before `collision_detection`
+   1. Spurious: these systems are compatible.
+2. `collision_detection` is before `collision_handling`
+   1. Real: these systems conflict on `Events<Collisions>`
+3. `collision_handling` is before `apply_velocity`
+   1. Real: these systems conflict on `Velocity`
+4. `apply_player_movement` is after `collision_handling`
+   1. Spurious: these systems are compatible.
+5. `apply_player_movement` is before `apply_velocity`
+   1. Real: these systems conflict on `Velocity`
+
+The problem here is that there's no direct link between `determine_player_movement` and `apply_player_movement`: they are ambiguous under Model 2, and the player may move according to stale input!
+
+Under the transitive Model 1, additional if-needed constraints are created between `determine_player_movement` and `apply_player_movement` via the constraint chain (1, 2, 4).
+Then, the inferred constraint between `determine_player_movement` and `apply_player_movement` is converted into a strict ordering constraint, as the systems are incompatible.
+Finally, all redundant strict ordering constraints (such as between `collision_detection` and `apply_velocity`) are discarded for performance reasons.
+
+Under Model 2, the behavior is much simpler: `determine_player_movement` and `apply_player_movement` are ambiguous.
+
+Model 1 preserves the "logical" behavior, but in a very implicit fashion that is hard to reason about.
+Model 2 simply causes the user's logic to break.
+
+By adding powerful (and prominent) tools for detecting spurious ordering constraints and execution order ambiguities, we can follow the expected (and convenient) transitive property while helping users quash strange, fragile bugs as soon as they're introduced.
+
 ## Unresolved questions
 
 - Should on-update systems of stages be handled using run criteria?
   - Currently, all of the update systems of the next state will be handled on the same frame
 - Is automatic inference of sync points required in order to make this design sufficiently ergonomic?
-- Should we use Model 1 (transitive) or Model 2 (lazy) for handling chains of if-needed ordering constraints?
 - What is the best way to handle the migration process from an organizational perspective?
   - Get an RFC approved, and then merge a massive PR developed on a off-org branch?
     - Straightforward, but very hard to review
