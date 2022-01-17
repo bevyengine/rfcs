@@ -590,7 +590,7 @@ To do so, we need to check both direct *and* transitive strict ordering dependen
 
 ### Schedule unsatisfiability
 
-Schedules can be unsatsfiable for several reasons:
+Schedules can be unsatisfiable for several reasons:
 
 1. The graph of label ordering constraints contains a cycle.
    1. Each label is treated as a node, and each type of ordering constraint is treated as the same type of edge.
