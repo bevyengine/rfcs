@@ -823,18 +823,6 @@ By adding powerful (and prominent) tools for detecting spurious ordering constra
 - Should on-update systems of stages be handled using run criteria?
   - Currently, all of the update systems of the next state will be handled on the same frame
 - Is automatic inference of sync points required in order to make this design sufficiently ergonomic?
-- What is the best way to handle the migration process from an organizational perspective?
-  - Get an RFC approved, and then merge a massive PR developed on a off-org branch?
-    - Straightforward, but very hard to review
-    - Risks divergence and merge conflicts
-  - Use an official branch with delegated authority?
-    - Easier to review, requires delegation, ultimately creates a large PR that needs to be reviewed
-    - Risks divergence and merge conflicts
-  - Develop `bevy_schedule3` on the `main` branch as a partial fork of `bevy_ecs`?
-    - Some annoying machinery to set up
-    - Requires more delegation and trust to ECS team
-    - Avoids divergence and merge conflicts
-    - Clutters the main branch
 
 ## Future possibilities
 
