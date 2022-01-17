@@ -315,6 +315,84 @@ The number of times these systems should be run varies (it may be 0, 1 or more e
 Simply adding run criteria is inadequate: run criteria can only cause our systems to run a single time, or not run at all.
 By moving this logic into its own schedule within an exclusive system, we can loop until the accumulated time has been spent, running the schedule repeatedly and ensuring that our physics always uses the same elapsed delta-time and stays synced with the wall-clock, even in the face of serious stutters.
 
+### Tools to help you work with schedules
+
+Bevy provides some tools to help you keep your schedule properly woven as your game grows in complexity and is refactored.
+
+### Ambiguous execution order
+
+The first of these is a tool that reports pairs of systems with an **ambiguous execution order**.
+A pair of systems has an **ambiguous execution order** if they are incompatible and do not have any ordering constraints between them, either directly or indirectly.
+This can only happen if one system could read a piece of data that the other could write.
+In some passes of the schedule, you will read fresh, updated state, and in other passes you will read state from the pass before.
+
+Most of the time, this is a logic bug (although it may just result in a one-frame delay).
+By default, whenever schedules are constructed, Bevy will report how many execution order ambiguities it found, allowing you to watch for sudden, unexpected jumps in the number of ambiguities due to a refactoring of your schedule structure.
+You can change this behavior by configuring the `ExecutionOrderAmbiguities` resource.
+
+```rust
+enum ExecutionOrderAmbiguities{
+   /// The schedule will not be checked for ambiguities
+   ///
+   /// This behavior will very slightly reduce startup time and eliminate annoying warnings during prototyping.
+   Allow,
+   /// The number of ambiguities is reported to the console
+   ///
+   /// If this number suddenly jumps, you have likely just removed a foundational part of your schedule structure.
+   WarnCount,
+   /// The details of each ambiguity is reported to the console
+   ///
+   /// This can be very useful for debugging. All stricter levels also produce the same verbose output
+   WarnVerbose,
+   /// The schedule will panic unless amibguities are explicitly allow by a shared label
+   ///
+   /// Some ambiguities are inconsequential, and can be ignored.
+   Deny, 
+   /// The schedule will panic if an ambiguity is found
+   ///
+   /// This level is likely too strict unless perfect determinism is required
+   Forbid,
+}
+```
+
+This resource effectively acts as a lint for your schedule, allowing you to control the level of strictness you desire.
+Execution order ambiguities can be explicitly allowed by giving the conflicting systems a shared label, and then configuring that label to `.allow_ambiguities`.
+This can be helpful to clean up execution order ambiguities that you genuinely do not care about, or when working with operations (such as addition of integers) whose operations are genuinely commutative.
+Note that execution order ambiguities are based on **hypothetical incompatibility**: the scheduler cannot know that entities with both a `Player` and `Tile` component will never exist.
+You can fix these slightly silly execution order ambiguities by adding `Without` filters to your queries.
+
+### Spurious ordering dependencies
+
+While if-needed ordering dependencies can be useful for configuring the relative behavior of large groups of systems in an unrestrictive way,
+their transitive behavior can lead to some silly results in cases where there's no need for ordering.
+
+Suppose we have two very large, complex groups of systems: `Systems::Early` and `Systems::Late`.
+They are well-mixed, and no ordering dependencies exist between the groups.
+All is right with the world, and the systems live together in parallel-executing harmony.
+
+Then one day, Bavy adds the following system to our app:
+
+```rust
+fn null_system(){}
+
+app.add_system(null_system.after(Systems::Early).before(Systems::Late));
+```
+
+Seems innocuous, right?
+The `null_system` doesn't access any data; it's trivially compatible with every other system and so the if-needed dependencies should never have any effect.
+Except that's not true under Model 1.
+
+Instead, attempting to maintain transitivity, we've induce an if-needed ordering dependency between *every* system in `Systems::Early` to *every* system in `Systems::Late`.
+The entire schedule is bifurcated into two blocks, attempting to flow through a entirely pointless bottleneck.
+To add insult to injury,`null_system` doesn't even *run* between these two blocks, instead executing at a completely arbitrary time as it has no observable effect.
+
+While this example is deliberately absurd, such situations can naturally arise in real, complex code bases as they grow and are refactored.
+Pointless ordering constraints hang around, as we cannot warn that they are useless, since they have non-local effects.
+Eventually they become *load-bearing* spurious ordering constraints, and removing these if-needed ordering constraints which seemingly have no effect causes the high-level structure of your schedule to radically change, creating a massive collection of new system ordering ambiguities (and the corresponding non-local, non-deterministic bugs)!
+
+As a result, the schedule will warn you each time you have a **spurious** ordering constraint: an if-needed ordering constraint that has no effect for any system that it is connecting.
+Don't be like Bavy: try to clean these up ASAP, and then resolve any resulting execution order ambiguities with carefully thought-out constraints.
+
 ## Implementation strategy
 
 Let's take a look at what implementing this would take:
@@ -395,7 +473,7 @@ struct Schedule{
    ordering_constraints: Graph<SystemId>,
    // Label configuration must be stored at the schedule level,
    // rather than attached to specific label instances
-   labels: HashMap<Box<dyn SystemLabel>, SystemConfig>,
+   labels: HashMap<Box<dyn SystemLabel>, LabelConfig>,
    // Used to quickly look up system ids by the type ids of their underlying function
    // when checking atomic ordering constraints
    system_function_type_map: HashMap<TypeId, Vec<SystemId>>,
@@ -447,6 +525,13 @@ struct SystemConfig {
    // This vector is always empty when this struct is used for labels
    labels: Vec<Box dyn SystemLabel>,
 }
+
+struct LabelConfig {
+   system_config: SystemConfig,
+   allow_ambiguities: bool,
+   atomic: AtomicityLevel,
+}
+
 ```
 
 ### If-needed ordering constraints
