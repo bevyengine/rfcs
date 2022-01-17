@@ -148,7 +148,7 @@ The ordering of systems is always defined relative to other systems: either dire
 There are two basic forms of system ordering constraints:
 
 1. **Strict ordering constraints:** `strictly_before` and `strictly_after`
-   1. A system cannot be scheduled until "strictly before" systems must have been completed during this iteration of the schedule.
+   1. A system cannot be scheduled until "strictly before" systems have been completed during this iteration of the schedule.
    2. Simple and explicit.
    3. Can cause unneccessary blocking, particularly when systems are configured at a high-level.
 2. **If-needed ordering constraints:** `.before` and `.after`
