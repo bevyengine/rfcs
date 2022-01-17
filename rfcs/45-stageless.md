@@ -163,6 +163,8 @@ This relatively gentle failure mode is important to ensure that plugins can orde
 In addition to the `.before` and `.after` methods, you can use **system chains** to create very simple linear dependencies between the successive members of an array of systems.
 (Note to readers: this is not the same as "system chaining" in Bevy 0.6 and earlier: that concept has been renamed to "system handling".)
 
+#### Ordering with `Commands`
+
 When discussing system ordering, it is particularly important to call out the `flush_commands` system.
 This **exclusive system** (meaning, it can modify the entire `World` in arbitrary ways and cannot be run in parallel with other systems) collects all created commands and applies them to the `World`.
 
@@ -172,6 +174,35 @@ This pattern is so common that a special form of ordering constraint exists for 
 If system `A` is `before_and_flush` system `B`, the schedule will be unsatisfiable unless there is an intervening `flush_commands` system.
 Note that **this does not insert new copies of a `flush_commands` system**: instead, it functions like an `assert!` statement.
 It has no direct effect, and is merely used to verify that your schedule has been set up correctly according the specified constraint.
+
+```rust
+use bevy::prelude::*;
+
+#[derive(SystemLabel)]
+enum StartupLabel{
+   CommandFlush,
+   UiSpawn,
+}
+
+/// This example has no `DefaultPlugins`,
+/// so all command flushing is done manually
+fn main(){
+   App::new()
+   // All systems that do not have this label are implicitly before this label
+   .add_system(flush_commands.label(CoreLabel::Last))
+   // Recall that this adds systems to the startup schedule, not the main one
+   .add_startup_system(flush_commands.label(CoreLabel::Last))
+   // Commands will be processed in the basic flush_commands system that occurs at the end of the schedule
+   .add_startup_system(spawn_player)
+   // We need to customize this after it's spawned
+   .add_startup_system(spawn_ui.before(StartupLabel::CommandFlush).label(StartupLabel::UiSpawn))
+   .add_startup_system(customize_ui.after(StartupLabel::CommandFlush).after_and_flush(StartupLabel::UiSpawn))
+   .add_startup_system(flush_commands.label(StartupLabel::CommandFlush);
+   // Less verbosely, we can use the `add_flushed_system_chain` helper method
+   // to do the exact same thing as above (including adding another copy of `flush_commands`)
+   .add_flushed_system_chain([spawn_ui, customize_ui].to_schedule(CoreSchedule::Startup))
+}
+```
 
 ### Run criteria
 
