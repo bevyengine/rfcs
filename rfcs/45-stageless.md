@@ -181,10 +181,9 @@ fn main(){
 
 #### Ordering with `Commands`
 
-When discussing system ordering, it is particularly important to call out the `flush_commands` system.
+Commands (commonly used to spawn and despawn entities or add and remove components) do not take effect immediately.
+Instead, you a copy of the `flush_commands` system must run.
 This **exclusive system** (meaning, it can modify the entire `World` in arbitrary ways and cannot be run in parallel with other systems) collects all created commands and applies them to the `World`.
-
-Commands (commonly used to spawn and despawn entities or add and remove components) will not take effect until this system is run, so be sure that you run a copy of the `flush_commands` system before relying on the result of a command!
 
 This pattern is so common that a special form of ordering constraint exists for it: **command-flushed ordering constraints**.
 If system `A` is `before_and_flush` system `B`, the schedule will be unsatisfiable unless there is an intervening `flush_commands` system.
@@ -477,8 +476,9 @@ Let's take a look at what implementing this would take:
    2. Systems labels store a `SystemConfig`
    3. Allow systems to be labelled
    4. Store `ConfiguredSystems` in the schedule
-   5. Add `.add_system_set` method
-   6. Use [system builder syntax](https://github.com/bevyengine/rfcs/pull/31), rather than adding more complex methods to `App`
+   5. Add `.add_system_set` and `.add_system_chain` methods
+   6. Special-case `CoreLabel::First` and `CoreLabel::Last` for convenience
+   7. Use [system builder syntax](https://github.com/bevyengine/rfcs/pull/31), rather than adding more complex methods to `App`
 5. Add basic ordering constraints: basic data structures and configuration methods
    1. Begin with strict ordering constraints: simplest and most fundamental
    2. Add if-needed ordering constraints
@@ -496,9 +496,9 @@ Let's take a look at what implementing this would take:
    3. Create on-enter and on-exit schedules
    4. Create sugar for adding systems to these schedules
 9. Rename "system chaining" to "system handling"
-   5. Usage was very confusing for new users
-   6. Almost exclusively used for error handling
-   7. New concept of "systems with a linear graph of ordering constraints between them" is naturally described as a chain
+   1. Usage was very confusing for new users
+   2. Almost exclusively used for error handling
+   3. New concept of "systems with a linear graph of ordering constraints between them" is naturally described as a chain
 10. Add new examples
     1. Complex control flow with supplementary schedules
     2. Fixed time-step pattern
