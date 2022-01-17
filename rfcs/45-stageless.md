@@ -46,7 +46,7 @@ causing the **scheduler** to run the systems in parallel using a strategy that r
 If these constraints cannot be met (for example, a system may want to run both before and after another system), the schedule is said to be **unsatisfiable**, and the scheduler will panic.
 Schedules can be nested and branched from within **exclusive systems** (which have mutable access to the entire `World`), allowing you to encode arbitrarily complex control flow using ordinary Rust constructs.
 
-By default, each new `Schedule` is entirely unordered: systems will be selected in an arbitrary order (which is not guaranteed to be stable across passes of the schedule) and run if and only  ifall of the data that they must access are free.
+By default, each new `Schedule` is entirely unordered: systems will be selected in an arbitrary order (which is not guaranteed to be stable across passes of the schedule) and run if and only  if all of the data that they must access are free.
 Just like with standard borrow checking, multiple systems can read from the same data at once, but writing to the data requires an exclusive lock.
 Systems which cannot be run in parallel are said to be **incompatible**.
 
@@ -126,8 +126,8 @@ impl Plugin for PhysicsPlugin{
         .add_system(gravity.label(Physics::Forces))
         // These systems have a linear chain of ordering dependencies between them
         // Systems earlier in the chain must run before those later in the chain
-		// Other systems can run in between these systems;
-		// use `add_atomic_system_chain` if this is not desired
+        // Other systems can run in between these systems;
+        // use `add_atomic_system_chain` if this is not desired
         .add_system_chain([broad_pass, narrow_pass].label(Physics::CollisionDetection))
         // System sets apply a set of labels to a collection of systems
         // and are helpful for reducing boilerplate
@@ -136,7 +136,7 @@ impl Plugin for PhysicsPlugin{
 }
 ```
 
-As a natural consequence of the fact that each lavel stores a `SystemConfig`, labels can themselves be labelled, causing the contained labels to apply to all systems that this label is attached to.
+As a natural consequence of the fact that each label stores a `SystemConfig`, labels can themselves be labelled, causing the contained labels to apply to all systems that this label is attached to.
 With great power comes great responsibility: use this feature sparingly (e.g. to label external systems that you cannot access directly).
 Excessively tight constraints make it harder for a schedule to be both scheduled in parallel and satisfied at all, and deeply nested label trees will quickly make your code base incomprehensible.
 
@@ -150,16 +150,17 @@ There are two basic forms of system ordering constraints:
 1. **Strict ordering constraints:** `strictly_before` and `strictly_after`
    1. A system cannot be scheduled until "strictly before" systems have been completed during this iteration of the schedule.
    2. Simple and explicit.
-   3. Can cause unneccessary blocking, particularly when systems are configured at a high-level.
+   3. Can cause unnecessary blocking, particularly when systems are configured at a high-level.
 2. **If-needed ordering constraints:** `.before` and `.after`
    1. A system cannot be scheduled until any "before" systems that it is incompatible with have completed during this iteration of the schedule.
    2. In the vast majority of cases, this is the desired behavior. Unless you are using interior mutability, systems that are compatible will always be **commutative**: their ordering doesn't matter.
+   3. Note that if-needed ordering constraints are transitive. `a.before(b)` and `b.before(c)` implies `a.before(c)`. This behavior, while intuitive, can have some unexpected effects: it occurs even if the chain is broken by a **spurious** constraint (in which the two systems are compatible).
 
 Applying an ordering constraint to or from a label causes a ordering constraint to be created between all individual members of that label.
 If an ordering is defined relative to a non-existent system or an unused label, it will have no effect, emitting a warning.
 This relatively gentle failure mode is important to ensure that plugins can order their systems with relatively strong assumptions that the default system labels exist, but continue to (mostly) work if those systems or labels are not present.
 
-In addition to the `.before` and `.after` methods, you can use **system chains** to create very simple linear dependencies between the succesive members of an array of systems.
+In addition to the `.before` and `.after` methods, you can use **system chains** to create very simple linear dependencies between the successive members of an array of systems.
 (Note to readers: this is not the same as "system chaining" in Bevy 0.6 and earlier: that concept has been renamed to "system handling".)
 
 When discussing system ordering, it is particularly important to call out the `flush_commands` system.
@@ -192,14 +193,14 @@ fn construction_timer_finished(timer: Res<ConstructionTimer>) -> bool {
 
 // Timers need to be ticked!
 fn tick_construction_timer(timer: ResMut<ConstructionTimer>, time: Res<Time>){
-	timer.tick(time.delta());
+    timer.tick(time.delta());
 }
 
 fn main(){
     App::new()
     .add_plugins(DefaultPlugins)
-	// We can add functions with read-only system parameters as run criteria
-	.add_system_chain([tick_construction_timer, update_construction_progress.run_if(construction_timer_finished)])
+    // We can add functions with read-only system parameters as run criteria
+    .add_system_chain([tick_construction_timer, update_construction_progress.run_if(construction_timer_finished)])
     // We can use closures for simple one-off run criteria, 
     // which automatically fetch the appropriate data from the `World`
     .add_system(spawn_more_enemies.run_if(|difficulty: Res<Difficulty>| difficulty >= 9000))
@@ -247,7 +248,7 @@ In effect, atomically-connected systems look "almost like" a single system from 
 
 On the other hand, atomic ordering constraints can be helpful when attempting to split large complex systems into multiple parts.
 By guaranteeing that the initial state of your complex system cannot be altered before the later parts of the system are complete,
-you can safely parallelize the rest of the work into seperate systems, improving both performance and maintainability.
+you can safely parallelize the rest of the work into separate systems, improving both performance and maintainability.
 
 ### States
 
@@ -343,7 +344,8 @@ Let's take a look at what implementing this would take:
 5. Add basic ordering constraints: basic data structures and configuration methods
    1. Begin with strict ordering constraints: simplest and most fundamental
    2. Add if-needed ordering constraints
-6. Add atomic ordering constraints
+6. Add atomic ordering groups
+   1. Add atomic ordering constraints
 7. Add run criteria
    1. Create `IntoRunCriteriaSystem` machinery
    2. Store the run criteria of each `ConfiguredSystem` in the schedule
@@ -356,9 +358,9 @@ Let's take a look at what implementing this would take:
    3. Create on-enter and on-exit schedules
    4. Create sugar for adding systems to these schedules
 9. Rename "system chaining" to "system handling"
-   1. Usage was very confusing for new users
-   2. Almost exclusively used for error handling
-   3. New concept of "systems with a linear graph of ordering constraints between them" is naturally described as a chain
+   5. Usage was very confusing for new users
+   6. Almost exclusively used for error handling
+   7. New concept of "systems with a linear graph of ordering constraints between them" is naturally described as a chain
 10. Add new examples
     1. Complex control flow with supplementary schedules
     2. Fixed time-step pattern
@@ -449,7 +451,7 @@ struct SystemConfig {
 
 ### If-needed ordering constraints
 
-During schedule intialization, if-needed ordering constraints are either converted to strict ordering constraints, or removed.
+During schedule initialization, if-needed ordering constraints are either converted to strict ordering constraints, or removed.
 They can be removed if and only if the schedule is *unobservably* different (ignoring interior mutability), regardless of the relative order of the two systems.
 
 In the case where we only have two systems with an if-needed ordering, this is relatively simple.
