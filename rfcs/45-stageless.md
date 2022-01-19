@@ -641,6 +641,17 @@ struct LabelConfig {
 
 ```
 
+### Label configuration
+
+When a property is applied to a label, it is ultimately applied to each system in the label, as if it had been labelled individually.
+Of course, properties that only make sense at a group level (such as atomicity) are not propagated down, as they are not defined for inidividual systems.
+
+It's worth calling out that this means that a given run criteria will be evaluated seperately for each system in the group.
+This avoids surprising atomicity that can break schedules, and users can force all evaluations of a particular run criteria to return the same result by using a private type or making the label atomic.
+
+When building the constraint graph, all labels are expanded into the set of systems that they contain.
+Thus, adding an ordering constraint between label N and M is the same as adding a constraint between each `n * m` pair of systems.
+
 ### If-needed ordering constraints
 
 During schedule initialization, if-needed ordering constraints are either converted to strict ordering constraints, or removed.
@@ -664,7 +675,8 @@ In order to achieve this, the following algorithm is used:
    1. If the two systems are compatible, remove the constraint.
    2. If they are incompatible, promote it to a strict ordering constraint.
 3. Deduplicate all strict ordering constraints.
-   1. Each pair of systems can only have one strict ordering constraint between them.
+   1. Each pair of systems can only have one ordering constraint between them.
+      1. At this stage, all ordering constraints have been converted to strict ordering constraints or removed.
    2. Any edges that are implied by the transitive property can be removed.
 
 ### Atomic groups
