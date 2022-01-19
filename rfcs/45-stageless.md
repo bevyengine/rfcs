@@ -14,9 +14,9 @@ Of particular note:
 - Dependencies do not work across stages.
 - States do not work across stages.
 - Plugins can add new, standalone stages.
-- Run criteria (including states!) cannot be composed.
+- Run criteria (including states and fixed timestep run criteria!) cannot be composed.
+- Run criteria cannot be reused across states or stages.
 - The stack-driven state model is overly elaborate and does not enable enough use cases to warrant its complexity.
-- Fixed timestep run criteria do not correctly handle the logic needed for robust game physics.
 - The architecture for turn-based games and other even slightly unusual patterns is not obvious.
 - We cannot easily implement a builder-style strategy for configuring systems.
 
@@ -375,11 +375,11 @@ If you need absolute control over the entire schedule, consider having a single 
 #### Fixed time steps
 
 Running a set of systems (typically physics) according to a fixed time step is a particularly critical case of this complex control flow.
-These systems should run a fixed number of times for each wall-clock second elapsed.
+These systems should run a fixed number of times for each second elapsed.
 The number of times these systems should be run varies (it may be 0, 1 or more each frame, depending on the time that the frame took to complete).
 
 Simply adding run criteria is inadequate: run criteria can only cause our systems to run a single time, or not run at all.
-By moving this logic into its own schedule within an exclusive system, we can loop until the accumulated time has been spent, running the schedule repeatedly and ensuring that our physics always uses the same elapsed delta-time and stays synced with the wall-clock, even in the face of serious stutters.
+By moving this logic into its own schedule within an exclusive system, we can loop until the accumulated time has been spent, running the schedule repeatedly and ensuring that our physics always uses the same delta-time and stays synced with the clock, even in the face of serious stutters.
 
 ### Tools to help you work with schedules
 
@@ -510,6 +510,7 @@ Let's take a look at what implementing this would take:
    2. `Schedule`
    3. `SystemDescriptor`
    4. `IntoExclusiveSystem`
+   5. `SystemContainer` and friends
 2. Build out a basic schedule abstraction:
    1. Create a `ScheduleLabel` trait
    2. Store multiple schedules in an `App` using a dictionary approach
@@ -793,7 +794,7 @@ Unfortunately, this seriously impacts the ergonomics of running schedules in exc
 
 Storing the schedules in the `App` alleviates this, as exclusive systems are now just ordinary systems: `&mut World` is compatible with `&mut Schedules`!
 
-## Should if=needed ordering constraints be transitive?
+## Should if-needed ordering constraints be transitive?
 
 If `A` is before `B`, and `B` is before `C`, must `A` be before `C`?
 
@@ -850,7 +851,7 @@ By adding powerful (and prominent) tools for detecting spurious ordering constra
 
 ## Unresolved questions
 
-- Should while-active systems of stages be handled using run criteria?
+- Should while-active systems of states be handled using run criteria?
   - Currently, all of the while-active systems of the next state will be handled on the same frame
 - Is automatic inference of sync points required in order to make this design sufficiently ergonomic?
 
