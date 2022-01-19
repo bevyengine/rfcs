@@ -326,14 +326,14 @@ These are typically (but not necessarily) enums, where each distinct state is re
 
 Each state is associated with three sets of systems:
 
-1. **Update systems:** these systems run each schedule iteration if and only if the value of the state resource matches the provided value.
+1. **While-active:** these systems run each schedule iteration if and only if the value of the state resource matches the provided value.
    1. `app.add_system(apply_damage.run_in_state(GameState::Playing))`
 2. **On-enter systems:** these systems run once when the specified state is entered.
    1. `app.add_system(generate_map.run_on_enter(GameState::Playing))`
 3. **On-exit systems:** these systems run once when the specified state is exited.
    1. `app.add_system(autosave.run_on_exit(GameState::Playing))`
 
-Update systems are by far the simplest: they're simply powered by run criteria.
+While-active systems are by far the simplest: they're simply powered by run criteria.
 `.run_in_state` is precisely equivalent to `run_if_resource_equals`, except with an additional trait bound that the resource must implement `State`.
 
 On-enter and on-exit systems are stored in dedicated schedules, two per state, within the `App's` `Schedules`.
@@ -541,7 +541,7 @@ Let's take a look at what implementing this would take:
    5. Add methods to configure run criteria
 8. Add states
    1. Create `State` trait
-   2. Implement on-update states as sugar for simple run criteria
+   2. Implement while-active states as sugar for simple run criteria
    3. Create on-enter and on-exit schedules
    4. Create sugar for adding systems to these schedules
 9. Rename "system chaining" to "system handling"
@@ -740,9 +740,9 @@ Schedules can be unsatisfiable for several reasons:
 3. State transitions are no longer queued up in a stack.
    1. This also removes "in-stack" and related system groups / logic.
    2. This can be easily added later, or third-party plugins can create their own abstraction.
-4. When a state transition occurs, the systems in the on-update set are no longer applied immediately.
+4. When a state transition occurs, the systems in the while-active set are no longer applied immediately.
    1. Instead, the normal flow of logic continues.
-   2. Users can duplicate critical logic in the on-update and on-enter collections.
+   2. Users can duplicate critical logic in the while-active and on-enter collections.
    3. Similarly, arbitrarily long chains of state transitions are no longer be processed in the same schedule pass.
    4. However, users can add as many copies of the `flush_state` system as they would like, and loop it within an exclusive system.
 5. It will become harder to reason about exactly when command flushing occurs.
@@ -850,8 +850,8 @@ By adding powerful (and prominent) tools for detecting spurious ordering constra
 
 ## Unresolved questions
 
-- Should on-update systems of stages be handled using run criteria?
-  - Currently, all of the update systems of the next state will be handled on the same frame
+- Should while-active systems of stages be handled using run criteria?
+  - Currently, all of the while-active systems of the next state will be handled on the same frame
 - Is automatic inference of sync points required in order to make this design sufficiently ergonomic?
 
 ## Future possibilities
