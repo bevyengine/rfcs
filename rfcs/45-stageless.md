@@ -921,3 +921,4 @@ Despite the large scope of this RFC, it leaves quite a bit of interesting follow
 7. A graph-based system ordering API for dense, complex dependencies.
 8. Warn if systems that emit commands do not have an appropriate command-flushing ordering constraint.
 9. Run schedules without exclusive world access, inferring access based on the contents of the `Schedule`.
+10. Automatically add and remove systems based on `World` state to reduce schedule clutter and better support one-off logic.
