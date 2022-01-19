@@ -776,11 +776,16 @@ In addition, they belong to a coherent atomic group with the system that they co
 When we are presented with a system, and must choose whether or not we should run it:
 
 - check that the joint data access of all of that system's atomic groups are free
-- if all the required data is available, evaluate any system-like run criteria
+- if all the required data is available, evaluate any outstanding system-like run criteria
   - these are run like a system, spawning a new task
   - these can run in any order, as they cannot mutate data
-- if all of the system-like run criteria return `true`, check that the joint data access for the system and its trivial run criteria are free
-- if all of the trivial run criteria return `true`, free the locks for its trivial run criteria and then run the system
+  - if system-like run criteria still need to be evaluated, the system is put back in queue
+- if all of the system-like run criteria have returned `true`, check that the joint data access for the system and its trivial run criteria are free
+  - otherwise, skip it
+- if all of the trivial run criteria return `true`, immediately run the system
+  - otherwise, skip it
+
+System-like run criteria are evaluated using seperate tasks (like other systems), while trivial run criteria are evaluated by the scheduler itself.
 
 ### Flushed ordering constraints
 
