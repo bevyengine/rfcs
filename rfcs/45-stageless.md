@@ -270,7 +270,7 @@ You can specify run criteria in several different ways:
 
 ```rust
 // This function can be used as a run criterion system,
-// because it only reads from the `World` and returns `bool`
+// because it does not mutate data and returns `bool`
 fn construction_timer_finished(timer: Res<ConstructionTimer>) -> bool {
     timer.finished()
 }
@@ -278,6 +278,11 @@ fn construction_timer_finished(timer: Res<ConstructionTimer>) -> bool {
 // Timers need to be ticked!
 fn tick_construction_timer(timer: ResMut<ConstructionTimer>, time: Res<Time>){
     timer.tick(time.delta());
+}
+
+// You can use queries, event readers and resources with arbitrarily complex internal logic
+fn too_many_enemies(population_query: Query<(), With<Enemy>>, population_limit: Res<PopulationLimit>) -> bool {
+   population_query.iter().count() > population_limit
 }
 
 fn main(){
@@ -288,6 +293,7 @@ fn main(){
        tick_construction_timer, 
        update_construction_progress.run_if(construction_timer_finished)
     ))
+   .add_system(system_meltdown_mitigation.run_if(too_many_enemies))
     // We can use closures for simple one-off run criteria, 
     // which automatically fetch the appropriate data from the `World`
     .add_system(spawn_more_enemies.run_if(|difficulty: Res<Difficulty>| difficulty >= 9000))
