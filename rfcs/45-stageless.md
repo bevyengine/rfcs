@@ -749,6 +749,8 @@ Schedules can be unsatisfiable for several reasons:
    2. Users will typically need to think a bit harder about exactly when they want their gameplay systems to run. In most cases, they should just add the `CoreLabel::AppLogic` label to them, which will place them after input and before rendering.
 2. It will be harder to immediately understand the global structure of Bevy apps.
    1. Powerful system debugging and visualization tools become even more important.
+   2. Labels do not have a hierarchy and can be entangled.
+   3. If multiple labels are added to a single system it can suddenly create wide-spread consequences (particularly with strict ordering constraints).
 3. State transitions are no longer queued up in a stack.
    1. This also removes "in-stack" and related system groups / logic.
    2. This can be easily added later, or third-party plugins can create their own abstraction.
@@ -881,3 +883,4 @@ Despite the large scope of this RFC, it leaves quite a bit of interesting follow
 7. A graph-based system ordering API for dense, complex dependencies.
 8. Store systems in the `World` as entities?
 9. Warn if systems that emit commands do not have an appropriate command-flushing ordering constraint.
+10. Run schedules without exclusive world access, inferring access based on the contents of the `Schedule`.
