@@ -35,7 +35,7 @@ The following elements are substantially reworked:
 - exclusive systems (no longer special-cased)
 - command processing (now performed in a `flush_commands` exclusive system)
 - labels (can now be directly configured)
-- system sets (now just used to mass-apply a label to a group of systems)
+- system sets (use `.add_systems` instead)
 - stages (yoten)
 
 ### Scheduling overview and intent-based configuration
@@ -101,7 +101,7 @@ System configuration can be stored in a `SystemConfig` struct. This can be usefu
 Each system label has its own associated `SystemConfig`, stored in the corresponding `Schedule`.
 When a label is configured, that configuration is passed down in an additive fashion to each system with that label.
 
-You can apply the same label(s) to many systems at once using **system sets** with the `App::add_system_set(systems: impl SystemIterator, labels: impl SystemLabelIterator)` method.
+You can apply the same label(s) to many systems at once using the `App::add_systems(systems: impl SystemIterator)` method.
 
 ```rust
 #[derive(SystemLabel)]
@@ -129,9 +129,8 @@ impl Plugin for PhysicsPlugin{
         // Other systems can run in between these systems;
         // use `add_atomic_system_chain` if this is not desired
         .add_system_chain([broad_pass, narrow_pass].label(Physics::CollisionDetection))
-        // System sets apply a set of labels to a collection of systems
-        // and are helpful for reducing boilerplate
-        .add_system_set([compute_forces, collision_damage], Physics::CollisionHandling);
+        // Add multiple systems as once to reduce boilerplate!
+        .add_systems([compute_forces, collision_damage].label(Physics::CollisionHandling));
     }
 }
 ```
@@ -324,7 +323,7 @@ Typically, these are used for relatively complex, far-reaching facets of the gam
 The current value of each state is stored in a resource, which must derive the `State` trait.
 These are typically (but not necessarily) enums, where each distinct state is represented as an enum variant.
 
-Each state is associated with three sets of systems:
+Each state is associated with three groups of systems:
 
 1. **While-active:** these systems run each schedule iteration if and only if the value of the state resource matches the provided value.
    1. `app.add_system(apply_damage.run_in_state(GameState::Playing))`
