@@ -166,9 +166,9 @@ impl Plugin for PhysicsPlugin{
         // Systems earlier in the chain must run before those later in the chain
         // Other systems can run in between these systems;
         // use `add_atomic_system_chain` if this is not desired
-        .add_system_chain([broad_pass, narrow_pass].label(Physics::CollisionDetection))
+        .add_system_chain((broad_pass, narrow_pass).label(Physics::CollisionDetection))
         // Add multiple systems as once to reduce boilerplate!
-        .add_systems([compute_forces, collision_damage].label(Physics::CollisionHandling));
+        .add_systems((compute_forces, collision_damage).label(Physics::CollisionHandling));
     }
 }
 ```
@@ -204,12 +204,12 @@ In addition to the `.before` and `.after` methods, you can use **system chains**
 fn main(){
    App::new()
    // This systems are connected using a string of if-needed ordering constraints
-   .add_system_chain([compute_attack, 
+   .add_system_chain((compute_attack, 
                       compute_defense,
                       check_for_crits,
                       compute_damage,
                       deal_damage,
-                      check_for_death]
+                      check_for_death)
                       // We can configure and label all systems in the chain at once
                       .label(GameLabel::Combat))
    .run()
@@ -252,7 +252,7 @@ fn main(){
    .add_startup_system(flush_commands.label(StartupLabel::CommandFlush);
    // Less verbosely, we can use the `add_flushed_system_chain` helper method
    // to do the exact same thing as above (including adding another copy of `flush_commands`)
-   .add_flushed_system_chain([spawn_ui, customize_ui].to_schedule(CoreSchedule::Startup))
+   .add_flushed_system_chain((spawn_ui, customize_ui).to_schedule(CoreSchedule::Startup))
 }
 ```
 
@@ -284,7 +284,10 @@ fn main(){
     App::new()
     .add_plugins(DefaultPlugins)
     // We can add functions with read-only system parameters as run criteria
-    .add_system_chain([tick_construction_timer, update_construction_progress.run_if(construction_timer_finished)])
+    .add_system_chain((
+       tick_construction_timer, 
+       update_construction_progress.run_if(construction_timer_finished)
+    ))
     // We can use closures for simple one-off run criteria, 
     // which automatically fetch the appropriate data from the `World`
     .add_system(spawn_more_enemies.run_if(|difficulty: Res<Difficulty>| difficulty >= 9000))
@@ -899,6 +902,97 @@ Model 1 preserves the "logical" behavior, but in a very implicit fashion that is
 Model 2 simply causes the user's logic to break.
 
 By adding powerful (and prominent) tools for detecting spurious ordering constraints and execution order ambiguities, we can follow the expected (and convenient) transitive property while helping users quash strange, fragile bugs as soon as they're introduced.
+
+### What syntax should we use for collections of systems?
+
+When using convenience methods like `add_system_chain` and `add_system_set`, we need to be able to refer to conveniently refer to collections of systems.
+This will become increasingly important as more complex graph-builder APIs are added.
+
+In summary:
+
+- array syntax: optimal but literally impossible
+- tuple syntax (winner!): magic but pretty
+- builder syntax: way too verbose for a pattern that's supposed to increase convenience
+- `vec!`-style macro: not any less magic than tuple syntax, not as pretty
+
+Below, we examine the the options by example.
+
+#### Arrays
+
+```rust
+.add_system_chain([compute_attack, 
+                   compute_defense,
+                   check_for_crits,
+                   compute_damage,
+                   deal_damage,
+                   check_for_death]
+                   .label(GameLabel::Combat))
+
+.add_systems([run, jump].after(CoreLabel::Input))
+```
+
+Very pretty. Doesn't work because types are heterogenous though.
+
+#### Tuples
+
+```rust
+.add_system_chain((compute_attack, 
+                   compute_defense,
+                   check_for_crits,
+                   compute_damage,
+                   deal_damage,
+                   check_for_death)
+                   .label(GameLabel::Combat))
+
+.add_systems((run, jump).after(CoreLabel::Input))
+```
+
+Also pretty! Mildly cursed, but we use this flavor of cursed type system magic already for bundles.
+
+Requires another invocation of the `all_tuples` macro to generate impls.
+
+#### Builder pattern
+
+This was the strategy we used for `SystemSet`.
+
+```rust
+.add_system_chain(SystemGroup:::new()
+                     .with(compute_attack), 
+                     .with(compute_defense),
+                     .with(check_for_crits),
+                     .with(compute_damage),
+                     .with(deal_damage),
+                     .with(check_for_death)
+                     .label(GameLabel::Combat)
+                  )
+
+.add_systems(SystemGroup::new().with(run).with(jump).after(CoreLabel::Input))
+```
+
+Oof. Very verbose and cluttered, even with a change from `with_system` to `with`.
+Placement of brackets can be confusing, and there's no clear seperation between systems and their shared config.
+
+This is particularly painful for small groups, and is not significantly more ergonomic than just adding the systems individually.
+
+#### Vec-style macro
+
+This strategy is used for the `vec![1,2,3]` macro in the standard library.
+
+```rust
+.add_system_chain(systems![compute_attack, 
+                           compute_defense,
+                           check_for_crits,
+                           compute_damage,
+                           deal_damage,
+                           check_for_death]
+                           .label(GameLabel::Combat))
+
+.add_systems(systems![run, jump].after(CoreLabel::Input))
+```
+
+Reasonably pretty, but still more verbose than the tuple option.
+Requires boilerplate invocation of a macro every single time these methods are used.
+Not any less magic than the tuples.
 
 ## Unresolved questions
 
