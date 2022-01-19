@@ -749,10 +749,32 @@ This reduces the risk of an unsatisfiable schedule by allowing locks to be relea
 
 ### Run criteria
 
-Run criteria are not themselves systems, but are coercable from systems.
-A system can only be scheduled once all information needed by its run criteria are available to be read from.
+There are two forms of run criteria: **trivial** and **system-like**.
+Trivial run criteria are both common and extremely fast to evaluate: the additional task overhead of treating them like systems is too high.
+`.run_if_resource_equals` is the canonical example and is reused for `run_if_in_state`.
+Other trivial run criteria can be added later as common use cases arise.
 
-As run criteria are evaluated, their virtual locks are released as if they were systems in the atomic group, respecting the isolated versus coherent distinction outlined above.
+System-like run criteria can access arbitrary data from the world, and effectively behave exactly like any other system.
+The exceptions are:
+
+- they cannot mutate data
+  - required to avoid having to order run criteria relative to each other
+- they cannot capture or store local data
+  - required to enable optimizations
+- they cannot be configured (other than as noted below)
+  - required to avoid user footguns
+
+System-like run criteria are always part of any atomic groups the system that they control are part of.
+In addition, they belong to a coherent atomic group with the system that they control.
+
+When we are presented with a system, and must choose whether or not we should run it:
+
+- check that the joint data access of all of that system's atomic groups are free
+- if all the required data is available, evaluate any system-like run criteria
+  - these are run like a system, spawning a new task
+  - these can run in any order, as they cannot mutate data
+- if all of the system-like run criteria return `true`, check that the joint data access for the system and its trivial run criteria are free
+- if all of the trivial run criteria return `true`, free the locks for its trivial run criteria and then run the system
 
 ### Flushed ordering constraints
 
