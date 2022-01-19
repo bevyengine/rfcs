@@ -431,7 +431,7 @@ By moving this logic into its own schedule within an exclusive system, we can lo
 
 Bevy provides some tools to help you keep your schedule properly woven as your game grows in complexity and is refactored.
 
-### Ambiguous execution order
+#### Ambiguous execution order
 
 The first of these is a tool that reports pairs of systems with an **ambiguous execution order**.
 A pair of systems has an **ambiguous execution order** if they are incompatible and do not have any ordering constraints between them, either directly or indirectly.
@@ -473,7 +473,7 @@ This can be helpful to clean up execution order ambiguities that you genuinely d
 Note that execution order ambiguities are based on **hypothetical incompatibility**: the scheduler cannot know that entities with both a `Player` and `Tile` component will never exist.
 You can fix these slightly silly execution order ambiguities by adding `Without` filters to your queries.
 
-### Spurious ordering constraints
+#### Spurious ordering constraints
 
 While if-needed ordering dependencies can be useful for configuring the relative behavior of large groups of systems in an unrestrictive way,
 their transitive behavior can lead to some silly results in cases where there's no need for ordering.
@@ -782,7 +782,7 @@ When we are presented with a system, and must choose whether or not we should ru
   - if system-like run criteria still need to be evaluated, the system is put back in queue
 - if all of the system-like run criteria have returned `true`, check that the joint data access for the system and its trivial run criteria are free
   - otherwise, skip it
-- if all of the trivial run criteria return `true`, immediately run the system
+- if all of the trivial run criteria return `true`, spawn a task and immediately run the system
   - otherwise, skip it
 
 System-like run criteria are evaluated using seperate tasks (like other systems), while trivial run criteria are evaluated by the scheduler itself.
