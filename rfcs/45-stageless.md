@@ -253,6 +253,33 @@ fn main(){
    // Less verbosely, we can use the `add_flushed_system_chain` helper method
    // to do the exact same thing as above (including adding another copy of `flush_commands`)
    .add_flushed_system_chain((spawn_ui, customize_ui).to_schedule(CoreSchedule::Startup))
+   .run();
+}
+```
+
+With `DefaultPlugins`, managing command flushing is likely to look more like this:
+
+```rust
+use bevy::prelude::*;
+
+struct ProjectilePlugin;
+
+impl Plugin for ProjectilePlugin {
+  fn build(app: &mut App){
+    app
+    // DefaultPlugins adds three command flushes:
+    // 1. CommandFlush::PreUpdate (runs after input is processed)
+    // 2. CommandFlush::PostUpdate (runs after most game logic)
+    // 3. CommandFlush::EndOfFrame (runs after rendering, at the end of the schedule)
+    .add_system(spawn_projectiles.before(CommandFlush::PostUpdate))
+    .add_system_chain(
+      (check_if_projectiles_hit, despawn_projectiles_that_hit)
+      .after_and_flush(spawn_projectiles).after(CommandFlush::PostUpdate)
+    )
+    // If we need to add more command flushes to make our logic work, we can manually insert them
+    .add_system(flush_commands.label("DespawningFlush").after(CommandFlush::PostUpdate).before(CommandFlush::EndOfFrame))
+    .add_system(fork_projectiles.after("DespawningFlush"));
+  }
 }
 ```
 
