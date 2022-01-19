@@ -68,8 +68,46 @@ The main and startup schedules can be accessed using the `DefaultSchedule::Main`
 By default, systems are added to the main schedule.
 You can control this by adding the `.to_schedule(MySchedule::Variant)` system descriptor to your system.
 
-You can access the schedules stored in the app using the `&Schedules` or `&mut Schedules` system parameters.
-Unsurprisingly, these never conflict with entities or resources in the `World`, as they are stored one level higher.
+You can access the schedules stored in the app using the `&Schedules`.
+Unsurprisingly, this never conflicts with entities or resources in the `World`, as they are stored one level higher.
+Schedules can be modified by emitting `ScheduleCommands`, which apply to the specified schedule just before it is next started.
+
+```rust
+/// Each level has its own collection of dedicated systems
+/// in addition to the core logic
+#[derive(ScheduleLabel)]
+struct LevelSchedule(usize);
+
+struct CurrentLevel(0);
+struct PreviousLevel(0);
+
+impl LevelSchedule {
+   fn new(level: usize) -> Schedule {
+      // Insert diverse systems here based on which level was provided
+   }
+}
+
+fn main(){
+   App::new()
+      .add_plugins(DefaultPlugins)
+      .add_system(toggle_level_specific_systems)
+      .run()
+}
+
+/// Adds and removes systems from the schedule according to the currently active level
+///
+/// This could be done with run criteria instead, but this method will result in lower overhead
+fn toggle_level_specific_systems(current_level: Res<CurrentLevel>, previous_level: Res<PreviousLevel>, schedule_commands: ScheduleCommands){
+   if current_level.is_changed(){
+      // Add all of the systems from the current level's schedule to the main schedule, as if adding a plugin
+      schedule_commands.schedule(CoreSchedule::Main).add_schedule(LevelSchedule::new(current_level.0))
+      // Remove all systems previously added by the old level's schedule
+      // Systems will only be removed if both the function signature and configuration are a perfect match.
+      schedule_commands.schedule(CoreSchedule::Main).remove_schedule(LevelSchedule::new(previous_level.0))
+   }
+   // These changes will only take effect on the next pass of the main schedule
+}
+```
 
 #### Startup systems
 
@@ -352,14 +390,14 @@ If system `A` is `before_and_flush_state::<S>` system `B`, the schedule will be 
 
 Apps can have multiple orthogonal states representing independent facets of your game: these operate fully independently.
 States can also be defined as a nested enum: these work as you may expect, with each leaf node representing a distinct group of systems.
-If you wish to share behavior among siblings, add the systems repeatedly to each sibling, typically by saving a schedule and then using `Schedule::merge` to combine that into the specialized schedule of choice.
+If you wish to share behavior among siblings, add the systems repeatedly to each sibling, typically by saving a schedule and then using `Schedule::add_schedule` to combine that into the specialized schedule of choice.
 
 ### Complex control flow
 
 Occasionally, you may find yourself yearning for more complex system control flow than "every system runs once in a loop".
 When that happens: **create an exclusive system and run a schedule in it.**
 
-Within an exclusive system, you can freely fetch the desired schedule from the `App` with the `&Schedules` (or `&mut Schedules`) system parameter and use `Schedule::run(&mut world)`, applying each of the systems in that schedule a single time to the world of the exclusive system.
+Within an exclusive system, you can freely fetch the desired schedule from the `App` with the `&Schedules` system parameter and use `Schedule::run(&mut world)`, applying each of the systems in that schedule a single time to the world of the exclusive system.
 However, because you're in an ordinary Rust function you're free to use whatever logic and control flow you desire: branch and loop in whatever convoluted fashion you need!
 
 This can be helpful when:
@@ -805,7 +843,7 @@ In addition, adding multiple atomic ordering constraints originating from a sing
 We could store these in a resource in the `World`.
 Unfortunately, this seriously impacts the ergonomics of running schedules in exclusive systems due to borrow checker woes.
 
-Storing the schedules in the `App` alleviates this, as exclusive systems are now just ordinary systems: `&mut World` is compatible with `&mut Schedules`!
+Storing the schedules in the `App` alleviates this, as exclusive systems are now just ordinary systems: `&mut World` is compatible with `&Schedules`!
 
 ## Should if-needed ordering constraints be transitive?
 
