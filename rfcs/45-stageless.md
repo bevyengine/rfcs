@@ -875,12 +875,11 @@ Despite the large scope of this RFC, it leaves quite a bit of interesting follow
 1. Opt-in automatic insertion of flushing systems for command and state (see discussion in [RFC #34](https://github.com/bevyengine/rfcs/pull/34)).
 2. First-class indexes, built using atomic ordering constraints (and likely automatic inference).
 3. Multiple worlds (see [RFC #16](https://github.com/bevyengine/rfcs/pull/43), [RFC #43](https://github.com/bevyengine/rfcs/pull/43)), as a natural extension of the way that apps can store multiple schedules.
-4. Opt-in stack-based states (likely in an external crate).
+4. Opt-in stack-based states (possibly in an external crate).
 5. More complex strategies for run criteria composition.
-   1. This would be very useful, but is a large design that can largely be considered independently of this work.
+   1. This could be useful, but is a large design that can largely be considered independently of this work.
    2. How does this work for run criteria that are not locally defined?
 6. A more cohesive look at plugin definition and configuration strategies.
 7. A graph-based system ordering API for dense, complex dependencies.
-8. Store systems in the `World` as entities?
-9. Warn if systems that emit commands do not have an appropriate command-flushing ordering constraint.
-10. Run schedules without exclusive world access, inferring access based on the contents of the `Schedule`.
+8. Warn if systems that emit commands do not have an appropriate command-flushing ordering constraint.
+9. Run schedules without exclusive world access, inferring access based on the contents of the `Schedule`.
