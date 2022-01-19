@@ -162,11 +162,11 @@ impl Plugin for PhysicsPlugin{
         .configure_label(Physics::CollisionHandling.configure(common_physics_config))
         // And then apply that config to each of the systems that have this label
         .add_system(gravity.label(Physics::Forces))
-        // These systems have a linear chain of ordering dependencies between them
+        // These systems have a linear chain of if-needed ordering dependencies between them
         // Systems earlier in the chain must run before those later in the chain
         // Other systems can run in between these systems;
-        // use `add_atomic_system_chain` if this is not desired
-        .add_system_chain((broad_pass, narrow_pass).label(Physics::CollisionDetection))
+        // use `.atomic_chain` if this is not desired
+        .add_systems((broad_pass, narrow_pass).chain().label(Physics::CollisionDetection))
         // Add multiple systems as once to reduce boilerplate!
         .add_systems((compute_forces, collision_damage).label(Physics::CollisionHandling));
     }
@@ -204,14 +204,19 @@ In addition to the `.before` and `.after` methods, you can use **system chains**
 fn main(){
    App::new()
    // This systems are connected using a string of if-needed ordering constraints
-   .add_system_chain((compute_attack, 
-                      compute_defense,
-                      check_for_crits,
-                      compute_damage,
-                      deal_damage,
-                      check_for_death)
-                      // We can configure and label all systems in the chain at once
-                      .label(GameLabel::Combat))
+   .add_systems((compute_attack, 
+                 compute_defense,
+                 check_for_crits,
+                 compute_damage,
+                 deal_damage,
+                 check_for_death)
+                 // This creates if-need ordering between the members of the system group,
+                 // use `.strict_chain()`, `.atomic_chain()` or `.flushed_chain()` 
+                 // for the other flavors of ordering constraint
+                 .chain()
+                 // We can configure and label all systems in the chain at once
+                 .label(GameLabel::Combat)
+   )
    .run()
 }
 ```
@@ -250,9 +255,9 @@ fn main(){
    .add_startup_system(spawn_ui.before(StartupLabel::CommandFlush).label(StartupLabel::UiSpawn))
    .add_startup_system(customize_ui.after(StartupLabel::CommandFlush).after_and_flush(StartupLabel::UiSpawn))
    .add_startup_system(flush_commands.label(StartupLabel::CommandFlush);
-   // Less verbosely, we can use the `add_flushed_system_chain` helper method
+   // Less verbosely, we can use the `.flushed_chain()` helper method
    // to do the exact same thing as above (including adding another copy of `flush_commands`)
-   .add_flushed_system_chain((spawn_ui, customize_ui).to_schedule(CoreSchedule::Startup))
+   .add_systems((spawn_ui, customize_ui).flushed_chain().to_schedule(CoreSchedule::Startup))
    .run();
 }
 ```
@@ -272,8 +277,9 @@ impl Plugin for ProjectilePlugin {
     // 2. CommandFlush::PostUpdate (runs after most game logic)
     // 3. CommandFlush::EndOfFrame (runs after rendering, at the end of the schedule)
     .add_system(spawn_projectiles.before(CommandFlush::PostUpdate))
-    .add_system_chain(
+    .add_systems(
       (check_if_projectiles_hit, despawn_projectiles_that_hit)
+      .chain()
       .after_and_flush(spawn_projectiles).after(CommandFlush::PostUpdate)
     )
     // If we need to add more command flushes to make our logic work, we can manually insert them
@@ -316,10 +322,12 @@ fn main(){
     App::new()
     .add_plugins(DefaultPlugins)
     // We can add functions with read-only system parameters as run criteria
-    .add_system_chain((
+    .add_system((
        tick_construction_timer, 
-       update_construction_progress.run_if(construction_timer_finished)
-    ))
+       update_construction_progress)
+       .chain()
+       .run_if(construction_timer_finished)
+    )
    .add_system(system_meltdown_mitigation.run_if(too_many_enemies))
     // We can use closures for simple one-off run criteria, 
     // which automatically fetch the appropriate data from the `World`
@@ -599,7 +607,7 @@ Let's take a look at what implementing this would take:
    2. Systems labels store a `SystemConfig`
    3. Allow systems to be labelled
    4. Store `ConfiguredSystems` in the schedule
-   5. Add `.add_system_set` and `.add_system_chain` methods
+   5. Add `.add_systems` method, the `SystemGroup` type and the convenience methods for system groups
    6. Special-case `CoreLabel::First` and `CoreLabel::Last` for convenience
    7. Use [system builder syntax](https://github.com/bevyengine/rfcs/pull/31), rather than adding more complex methods to `App`
 5. Add basic ordering constraints: basic data structures and configuration methods
@@ -965,7 +973,7 @@ By adding powerful (and prominent) tools for detecting spurious ordering constra
 
 ### What syntax should we use for collections of systems?
 
-When using convenience methods like `add_system_chain` and `add_system_set`, we need to be able to refer to conveniently refer to collections of systems.
+When using convenience methods like `add_systems`, we need to be able to refer to conveniently refer to collections of systems.
 This will become increasingly important as more complex graph-builder APIs are added.
 
 In summary:
@@ -980,12 +988,13 @@ Below, we examine the the options by example.
 #### Arrays
 
 ```rust
-.add_system_chain([compute_attack, 
+.add_systems([compute_attack, 
                    compute_defense,
                    check_for_crits,
                    compute_damage,
                    deal_damage,
                    check_for_death]
+                   .chain()
                    .label(GameLabel::Combat))
 
 .add_systems([run, jump].after(CoreLabel::Input))
@@ -996,18 +1005,20 @@ Very pretty. Doesn't work because types are heterogenous though.
 #### Tuples
 
 ```rust
-.add_system_chain((compute_attack, 
-                   compute_defense,
-                   check_for_crits,
-                   compute_damage,
-                   deal_damage,
-                   check_for_death)
-                   .label(GameLabel::Combat))
+.add_systems((compute_attack, 
+              compute_defense,
+              check_for_crits,
+              compute_damage,
+              deal_damage,
+              check_for_death)
+              .chain()
+              .label(GameLabel::Combat)
+            )
 
 .add_systems((run, jump).after(CoreLabel::Input))
 ```
 
-Also pretty! Mildly cursed, but we use this flavor of cursed type system magic already for bundles.
+Also pretty! Mildly cursed and definitely unidiomatic, but we use this flavor of cursed type system magic already for bundles.
 
 Requires another invocation of the `all_tuples` macro to generate impls.
 
@@ -1016,15 +1027,16 @@ Requires another invocation of the `all_tuples` macro to generate impls.
 This was the strategy we used for `SystemSet`.
 
 ```rust
-.add_system_chain(SystemGroup:::new()
-                     .with(compute_attack), 
-                     .with(compute_defense),
-                     .with(check_for_crits),
-                     .with(compute_damage),
-                     .with(deal_damage),
-                     .with(check_for_death)
-                     .label(GameLabel::Combat)
-                  )
+.add_systems(SystemGroup:::new()
+               .with(compute_attack), 
+               .with(compute_defense),
+               .with(check_for_crits),
+               .with(compute_damage),
+               .with(deal_damage),
+               .with(check_for_death)
+               .chain()
+               .label(GameLabel::Combat)
+            )
 
 .add_systems(SystemGroup::new().with(run).with(jump).after(CoreLabel::Input))
 ```
@@ -1039,13 +1051,17 @@ This is particularly painful for small groups, and is not significantly more erg
 This strategy is used for the `vec![1,2,3]` macro in the standard library.
 
 ```rust
-.add_system_chain(systems![compute_attack, 
-                           compute_defense,
-                           check_for_crits,
-                           compute_damage,
-                           deal_damage,
-                           check_for_death]
-                           .label(GameLabel::Combat))
+.add_systems(systems![
+      compute_attack, 
+      compute_defense,
+      check_for_crits,
+      compute_damage,
+      deal_damage,
+      check_for_death
+   ]
+   .chain()
+   .label(GameLabel::Combat)
+)
 
 .add_systems(systems![run, jump].after(CoreLabel::Input))
 ```
