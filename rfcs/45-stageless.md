@@ -165,8 +165,7 @@ impl Plugin for PhysicsPlugin{
         .add_system(gravity.label(Physics::Forces))
         // These systems have a linear chain of if-needed ordering dependencies between them
         // Systems earlier in the chain must run before those later in the chain
-        // Other systems can run in between these systems;
-        // use `.atomic_chain` if this is not desired
+        // Other systems can run in between these systems
         .add_systems((broad_pass, narrow_pass).chain().label(Physics::CollisionDetection))
         // Add multiple systems as once to reduce boilerplate!
         .add_systems((compute_forces, collision_damage).label(Physics::CollisionHandling));
@@ -211,9 +210,6 @@ fn main(){
                  compute_damage,
                  deal_damage,
                  check_for_death)
-                 // This creates if-need ordering between the members of the system group:
-                 // use `.strict_chain()` or `.atomic_chain()` 
-                 // for the other flavors of ordering constraint
                  .chain()
                  // We can configure and label all systems in the chain at once
                  .label(GameLabel::Combat)
@@ -356,50 +352,6 @@ There are a few important subtleties to bear in mind when working with run crite
 
 Run criteria are evaluated by the executor just before the system that they are controlling is run: it is impossible to modify the data that they rely on in an observable way before the system completes.
 This is important to ensure that the state of the world always matches the state expected by the system at the time it is executed.
-
-### Atomic groups and atomic ordering constraints
-
-**Atomic groups** are collections of systems (and run criteria) that must be executed "together": once the group has been started, no systems can mutate data that they rely on.
-Like the atom, they are indivisible: nothing can get between them!
-Run criteria are always part of the same atomic group as the systems they control.
-
-**Atomic ordering constraints** are a form of ordering constraints that ensure that two systems are run directly after each other.
-At least, as far as "directly after" is a meaningful concept in a parallel, nonlinear ordering.
-
-In addition to their use in run criteria, atomic groups are a useful (if quite advanced) feature for forcing tight interlocking behavior between systems, preserving plugin privacy and avoiding leaking sensitive timing information.
-They allow us to ensure that the state read from and written to the earlier system cannot be invalidated.
-This functionality is extremely useful when updating indexes (used to look up components by value):
-allowing you to ensure that the index is still valid when the system using the index uses it.
-
-The **atomicity** of each label can be controlled using `.configure_label(MySystemLabel::Variant.set_atomicity(AtomicityLevel::Coherent))`:
-
-```rust
-enum AtomicityLevel {
-   // Read and write-locks are released when a system completes
-   None,
-   // Read and write-locks are held until they are no longer needed by a member of this atomic group
-   Coherent,
-   // Read and write-locks are only released when this atomic group is complete
-   Isolated,
-}
-```
-
-Labels are non-atomic by default, and atomic ordering constraints create coherent atomic groups.
-Isolated atomic groups are relatively niche, used only when you want to be certain that no information about internal progress can leak out.
-
-Calling `a.atomically_before(b)` will create a strict ordering constraint between `a` and `b`, and add them to the same atomic group (with a uniquely-generated system label).
-
-Of course, atomic groups (and thus atomic ordering constraints) should be used thoughtfully.
-As the strictest of the three types of system ordering dependency, they can easily result in unsatisfiable schedules if applied to large groups of systems at once.
-For example, consider the simple case, where we have an atomic ordering constraint from system A to system B.
-If for any reason commands must be flushed between systems A and system B, we cannot satisfy the schedule.
-The reason for this is quite simple: the lock on data from system A will not be released when it completes, but we cannot run exclusive systems unless all locks on the `World's` data are clear.
-As we add more of these atomic constraints (particularly if they share a single ancestor), the risk of these problems grows.
-In effect, atomically-connected systems look "almost like" a single system from the scheduler's perspective.
-
-On the other hand, atomic ordering constraints can be helpful when attempting to split large complex systems into multiple parts.
-By guaranteeing that the initial state of your complex system cannot be altered before the later parts of the system are complete,
-you can safely parallelize the rest of the work into separate systems, improving both performance and maintainability.
 
 ### States
 
@@ -665,9 +617,6 @@ struct Schedule{
    // Label configuration must be stored at the schedule level,
    // rather than attached to specific label instances
    labels: HashMap<Box<dyn SystemLabel>, LabelConfig>,
-   // Used to quickly look up system ids by the type ids of their underlying function
-   // when checking atomic ordering constraints
-   system_function_type_map: HashMap<TypeId, Vec<SystemId>>,
    // Used to check if mutation is allowed
    currently_running: bool,
 }
@@ -720,7 +669,6 @@ struct SystemConfig {
 struct LabelConfig {
    system_config: SystemConfig,
    allow_ambiguities: bool,
-   atomic: AtomicityLevel,
 }
 
 ```
@@ -728,10 +676,7 @@ struct LabelConfig {
 ### Label configuration
 
 When a property is applied to a label, it is ultimately applied to each system in the label, as if it had been labelled individually.
-Of course, properties that only make sense at a group level (such as atomicity) are not propagated down, as they are not defined for inidividual systems.
-
-It's worth calling out that this means that a given run criteria will be evaluated seperately for each system in the group.
-This avoids surprising atomicity that can break schedules, and users can force all evaluations of a particular run criteria to return the same result by using a private type or making the label atomic.
+Of course, properties that only make sense at a group level (such as whether ambiguities within that label are allowed) are not propagated down, as they are not defined for inidividual systems.
 
 When building the constraint graph, all labels are expanded into the set of systems that they contain.
 Thus, adding an ordering constraint between label N and M is the same as adding a constraint between each `n * m` pair of systems.
@@ -763,33 +708,6 @@ In order to achieve this, the following algorithm is used:
       1. At this stage, all ordering constraints have been converted to strict ordering constraints or removed.
    2. Any edges that are implied by the transitive property can be removed.
 
-### Atomic groups
-
-For all systems that are part of the same atomic system group:
-
-- When a system in an atomic group completes, its write-locks and read-locks are downgraded to **virtual locks**.
-- Virtual locks are treated as if they were real locks for all systems outside of the atomic group.
-- Virtual locks are ignored by systems in the same atomic group.
-- If the atomic group is **coherent**, virtual locks are removed once all systems in the atomic group have finished with it.
-- If the atomic group is **isolated**, virtual locks are held until all systems in the atomic group complete.
-
-This can be modelled as:
-
-```rust
-enum DataLock{
-   Read,
-   Write,
-   VirtualRead(Box<dyn SystemLabel>),
-   VirtualWrite(Box<dyn SystemLabel>),
-}
-```
-
-Multiple virtual locks on the same data can exist at once, and membership in an atomic group is *not* transitive.
-Suppose we have two atomic groups, `GroupX = {A, B}` and `GroupY = {B, C}`.
-Systems `A` and `C` do not share an atomic group, and data that is virtually locked by both `GroupX` and `GroupY` can only be accessed by system `B`.
-
-This reduces the risk of an unsatisfiable schedule by allowing locks to be released in a maximally permissive fashion.
-
 ### Run criteria
 
 Run criteria can access arbitrary data from the world, have their own fetches and are run on the world.
@@ -805,11 +723,14 @@ While they reuse much of the system machinery, they have several important const
   - required to efficiently special-case their execution
 - they must return a `bool`, so we know whether the system they're controlling should run!
 
+It's worth calling out that run criteria will always be evaluated seperately, even if applied to an entire label.
+This is required to ensure that run criteria are evaluated atomically with the systems they control.
+
 When the executor is presented with a system, it must choose whether or not the system can be run:
 
 - check that the joint data access of all of that system's and its run criteria are available
   - if not, the system is put back into the queue and the next system is checked
-- evaluate each run criteria on the world, in an arbitrary order
+- evaluate each run criteria on the `World`, in an arbitrary order
   - return early and skip the system if any run criteria return `false`
 - if and only if all of the run criteria have returned `true`:
   - spawn a thread
@@ -847,7 +768,6 @@ Schedules can be unsatisfiable for several reasons:
    2. This is technically stricter than is necessary: a label could be both if-needed-before and if-needed-after another label. This would work as long as there were no incompatible systems, but this is almost certainly a logic bug that we should fail on.
 2. The cached schedule graph contains a cycle.
    1. This is computed after if-needed orderings are resolved into strict orderings.
-3. A system wishes to mutate data that is shared between two systems of an atomic group, and wishes to run between those members of the group.
 
 ## Drawbacks
 
@@ -905,7 +825,9 @@ There are two reasons why this doesn't work:
 In practice, almost all run criteria are extremely simple, and fast to check.
 Verifying that the cache is still valid will require access to the data anyways, and involve more overhead than simple computations on one or two resources.
 
-In addition, adding multiple atomic ordering constraints originating from a single system is extremely prone to dead-locks; we should not hand users this foot-gun.
+In addition, this is required to guarantee atomicity.
+We could add atomic groups to this proposal to get around this, but adding multiple atomic ordering constraints originating from a single system is extremely prone to dead-locks.
+We should not hand users this foot-gun.
 
 ### Why do we want to store multiple schedules in the `App`?
 
@@ -1078,18 +1000,22 @@ Not any less magic than the tuples.
 
 ## Future possibilities
 
-Despite the large scope of this RFC, it leaves quite a bit of interesting follow-up work to be done:
+There are a few proposals that should be considered immediately, hand-in-hand with this RFC:
 
-1. Opt-in automatic insertion of flushing systems for command and state (see discussion in [RFC #34](https://github.com/bevyengine/rfcs/pull/34)).
-2. First-class indexes, built using atomic ordering constraints (and likely automatic inference).
+1. If-needed ordering constraints.
+2. Opt-in automatic insertion of flushing systems for command and state (see discussion in [RFC #34](https://github.com/bevyengine/rfcs/pull/34)).
 3. Multiple worlds (see [RFC #16](https://github.com/bevyengine/rfcs/pull/43), [RFC #43](https://github.com/bevyengine/rfcs/pull/43)), as a natural extension of the way that apps can store multiple schedules.
-4. Opt-in stack-based states (possibly in an external crate).
-5. More complex strategies for run criteria composition.
+
+In addition, there is quite a bit of interesting but less urgent follow-up work:
+
+1. Atomic groups ([RFC #43](https://github.com/bevyengine/rfcs/pull/43)), to ensure that systems are executed in a single block.
+2. Opt-in stack-based states (possibly in an external crate).
+3. More complex strategies for run criteria composition.
    1. This could be useful, but is a large design that can largely be considered independently of this work.
    2. How does this work for run criteria that are not locally defined?
-6. A more cohesive look at plugin definition and configuration strategies.
-7. A graph-based system ordering API for dense, complex dependencies.
-8. Warn if systems that emit commands do not have an appropriate command-flushing ordering constraint.
-9. Run schedules without exclusive world access, inferring access based on the contents of the `Schedule`.
-10. Automatically add and remove systems based on `World` state to reduce schedule clutter and better support one-off logic.
-11. Tooling to force specific schedule execution orders: useful for debugging system order bugs and precomputing strategies.
+4. A more cohesive look at plugin definition and configuration strategies.
+5. A graph-based system ordering API for dense, complex dependencies.
+6. Warn if systems that emit commands do not have an appropriate command-flushing ordering constraint.
+7. Run schedules without exclusive world access, inferring access based on the contents of the `Schedule`.
+8. Automatically add and remove systems based on `World` state to reduce schedule clutter and better support one-off logic.
+9. Tooling to force specific schedule execution orders: useful for debugging system order bugs and precomputing strategies.
