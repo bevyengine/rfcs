@@ -728,13 +728,13 @@ This is required to ensure that run criteria are evaluated atomically with the s
 
 When the executor is presented with a system, it must choose whether or not the system can be run:
 
-- check that the joint data access of all of that system's and its run criteria are available
+- check that the joint data access of the system and its run criteria are available
   - if not, the system is put back into the queue and the next system is checked
 - evaluate each run criteria on the `World`, in an arbitrary order
   - return early and skip the system if any run criteria return `false`
 - if and only if all of the run criteria have returned `true`:
-  - spawn a thread
-  - lock the accesses of the system
+  - spawn a task
+  - lock the data access required by the system
   - run the system
   - release the locks when the system completes
 
