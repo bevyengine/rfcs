@@ -977,12 +977,14 @@ By adding powerful (and prominent) tools for detecting spurious ordering constra
 When using convenience methods like `add_systems`, we need to be able to refer to conveniently refer to collections of systems.
 This will become increasingly important as more complex graph-builder APIs are added.
 
-In summary:
+**In summary:**
 
 - array syntax: optimal but literally impossible
-- tuple syntax (winner!): magic but pretty
+- tuple syntax: magic but pretty
 - builder syntax: way too verbose for a pattern that's supposed to increase convenience
 - `vec!`-style macro: not any less magic than tuple syntax, not as pretty
+
+**Conclusion:** tuple syntax, powered by builder syntax under the hood that users can use instead when it's more convenient.
 
 Below, we examine the the options by example.
 
