@@ -199,7 +199,7 @@ If an ordering is defined relative to a non-existent system or an unused label, 
 This relatively gentle failure mode is important to ensure that plugins can order their systems with relatively strong assumptions that the default system labels exist, but continue to (mostly) work if those systems or labels are not present.
 
 In addition to the `.before` and `.after` methods, you can use **system chains** to create very simple linear dependencies between the successive members of an array of systems.
-(Note to readers: this is not the same as "system chaining" in Bevy 0.6 and earlier: that concept has been renamed to "system handling".)
+(Note to readers: this is not the same as "system chaining" in Bevy 0.6 and earlier: that concept has been renamed to "system piping".)
 
 ```rust
 fn main(){
@@ -627,10 +627,9 @@ Let's take a look at what implementing this would take:
    2. Implement while-active states as sugar for simple run criteria
    3. Create on-enter and on-exit schedules
    4. Create sugar for adding systems to these schedules
-8. Rename "system chaining" to "system handling"
+8. Rename "system chaining" to "system piping"
    1. Usage was very confusing for new users
-   2. Almost exclusively used for error handling
-   3. New concept of "systems with a linear graph of ordering constraints between them" is naturally described as a chain
+   2. New concept of "systems with a linear graph of ordering constraints between them" is naturally described as a chain
 9. Add new examples
     1. Complex control flow with supplementary schedules
     2. Fixed time-step pattern
@@ -894,12 +893,12 @@ If-needed ordering is the correct strategy in virtually all cases: in Bevy, inte
 
 As we move towards specifying system ordering dependencies at scale, it is critical to avoid spuriously breaking users schedules, and silent, pointless performance hits are never good.
 
-### Why can't we just use system handling (previously system chaining) for run criteria?
+### Why can't we just use system piping (previously system chaining) for run criteria?
 
 There are two reasons why this doesn't work:
 
-1. The system we're applying a run criteria does not have an input type.
-2. System handling does not work if the `SystemParam` of the original and handling systems are incompatible. This is far too limiting.
+1. The system we're applying a run criteria to does not have an input type.
+2. System piping does not work if the `SystemParam` of the input and output systems are incompatible.
 
 ### Why aren't run criteria cached?
 
