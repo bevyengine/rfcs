@@ -211,8 +211,8 @@ fn main(){
                  compute_damage,
                  deal_damage,
                  check_for_death)
-                 // This creates if-need ordering between the members of the system group,
-                 // use `.strict_chain()`, `.atomic_chain()` or `.flushed_chain()` 
+                 // This creates if-need ordering between the members of the system group:
+                 // use `.strict_chain()` or `.atomic_chain()` 
                  // for the other flavors of ordering constraint
                  .chain()
                  // We can configure and label all systems in the chain at once
@@ -260,9 +260,8 @@ fn main(){
    .add_startup_system(spawn_ui.before(StartupLabel::CommandFlush).label(StartupLabel::UiSpawn))
    .add_startup_system(customize_ui.after(StartupLabel::CommandFlush).after_and_flush(StartupLabel::UiSpawn))
    .add_startup_system(flush_commands.label(StartupLabel::CommandFlush);
-   // Less verbosely, we can use the `.flushed_chain()` helper method
-   // to do the exact same thing as above (including adding another copy of `flush_commands`)
-   .add_systems((spawn_ui, customize_ui).flushed_chain().to_schedule(CoreSchedule::Startup))
+   // Less verbosely, we can use the `.chain()` helper method
+   .add_systems((spawn_ui, flush_commands, customize_ui).chain().to_schedule(CoreSchedule::Startup))
    .run();
 }
 ```
