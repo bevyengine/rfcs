@@ -80,8 +80,8 @@ impl Name {
 
 // This is our index resource
 struct Names {
-	// This is some HashMap like data structure, that allows for fast lookup in both directions
-	map: BidirectionalMap<Name, Entity>
+	// Multiple entities can share the same name
+	map: MultiMap<Name, Entity>
 }
 
 impl Names {
@@ -104,8 +104,10 @@ fn update_names_index(name_query: Query<Entity, &Names>, names: ResMut<Names>){
 
 /// Uses the index to efficiently look up a specific entity
 fn eliminate_bavy(names: Res<Names>, mut commands: Commands){
-	if let Some(bavy_entity) = names.get(Name("Bavy")) {
-		commands.despawn(bavy_entity);
+	if let Some(bavy_entities) = names.get_vec(Name("Bavy")) {
+		for bavy in bavy_entities {
+			commands.despawn(bavy);
+		}
 	}
 }
 
