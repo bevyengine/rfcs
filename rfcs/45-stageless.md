@@ -163,7 +163,7 @@ impl Plugin for PhysicsPlugin{
         .configure_label(Physics::CollisionHandling.configure(common_physics_config))
         // And then apply that config to each of the systems that have this label
         .add_system(gravity.label(Physics::Forces))
-        // These systems have a linear chain of if-needed ordering dependencies between them
+        // These systems have a linear chain of ordering dependencies between them
         // Systems earlier in the chain must run before those later in the chain
         // Other systems can run in between these systems
         .add_systems((broad_pass, narrow_pass).chain().label(Physics::CollisionDetection))
@@ -182,17 +182,6 @@ Excessively tight constraints make it harder for a schedule to be both scheduled
 The most important way we can configure systems is by telling the scheduler *when* they should be run.
 The ordering of systems is always defined relative to other systems: either directly or by checking the systems that belong to a label.
 
-There are two basic forms of system ordering constraints:
-
-1. **Strict ordering constraints:** `.strictly_before` and `.strictly_after`
-   1. A system cannot be scheduled until "strictly before" systems have been completed during this iteration of the schedule.
-   2. Simple and explicit.
-   3. Can cause unnecessary blocking, particularly when systems are configured at a high-level.
-2. **If-needed ordering constraints:** `.before` and `.after`
-   1. A system cannot be scheduled until any "before" systems that it is incompatible with have completed during this iteration of the schedule.
-   2. In the vast majority of cases, this is the desired behavior. Unless you are using interior mutability (or accessing something outside of the ECS), systems that are compatible will always be **commutative**: their ordering doesn't matter, and these constraints behave "as-if" they were strict.
-   3. Note that if-needed ordering constraints are transitive. `a.before(b)` and `b.before(c)` implies `a.before(c)`. This behavior, while intuitive, can have some unexpected effects: it occurs even if the chain is broken by a **spurious** constraint (in which the two systems are compatible).
-
 Applying an ordering constraint to or from a label causes a ordering constraint to be created between all individual members of that label.
 If an ordering is defined relative to a non-existent system or an unused label, it will have no effect, emitting a warning.
 This relatively gentle failure mode is important to ensure that plugins can order their systems with relatively strong assumptions that the default system labels exist, but continue to (mostly) work if those systems or labels are not present.
@@ -203,7 +192,7 @@ In addition to the `.before` and `.after` methods, you can use **system chains**
 ```rust
 fn main(){
    App::new()
-   // This systems are connected using a string of if-needed ordering constraints
+   // This systems are connected using a string of ordering constraints
    .add_systems((compute_attack, 
                  compute_defense,
                  check_for_crits,
@@ -464,51 +453,6 @@ This can be helpful to clean up execution order ambiguities that you genuinely d
 Note that execution order ambiguities are based on **hypothetical incompatibility**: the scheduler cannot know that entities with both a `Player` and `Tile` component will never exist.
 You can fix these slightly silly execution order ambiguities by adding `Without` filters to your queries.
 
-#### Spurious ordering constraints
-
-While if-needed ordering dependencies can be useful for configuring the relative behavior of large groups of systems in an unrestrictive way,
-their transitive behavior can lead to some silly results in cases where there's no need for ordering.
-
-Suppose we have two very large, complex groups of systems: `Systems::Early` and `Systems::Late`.
-They are well-mixed, and no ordering dependencies exist between the groups.
-All is right with the world, and the systems live together in parallel-executing harmony.
-
-Then one day, Bavy adds the following system to our app:
-
-```rust
-fn null_system(){}
-
-app.add_system(null_system.after(Systems::Early).before(Systems::Late));
-```
-
-Seems innocuous, right?
-The `null_system` doesn't access any data; it's trivially compatible with every other system and so the if-needed dependencies should never have any effect.
-Except that's not true under Model 1.
-
-Instead, attempting to maintain transitivity, we've induce an if-needed ordering dependency between *every* system in `Systems::Early` to *every* system in `Systems::Late`.
-The entire schedule is bifurcated into two blocks, attempting to flow through a entirely pointless bottleneck.
-To add insult to injury,`null_system` doesn't even *run* between these two blocks, instead executing at a completely arbitrary time as it has no observable effect.
-
-While this example is deliberately absurd, such situations can naturally arise in real, complex code bases as they grow and are refactored.
-Pointless ordering constraints hang around, as we cannot warn that they are useless, since they have non-local effects.
-Eventually they become *load-bearing* spurious ordering constraints, and removing these if-needed ordering constraints which seemingly have no effect causes the high-level structure of your schedule to radically change, creating a massive collection of new system ordering ambiguities (and the corresponding non-local, non-deterministic bugs)!
-
-As a result, the schedule will warn you each time you have a **spurious** ordering constraint: an if-needed ordering constraint that has no effect for any system that it is connecting.
-Don't be like Bavy: try to clean these up ASAP, and then resolve any resulting execution order ambiguities with carefully thought-out constraints.
-
-Like with execution order ambiguities, this behavior can be configured using the `SpuriousOrderingConstraints` resource.
-
-```rust
-enum SpuriousOrderingConstraints{
-   /// The schedule will not be checked for spurious ordering constraints
-   Allow,
-   /// The details of each spurious ordering cosntraint is reported to the console
-   Warn,
-   /// The schedule will panic if an spurious ordering constraint is found
-   Forbid,
-}
-```
-
 ### Change detection
 
 The reliable change detection users have come to know and love is completely unaffected by these architectural changes. Each world still has an atomic counter that increments each time a system runs (skipped systems do not count) and tracks change ticks for its components and systems.
@@ -566,9 +510,7 @@ Let's take a look at what implementing this would take:
    5. Add `.add_systems` method, the `SystemGroup` type and the convenience methods for system groups
    6. Special-case `CoreLabel::First` and `CoreLabel::Last` for convenience
    7. Use [system builder syntax](https://github.com/bevyengine/rfcs/pull/31), rather than adding more complex methods to `App`
-5. Add basic ordering constraints: basic data structures and configuration methods
-   1. Begin with strict ordering constraints: simplest and most fundamental
-   2. Add if-needed ordering constraints
+5. Add strict ordering constraints
 6. Add run criteria
    1. Create the machinery to generate run criteria from functions
    2. Store the run criteria of each `ConfiguredSystem` in the schedule
@@ -608,9 +550,7 @@ struct Schedule{
    systems: HashMap<SystemId, ConfiguredSystem>,
    // Stores the fully initialized, efficient graph of ordering constraints
    // for all systems in the schedule.
-   // All labels are converted to specific systems,
-   // and all if-needed ordering constraints are either 
-   // solidified to strict ordering constraints or removed.
+   // All labels are converted to specific systems.
    // `Graph` is a bikeshed-avoidance graph storage structure,
    // the exact strategy should be benchmarked
    ordering_constraints: Graph<SystemId>,
@@ -653,9 +593,7 @@ enum OrderingTarget {
 
 struct SystemConfig {
    strict_ordering_before: Vec<OrderingTarget>,
-   if_needed_ordering_before: Vec<OrderingTarget>,
    strict_ordering_after: Vec<OrderingTarget>,
-   if_needed_ordering_after: Vec<OrderingTarget>,
    // The `TypeId` here is the type id of the flushing system
    flushed_ordering_before: Vec<(TypeId, OrderingTarget)>,
    flushed_ordering_after: Vec<(TypeId, OrderingTarget)>,
@@ -680,33 +618,6 @@ Of course, properties that only make sense at a group level (such as whether amb
 
 When building the constraint graph, all labels are expanded into the set of systems that they contain.
 Thus, adding an ordering constraint between label N and M is the same as adding a constraint between each `n * m` pair of systems.
-
-### If-needed ordering constraints
-
-During schedule initialization, if-needed ordering constraints are either converted to strict ordering constraints, or removed.
-They can be removed if and only if the schedule is *unobservably* different (ignoring interior mutability), regardless of the relative order of the two systems.
-
-In the case where we only have two systems with an if-needed ordering, this is relatively simple.
-If neither system can write to the data the other reads, we *cannot tell* which order they ran in, and so any ordering constraint between them is pointless.
-This, of course, is equivalent to the two systems being compatible.
-
-Subtly, this **hypothetical compatibility** (also used to determined if system parameters conflict or if schedules are ambiguous) must be determined statically: on the basis of the filtered access to component and resource types (via `FilteredAccessSet<ComponentId>`).
-By contrast, **factual incompatibility** at the time of schedule execution is done based on the actual archetype-components that the systems access (via `Access<ArchetypeComponentId>`).
-Just like strict ordering constraints though, ordering constraints inferred on the basis of if-needed ordering constraints are respected at the time of schedule execution, even if there is no data conflict at the time the systems are being run.
-
-If-needed ordering constraints are intended to behave exactly like strict ordering constraints (unless interior mutability or other strangeness is involved), and so they are transitive.
-In order to achieve this, the following algorithm is used:
-
-1. For each system that is at the start of an if-needed constraint:
-   1. Walk down the tree of if-needed ordering constraints and identify all downstream systems.
-   2. Add an if-needed ordering constraint between the root system and each downstream system.
-2. For each if-needed ordering constraint:
-   1. If the two systems are compatible, remove the constraint.
-   2. If they are incompatible, promote it to a strict ordering constraint.
-3. Deduplicate all strict ordering constraints.
-   1. Each pair of systems can only have one ordering constraint between them.
-      1. At this stage, all ordering constraints have been converted to strict ordering constraints or removed.
-   2. Any edges that are implied by the transitive property can be removed.
 
 ### Run criteria
 
@@ -765,9 +676,7 @@ Schedules can be unsatisfiable for several reasons:
 
 1. The graph of label ordering constraints contains a cycle.
    1. Each label is treated as a node, and each type of ordering constraint is treated as the same type of edge.
-   2. This is technically stricter than is necessary: a label could be both if-needed-before and if-needed-after another label. This would work as long as there were no incompatible systems, but this is almost certainly a logic bug that we should fail on.
 2. The cached schedule graph contains a cycle.
-   1. This is computed after if-needed orderings are resolved into strict orderings.
 
 ## Drawbacks
 
@@ -804,15 +713,6 @@ In addition, configuration defined by a private label (or directly on systems) c
 
 These limitation allows plugin authors to carefully design a public API, ensure critical invariants hold, and make serious internal changes without breaking their dependencies (as long as the public labels and their meanings are relatively stable).
 
-### Why is if-needed the correct default ordering strategy?
-
-Strict ordering is simple and explicit, and will never result in strange logic errors.
-On the other hand, it *will* result in pointless and surprising blocking behavior, possibly leading to unsatisfiable schedules.
-
-If-needed ordering is the correct strategy in virtually all cases: in Bevy, interior mutability at the component or resource level is rare, almost never needed and results in other serious and subtle bugs.
-
-As we move towards specifying system ordering dependencies at scale, it is critical to avoid spuriously breaking users schedules, and silent, pointless performance hits are never good.
-
 ### Why can't we just use system piping (previously system chaining) for run criteria?
 
 There are two reasons why this doesn't work:
@@ -835,61 +735,6 @@ We could store these in a resource in the `World`.
 Unfortunately, this seriously impacts the ergonomics of running schedules in exclusive systems due to borrow checker woes.
 
 Storing the schedules in the `App` alleviates this, as exclusive systems are now just ordinary systems: `&mut World` is compatible with `&Schedules`!
-
-## Should if-needed ordering constraints be transitive?
-
-If `A` is before `B`, and `B` is before `C`, must `A` be before `C`?
-
-Naturally, this seems like it must be the case: strict ordering constraints are transitive, and time is well-ordered after all!
-But if either the `A-B` or `B-C` edges are dissolved due to compatibility (and the `A-C` edge matters due to incompatibility), then `C` could be executed before `A`!
-
-There are two possible models that we could handle this important edge case:
-
-- **Model 1:** Infer if-needed-ordering constraints over each subgraph.
-  - Transitivity holds, as expected.
-  - Non-transitive if-needed ordering constraints cannot be represented.
-  - Some computational overhead, as we must create, evaluate and then deduplicate if-needed ordering constraints over each subgraph.
-- **Model 2:** Do nothing, report execution order ambiguities and allow the user to resolve this by adding additional constraints.
-  - Reduces risk of accidentally creating unnecessary constraints.
-  - More explicit, and thus more verbose.
-  - Relies on users checking and resolving execution order ambiguities.
-
-But which behavior is correct?
-Consider the following concrete case:
-
-We have five relevant systems:
-
-1. `determine_player_movement`: reads `Input`, writes `PlayerIntent`
-2. `collision_detection`: reads `Position` and `Velocity`, writes `Events<Collisions>`
-3. `collision_handling`: reads `Events<Collision>`, writes `Velocity`
-4. `apply_player_movement:` reads `PlayerIntent`, writes `Velocity`
-5. `apply_velocity:` reads `Velocity`, writes `Position`
-
-Suppose our user specifies the following if-needed ordering constraints:
-
-1. `determine_player_movement` is before `collision_detection`
-   1. Spurious: these systems are compatible.
-2. `collision_detection` is before `collision_handling`
-   1. Real: these systems conflict on `Events<Collisions>`
-3. `collision_handling` is before `apply_velocity`
-   1. Real: these systems conflict on `Velocity`
-4. `apply_player_movement` is after `collision_handling`
-   1. Spurious: these systems are compatible.
-5. `apply_player_movement` is before `apply_velocity`
-   1. Real: these systems conflict on `Velocity`
-
-The problem here is that there's no direct link between `determine_player_movement` and `apply_player_movement`: they are ambiguous under Model 2, and the player may move according to stale input!
-
-Under the transitive Model 1, additional if-needed constraints are created between `determine_player_movement` and `apply_player_movement` via the constraint chain (1, 2, 4).
-Then, the inferred constraint between `determine_player_movement` and `apply_player_movement` is converted into a strict ordering constraint, as the systems are incompatible.
-Finally, all redundant strict ordering constraints (such as between `collision_detection` and `apply_velocity`) are discarded for performance reasons.
-
-Under Model 2, the behavior is much simpler: `determine_player_movement` and `apply_player_movement` are ambiguous.
-
-Model 1 preserves the "logical" behavior, but in a very implicit fashion that is hard to reason about.
-Model 2 simply causes the user's logic to break.
-
-By adding powerful (and prominent) tools for detecting spurious ordering constraints and execution order ambiguities, we can follow the expected (and convenient) transitive property while helping users quash strange, fragile bugs as soon as they're introduced.
 
 ### What syntax should we use for collections of systems?
 
@@ -1002,13 +847,14 @@ Not any less magic than the tuples.
 
 There are a few proposals that should be considered immediately, hand-in-hand with this RFC:
 
-1. If-needed ordering constraints.
+1. If-needed ordering constraints ([RFC #47](https://github.com/bevyengine/rfcs/pull/46)).
 2. Opt-in automatic insertion of flushing systems for command and state (see discussion in [RFC #34](https://github.com/bevyengine/rfcs/pull/34)).
 3. Multiple worlds (see [RFC #16](https://github.com/bevyengine/rfcs/pull/43), [RFC #43](https://github.com/bevyengine/rfcs/pull/43)), as a natural extension of the way that apps can store multiple schedules.
+   1. This is needed to ensure the `SubApps` introduced for rendering pipelining work.
 
 In addition, there is quite a bit of interesting but less urgent follow-up work:
 
-1. Atomic groups ([RFC #43](https://github.com/bevyengine/rfcs/pull/43)), to ensure that systems are executed in a single block.
+1. Atomic groups ([RFC #46](https://github.com/bevyengine/rfcs/pull/46)), to ensure that systems are executed in a single block.
 2. Opt-in stack-based states (possibly in an external crate).
 3. More complex strategies for run criteria composition.
    1. This could be useful, but is a large design that can largely be considered independently of this work.
