@@ -354,9 +354,8 @@ There are a few important subtleties to bear in mind when working with run crite
   - this is essential to ensure that run criteria are checking fresh state without creating very difficult-to-satisfy ordering constraints
   - if you need to ensure that all systems behave the same way during a single pass of the schedule or avoid expensive recomputation, precompute the value and store the result in a resource, then read from that in your run criteria instead
 
-Run criteria are always executed "just before" the system that they are controlling is run: it is impossible to modify the data that they rely on in an observable way before the system completes.
+Run criteria are evaluated by the executor just before the system that they are controlling is run: it is impossible to modify the data that they rely on in an observable way before the system completes.
 This is important to ensure that the state of the world always matches the state expected by the system at the time it is executed.
-In order to understand exactly what this means, we need to understand the basics of atomic groups.
 
 ### Atomic groups and atomic ordering constraints
 
@@ -618,27 +617,24 @@ Let's take a look at what implementing this would take:
 5. Add basic ordering constraints: basic data structures and configuration methods
    1. Begin with strict ordering constraints: simplest and most fundamental
    2. Add if-needed ordering constraints
-6. Add atomic ordering groups
-   1. Add atomic ordering constraints
-7. Add run criteria
-   1. Create `IntoRunCriteriaSystem` machinery
+6. Add run criteria
+   1. Create the machinery to generate run criteria from functions
    2. Store the run criteria of each `ConfiguredSystem` in the schedule
-   3. Add atomic ordering constraints
-   4. Check the values of the run-criteria of systems before deciding whether it can be run
-   5. Add methods to configure run criteria
-8. Add states
+   3. Check the values of the run-criteria of systems before deciding whether it can be run
+   4. Add methods to configure run criteria
+7. Add states
    1. Create `State` trait
    2. Implement while-active states as sugar for simple run criteria
    3. Create on-enter and on-exit schedules
    4. Create sugar for adding systems to these schedules
-9. Rename "system chaining" to "system handling"
+8. Rename "system chaining" to "system handling"
    1. Usage was very confusing for new users
    2. Almost exclusively used for error handling
    3. New concept of "systems with a linear graph of ordering constraints between them" is naturally described as a chain
-10. Add new examples
+9. Add new examples
     1. Complex control flow with supplementary schedules
     2. Fixed time-step pattern
-11. Port the entire engine to the new paradigm
+10. Port the entire engine to the new paradigm
     1. We almost certainly need to port the improved ambiguity checker over to make this reliable
 
 Given the massive scope, that sounds relatively straightforward!
@@ -716,6 +712,8 @@ struct SystemConfig {
    flushed_ordering_before: Vec<(TypeId, OrderingTarget)>,
    flushed_ordering_after: Vec<(TypeId, OrderingTarget)>,
    run_criteria: Vec<SystemId>,
+   // The combined access requirements of the system and its run criteria
+   joint_access: FilteredAccessSet<ComponentId>,
    // This vector is always empty when this struct is used for labels
    labels: Vec<Box dyn SystemLabel>,
 }
@@ -795,37 +793,33 @@ This reduces the risk of an unsatisfiable schedule by allowing locks to be relea
 
 ### Run criteria
 
-There are two forms of run criteria: **trivial** and **system-like**.
-Trivial run criteria are both common and extremely fast to evaluate: the additional task overhead of treating them like systems is too high.
-`.run_if_resource_equals` is the canonical example and is reused for `run_if_in_state`.
-Other trivial run criteria can be added later as common use cases arise.
-
-System-like run criteria can access arbitrary data from the world, and effectively behave exactly like any other system.
-The exceptions are:
+Run criteria can access arbitrary data from the world, have their own fetches and are run on the world.
+While they reuse much of the system machinery, they have several important constraints:
 
 - they cannot mutate data
   - required to avoid having to order run criteria relative to each other
 - they cannot capture or store local data
-  - required to enable optimizations
-- they cannot be configured (other than as noted below)
   - required to avoid user footguns
+  - required to efficiently special-case their execution
+- they cannot be configured
+  - required to avoid user footguns
+  - required to efficiently special-case their execution
+- they must return a `bool`, so we know whether the system they're controlling should run!
 
-System-like run criteria are always part of any atomic groups the system that they control are part of.
-In addition, they belong to a coherent atomic group with the system that they control.
+When the executor is presented with a system, it must choose whether or not the system can be run:
 
-When we are presented with a system, and must choose whether or not we should run it:
+- check that the joint data access of all of that system's and its run criteria are available
+  - if not, the system is put back into the queue and the next system is checked
+- evaluate each run criteria on the world, in an arbitrary order
+  - return early and skip the system if any run criteria return `false`
+- if and only if all of the run criteria have returned `true`:
+  - spawn a thread
+  - lock the accesses of the system
+  - run the system
+  - release the locks when the system completes
 
-- check that the joint data access of all of that system's atomic groups are free
-- if all the required data is available, evaluate any outstanding system-like run criteria
-  - these are run like a system, spawning a new task
-  - these can run in any order, as they cannot mutate data
-  - if system-like run criteria still need to be evaluated, the system is put back in queue
-- if all of the system-like run criteria have returned `true`, check that the joint data access for the system and its trivial run criteria are free
-  - otherwise, skip it
-- if all of the trivial run criteria return `true`, spawn a task and immediately run the system
-  - otherwise, skip it
-
-System-like run criteria are evaluated using seperate tasks (like other systems), while trivial run criteria are evaluated by the scheduler itself.
+This approach is very light-weight (as the overwhelming majority of run criteria are extremely simple).
+It allows us to avoid ever locking data for run criteria, and skip spawning a new task for systems that are skipped.
 
 ### Flushed ordering constraints
 
