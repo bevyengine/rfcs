@@ -226,8 +226,7 @@ fn main(){
 
 Commands (commonly used to spawn and despawn entities or add and remove components) do not take effect immediately.
 Instead, you add a copy of the `flush_commands` system must run.
-
-This **exclusive system** (meaning, it can modify the entire `World` in arbitrary ways and cannot be run in parallel with other systems) collects all created commands and applies them to the `World`.
+This exclusive system collects all created commands and applies them to the `World`, mutating it directly.
 
 This pattern is so common that a special form of ordering constraint exists for it: **command-flushed ordering constraints**.
 If system `A` is `before_and_flush` system `B`, the schedule will be unsatisfiable unless there is an intervening `flush_commands` system.
