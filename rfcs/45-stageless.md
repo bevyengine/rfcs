@@ -62,7 +62,7 @@ Just as importantly, we are not over-constraining our ordering. Subtle ordering 
 The `App` can store multiple `Schedules`: each with their own `impl ScheduleLabel` type, allowing you to cleanly execute coherent blocks of logic when the need arises.
 For example, by default, each app stores both a startup and main schedule: the former runs only once on app creation, while the latter loops endlessly.
 This is used for the enter and exit schedules of states, but can also be used to store, mutate and access additional schedules.
-For safety reasons, you cannot mutate schedules that are currently being run: instead, you can defer their modification until the end of the main loop using `ScheduleCommands`.
+For safety reasons, you cannot mutate schedules that are currently being run: instead, you can defer their modification until just before next time that schedule is run using `ScheduleCommands`.
 
 The main and startup schedules can be accessed using the `DefaultSchedule::Main` and `DefaultSchedule::Startup` labels respectively.
 By default, systems are added to the main schedule.
