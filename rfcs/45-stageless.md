@@ -350,7 +350,8 @@ fn main(){
 There are a few important subtleties to bear in mind when working with run criteria:
 
 - when multiple run criteria are attached to the same system, the system will run if and only if all of those run criteria return true
-- run criteria are evaluated "just before" the system that is attached to is run
+- run criteria are evaluated "just before" the system that it is attached to is run
+
 - if a run criterion is attached to a label, a run-criterion-system will be generated for each system that has that label
   - this is essential to ensure that run criteria are checking fresh state without creating very difficult-to-satisfy ordering constraints
   - if you need to ensure that all systems behave the same way during a single pass of the schedule or avoid expensive recomputation, precompute the value and store the result in a resource, then read from that in your run criteria instead
