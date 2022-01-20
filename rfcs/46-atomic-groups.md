@@ -68,8 +68,8 @@ For all systems that are part of the same atomic system group:
 - When a system in an atomic group completes, its write-locks and read-locks are downgraded to **virtual locks**.
 - Virtual locks are treated as if they were real locks for all systems outside of the atomic group.
 - Virtual locks are ignored by systems in the same atomic group.
-- If the atomic group is **coherent**, virtual locks are removed once all systems in the atomic group have finished with it.
-- If the atomic group is **isolated**, virtual locks are held until all systems in the atomic group complete.
+- If the atomic group is coherent, virtual locks are removed once all systems in the atomic group have finished with it.
+- If the atomic group is isolated, virtual locks are held until all systems in the atomic group complete.
 
 This can be modelled as:
 
@@ -91,8 +91,8 @@ This reduces the risk of an unsatisfiable schedule by allowing locks to be relea
 
 ## Drawbacks
 
-- This is a complex feature!
-- It could slow down evaluation of the schedule, including in cases where this feature is not used.
+- This is a complex feature! It exposes the details of scheduling and locking to the end user.
+- Depending on the exact detail of implmentation, it could slow down scheduling, including in cases where this feature is not used.
 
 ## Rationale and alternatives
 
@@ -121,3 +121,6 @@ However, isolated groups have a few advantages:
   - Allows the community to reuse optimized, featureful code
 - Automatic inference of index rebuilds
   - Increases usability by deduplicating state refreshes without risking stale state
+- Automatic creation of isolated groups for schedule optimization
+  - Isolated groups effectively allow us to "batch" systems, evaluating them in a single task with lower overhead
+  - This could be (optionally) inferred, as a schedule optimization
