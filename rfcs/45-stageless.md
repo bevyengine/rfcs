@@ -173,9 +173,9 @@ impl Plugin for PhysicsPlugin{
 }
 ```
 
-As a natural consequence of the fact that each label stores a `SystemConfig`, labels can themselves be labelled, causing the contained labels to apply to all systems that this label is attached to.
-With great power comes great responsibility: use this feature sparingly (e.g. to label external systems that you cannot access directly).
-Excessively tight constraints make it harder for a schedule to be both scheduled in parallel and satisfied at all, and deeply nested label trees will quickly make your code base incomprehensible.
+Labels cannot themselves be labelled: composition is generally clearer than ad-hoc inheritance, and this allows us to compute the configuration for each system more quickly.
+If you need to copy the behavior of a label, use `.configure_label(TargetLabel.configure(SourceLabel.config()))`.
+If you need to ensure that your systems are treated as if they were nested within another label to ensure that other systems have the correct relative ordering, also add that label to your systems.
 
 ### System ordering
 
