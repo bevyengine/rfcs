@@ -96,11 +96,17 @@ This reduces the risk of an unsatisfiable schedule by allowing locks to be relea
 
 ## Rationale and alternatives
 
-- Why is this design the best in the space of possible designs?
-- What other designs have been considered and what is the rationale for not choosing them?
-- What objections immediately spring to mind? How have you addressed them?
-- What is the impact of not doing this?
-- Why is this important to implement as a feature of Bevy itself, rather than an ecosystem crate?
+### Why do we want to distinguish between coherent and isolated groups?
+
+In most cases, coherent groups will be desired.
+They ensure correctness while releasing locks sooner.
+However, isolated groups have a few advantages:
+  
+- They are conceptually simpler: isolated atomic groups are run "as-if" they are a single system.
+- They preserve privacy more strictly and do not leak timing information about their internal components.
+- They work correctly in the face of interior mutability.
+- Isolated atomic groups can efficiently be run as part of a single task, without communication upstream.
+  - They release their locks all at once, which can have lower overhead for simple systems.
 
 ## Unresolved questions
 
