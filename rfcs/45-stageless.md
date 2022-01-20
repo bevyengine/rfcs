@@ -225,7 +225,7 @@ fn main(){
 #### Ordering with `Commands`
 
 Commands (commonly used to spawn and despawn entities or add and remove components) do not take effect immediately.
-Instead, you add a copy of the `flush_commands` system must run.
+Instead, they are applied whenever the `flush_commands` system runs.
 This exclusive system collects all created commands and applies them to the `World`, mutating it directly.
 
 This pattern is so common that a special form of ordering constraint exists for it: **command-flushed ordering constraints**.
@@ -280,7 +280,7 @@ impl Plugin for ProjectilePlugin {
     // DefaultPlugins adds three command flushes:
     // 1. CommandFlush::PreUpdate (runs after input is processed)
     // 2. CommandFlush::PostUpdate (runs after most game logic)
-    // 3. CommandFlush::EndOfFrame (runs after rendering, at the end of the schedule)
+    // 3. CommandFlush::EndOfFrame (runs after data is extracted for rendering, at the end of the schedule)
     .add_system(spawn_projectiles.before(CommandFlush::PostUpdate))
     .add_systems(
       (check_if_projectiles_hit, despawn_projectiles_that_hit)
