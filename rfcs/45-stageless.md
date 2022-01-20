@@ -64,7 +64,7 @@ For example, by default, each app stores both a startup and main schedule: the f
 This is used for the enter and exit schedules of states, but can also be used to store, mutate and access additional schedules.
 For safety reasons, you cannot mutate schedules that are currently being run: instead, you can defer their modification until just before next time that schedule is run using `ScheduleCommands`.
 
-The main and startup schedules can be accessed using the `DefaultSchedule::Main` and `DefaultSchedule::Startup` labels respectively.
+The main, startup and rendering schedules can be accessed using the `DefaultSchedule::Main`, `DefaultSchedule::Startup`, `DefaultSchedule::Rendering` labels respectively.
 By default, systems are added to the main schedule.
 You can control this by adding the `.to_schedule(ScheduleLabel::Variant)` system descriptor to your system.
 To add an entirely new schedule to your app (which can be run on the world in an exclusive system), use `app.add_schedule(label, schedule)`.
