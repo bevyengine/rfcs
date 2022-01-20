@@ -60,9 +60,8 @@ Just as importantly, we are not over-constraining our ordering. Subtle ordering 
 ### The `App` stores multiple schedules
 
 The `App` can store multiple `Schedules`: each with their own `impl ScheduleLabel` type, allowing you to cleanly execute coherent blocks of logic when the need arises.
-For example, by default, each app stores both a startup and main schedule: the former runs only once on app creation, while the latter loops endlessly.
-This is used for the enter and exit schedules of states, but can also be used to store, mutate and access additional schedules.
-For safety reasons, you cannot mutate schedules that are currently being run: instead, you can defer their modification until just before next time that schedule is run using `ScheduleCommands`.
+By default, each app stores both a startup and main schedule: the former runs only once on app creation, while the latter loops endlessly.
+However, schedules are a surprisingly powerful and flexible tool: they can be used to handle initialization and cleanup logic when working with states or used ad-hoc to run game logic in complex patterns.
 
 The main, startup and rendering schedules can be accessed using the `DefaultSchedule::Main`, `DefaultSchedule::Startup`, `DefaultSchedule::Rendering` labels respectively.
 By default, systems are added to the main schedule.
@@ -72,6 +71,7 @@ To add an entirely new schedule to your app (which can be run on the world in an
 You can access the schedules stored in the app using the `&Schedules`.
 Unsurprisingly, this never conflicts with entities or resources in the `World`, as they are stored one level higher.
 Schedules can be modified by emitting `ScheduleCommands`, which apply to the specified schedule just before it is next started.
+For safety reasons, you cannot mutate schedules direclty: instead, you can defer their modification until just before next time that schedule is run using `ScheduleCommands`.
 
 ```rust
 /// Each level has its own collection of dedicated systems
