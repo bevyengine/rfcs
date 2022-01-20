@@ -230,8 +230,12 @@ This **exclusive system** (meaning, it can modify the entire `World` in arbitrar
 
 This pattern is so common that a special form of ordering constraint exists for it: **command-flushed ordering constraints**.
 If system `A` is `before_and_flush` system `B`, the schedule will be unsatisfiable unless there is an intervening `flush_commands` system.
-Note that **this does not insert new copies of a `flush_commands` system**: instead, it functions like an `assert!` statement.
-It has no direct effect, and is merely used to verify that your schedule has been set up correctly according the specified constraint.
+Note that **this does not insert new copies of a `flush_commands` system** (yet).
+Instead, it has two purposes:
+
+- acting like an assert statement, ensuring that the schedule is set up the way you expect it to be (even after refactors)
+- allows plugin authors to safely export configurable groups of systems that can be inserted into the schedule where the user wishes
+  - without this constraint, requirements that the user place one group before a command sync and another after would silently break
 
 ```rust
 use bevy::prelude::*;
