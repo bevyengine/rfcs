@@ -481,12 +481,11 @@ Let's take a look at what implementing this would take:
    5. Add `.add_systems` method, the `SystemGroup` type and the convenience methods for system groups
    6. Special-case `CoreLabel::First` and `CoreLabel::Last` for convenience
    7. Use [system builder syntax](https://github.com/bevyengine/rfcs/pull/31), rather than adding more complex methods to `App`
-5. Add strict ordering constraints
+5. Re-add strict ordering constraints
 6. Add run criteria
    1. Create the machinery to generate run criteria from functions
-   2. Store the run criteria of each `ConfiguredSystem` in the schedule
+   2. Cache the accesses of run criteria on `ConfiguredSystem` in the schedule
    3. Check the values of the run-criteria of systems before deciding whether it can be run
-   4. Add methods to configure run criteria
 7. Add states
    1. Create `State` trait
    2. Implement while-active states as sugar for simple run criteria
@@ -499,7 +498,7 @@ Let's take a look at what implementing this would take:
     1. Complex control flow with supplementary schedules
     2. Fixed time-step pattern
 10. Port the entire engine to the new paradigm
-    1. We almost certainly need to port the improved ambiguity checker over to make this reliable
+    1. We almost certainly need to port the improved ambiguity checker over to make this new paradigm usable
 
 Given the massive scope, that sounds relatively straightforward!
 However, doing so will break approximately the entire engine, and tests will not pass again until step 10.
