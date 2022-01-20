@@ -188,6 +188,10 @@ Systems `A` and `C` do not share an atomic group, and data that is virtually loc
 
 This reduces the risk of an unsatisfiable schedule by allowing locks to be released in a maximally permissive fashion.
 
+### Unsatisfiability
+
+This RFC adds an additional satisfiability constraint: if a data access is required during the execution of an atomic group, the requesting system's data access must be compatible with the data accesses of that group at the appropriate time.
+
 ## Drawbacks
 
 - This is a complex feature! It exposes the details of scheduling and locking to the end user.
