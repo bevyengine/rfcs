@@ -453,35 +453,6 @@ This can be helpful to clean up execution order ambiguities that you genuinely d
 Note that execution order ambiguities are based on **hypothetical incompatibility**: the scheduler cannot know that entities with both a `Player` and `Tile` component will never exist.
 You can fix these slightly silly execution order ambiguities by adding `Without` filters to your queries.
 
-### Change detection
-
-The reliable change detection users have come to know and love is completely unaffected by these architectural changes. Each world still has an atomic counter that increments each time a system runs (skipped systems do not count) and tracks change ticks for its components and systems.
-
-For a system to detect changes (assuming one of its queries has a `Changed<T>` filter), its tick and the change ticks of any matched components are compared against the current world tick. If the system's last run is older than a change, the query will yield that component value.
-
-```rust
-fn is_changed(world_tick: u32, system_tick: u32, change_tick: u32) -> bool {
-   let ticks_since_change = world_tick.wrapping_sub(change_tick);
-   let ticks_since_system = world_tick.wrapping_sub(system_tick);
-   ticks_since_system > ticks_since_change
-}
-```
-
-To ensure graceful operation, change ticks are periodically scanned, and those older than a certain threshold are clamped to prevent their age from overflowing. Because of this, a system will never falsely report or miss a change provided its age and the age of the changed component have not *both* saturated.
-
-Every schedule will perform a scan once at least `N` (currently several million) ticks have elapsed since its previous scan, and no more than `2N - 1` ticks should occur between scans. The latter can be circumvented if nested schedules are used in strange ways, but most users aren't likely to encounter these edge cases in practice.
-
-```rust
-pub const CHANGE_DETECTION_MAX_DELTA: u32 = u32::MAX - (2 * N);
-
-fn check_tick(world_tick: u32, saved_tick: &mut u32) {
-   let delta = world_tick.wrapping_sub(*saved_tick);
-   if delta > CHANGE_DETECTION_MAX_DELTA {
-      *saved_tick = world_tick.wrapping_sub(CHANGE_DETECTION_MAX_DELTA);
-   }
-}
-```
-
 ## Implementation strategy
 
 Let's take a look at what implementing this would take:
@@ -677,6 +648,35 @@ Schedules can be unsatisfiable for several reasons:
 1. The graph of label ordering constraints contains a cycle.
    1. Each label is treated as a node, and each type of ordering constraint is treated as the same type of edge.
 2. The cached schedule graph contains a cycle.
+
+### Change detection
+
+The reliable change detection users have come to know and love is completely unaffected by these architectural changes. Each world still has an atomic counter that increments each time a system runs (skipped systems do not count) and tracks change ticks for its components and systems.
+
+For a system to detect changes (assuming one of its queries has a `Changed<T>` filter), its tick and the change ticks of any matched components are compared against the current world tick. If the system's last run is older than a change, the query will yield that component value.
+
+```rust
+fn is_changed(world_tick: u32, system_tick: u32, change_tick: u32) -> bool {
+   let ticks_since_change = world_tick.wrapping_sub(change_tick);
+   let ticks_since_system = world_tick.wrapping_sub(system_tick);
+   ticks_since_system > ticks_since_change
+}
+```
+
+To ensure graceful operation, change ticks are periodically scanned, and those older than a certain threshold are clamped to prevent their age from overflowing. Because of this, a system will never falsely report or miss a change provided its age and the age of the changed component have not *both* saturated.
+
+Every schedule will perform a scan once at least `N` (currently several million) ticks have elapsed since its previous scan, and no more than `2N - 1` ticks should occur between scans. The latter can be circumvented if nested schedules are used in strange ways, but most users aren't likely to encounter these edge cases in practice.
+
+```rust
+pub const CHANGE_DETECTION_MAX_DELTA: u32 = u32::MAX - (2 * N);
+
+fn check_tick(world_tick: u32, saved_tick: &mut u32) {
+   let delta = world_tick.wrapping_sub(*saved_tick);
+   if delta > CHANGE_DETECTION_MAX_DELTA {
+      *saved_tick = world_tick.wrapping_sub(CHANGE_DETECTION_MAX_DELTA);
+   }
+}
+```
 
 ## Drawbacks
 
