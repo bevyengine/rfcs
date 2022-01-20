@@ -66,7 +66,8 @@ For safety reasons, you cannot mutate schedules that are currently being run: in
 
 The main and startup schedules can be accessed using the `DefaultSchedule::Main` and `DefaultSchedule::Startup` labels respectively.
 By default, systems are added to the main schedule.
-You can control this by adding the `.to_schedule(MySchedule::Variant)` system descriptor to your system.
+You can control this by adding the `.to_schedule(ScheduleLabel::Variant)` system descriptor to your system.
+To add an entirely new schedule to your app (which can be run on the world in an exclusive system), use `app.add_schedule(label, schedule)`.
 
 You can access the schedules stored in the app using the `&Schedules`.
 Unsurprisingly, this never conflicts with entities or resources in the `World`, as they are stored one level higher.
@@ -100,10 +101,10 @@ fn main(){
 fn toggle_level_specific_systems(current_level: Res<CurrentLevel>, previous_level: Res<PreviousLevel>, schedule_commands: ScheduleCommands){
    if current_level.is_changed(){
       // Add all of the systems from the current level's schedule to the main schedule, as if adding a plugin
-      schedule_commands.schedule(CoreSchedule::Main).add_schedule(LevelSchedule::new(current_level.0))
+      schedule_commands.schedule(CoreSchedule::Main).merge_schedule(LevelSchedule::new(current_level.0))
       // Remove all systems previously added by the old level's schedule
       // Systems will only be removed if both the function signature and configuration are a perfect match.
-      schedule_commands.schedule(CoreSchedule::Main).remove_schedule(LevelSchedule::new(previous_level.0))
+      schedule_commands.schedule(CoreSchedule::Main).extract_schedule(LevelSchedule::new(previous_level.0))
    }
    // These changes will only take effect on the next pass of the main schedule
 }
@@ -439,7 +440,7 @@ If system `A` is `before_and_flush_state::<S>` system `B`, the schedule will be 
 
 Apps can have multiple orthogonal states representing independent facets of your game: these operate fully independently.
 States can also be defined as a nested enum: these work as you may expect, with each leaf node representing a distinct group of systems.
-If you wish to share behavior among siblings, add the systems repeatedly to each sibling, typically by saving a schedule and then using `Schedule::add_schedule` to combine that into the specialized schedule of choice.
+If you wish to share behavior among siblings, add the systems repeatedly to each sibling, typically by saving a schedule and then using `Schedule::merge_schedule` to combine that into the specialized schedule of choice.
 
 ### Complex control flow
 
