@@ -61,6 +61,105 @@ On the other hand, atomic ordering constraints can be helpful when attempting to
 By guaranteeing that the initial state of your complex system cannot be altered before the later parts of the system are complete,
 you can safely parallelize the rest of the work into separate systems, improving both performance and maintainability.
 
+### Using atomicity to ensure fresh indexes
+
+**Indexes** are a common and powerful tool for accelerating working with queries.
+By caching the values of components in an optimized resource, we can find components with a particular value (or range of values) without needing to look through every single component.
+
+Here's a rather hand-waved example of how that might look:
+
+```rust
+#[derive(Component, Hash)]
+struct Name(String);
+
+impl Name {
+	fn new(str: &str) -> Self {
+		Name(string.to_string())
+	}
+}
+
+// This is our index resource
+struct Names {
+	// This is some HashMap like data structure, that allows for fast lookup in both directions
+	map: BidirectionalMap<Name, Entity>
+}
+
+impl Names {
+	/// Fetches the entity with the given name from our index
+	fn get(&self, name: &Name) -> Option<Entity> {
+		// This can be done in O(1) time, due to the internal hashing
+	}
+
+	/// Updates the Names index based on the current list of names from the `World`
+	fn update(&mut self, name_query: Query<Entity, &Names>){
+		// This can often be done faster using careful Changed filters
+		// plus RemovedComponents
+	}
+}
+
+/// Refreshes the current cache of the index
+fn update_names_index(name_query: Query<Entity, &Names>, names: ResMut<Names>){
+	names.update(name_query)
+}
+
+/// Uses the index to efficiently look up a specific entity
+fn eliminate_bavy(names: Res<Names>, mut commands: Commands){
+	if let Some(bavy_entity) = names.get(Name("Bavy")) {
+		commands.despawn(bavy_entity);
+	}
+}
+
+fn main(){
+	App::new()
+		// This ordering is required, in order to ensure that the data in our index is fresh
+		.add_system(update_names_index.before("eliminate_bavy").label("update_names_index"))
+		.add_system(eliminate_bavy.label("eliminate_bavy"))
+		.run();
+}
+```
+
+However, this strategy is not robust!
+Because systems that run "before" other systems are not necessarily run "immediately before", our index could be distorted before it is read from.
+
+```rust
+// This system deliberately breaks our index!
+// Curse you Bavy!
+fn cunning_ruse(mut name_query: Query<&mut Name>, names: Res<Names>){
+	// Of *course* Bavy just unwraps the returned option...
+	let bavy_entity = names.get(Name("Bavy"));
+	let mut bavy_name = name_query.get_mut(bavy_entity);
+	bavy_name = "Bevy";
+
+	let bevy_entity = names.get(Name("Bevy"));
+	let mut bevy_name = name_query.get_mut(bevy_entity);
+	bevy_name = "Bavy";
+}
+
+fn main(){
+	App::new()
+		.add_system(update_names_index.before("eliminate_bavy").label("update_names_index"))
+		.add_system(eliminate_bavy.label("eliminate_bavy"))
+		// Oh no! We've despawned Bevy instead!!
+		.add_system(cunning_ruse.after("update_names_index").before("eliminate_bavy"))
+		.run();
+}
+```
+
+However, we can use the power of atomic groups to ensure that our index is fresh when it is read from.
+
+```rust
+fn main(){
+	App::new()
+		// Upgrading the constraint ensure the index is refreshed "just before" it is read
+		.add_system(update_names_index.atomically_before("eliminate_bavy").label("update_names_index"))
+		.add_system(eliminate_bavy.label("eliminate_bavy"))
+		// This causes the compilation to fail
+		// Drat! Foiled again!
+		.add_system(cunning_ruse.after("update_names_index").before("eliminate_bavy"))
+		.run();
+}
+```
+
 ## Implementation strategy
 
 For all systems that are part of the same atomic system group:
