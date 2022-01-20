@@ -1,12 +1,21 @@
-# Feature Name: (fill me in with a unique ident, `my_awesome_feature`)
+# Feature Name: `atomic-groups`
 
 ## Summary
 
-One paragraph explanation of the feature.
+Atomic groups ensure that systems are evaluated "together", ensuring that nothing can break their internal state during execution.
+While this would be feasible by running systems in strict sequence, atomicity ensures safe "as-if" parallel execution of other systems while a group is being evaluated.
 
 ## Motivation
 
-Why are we doing this? What use cases does it support?
+Atomic groups are a basic building block of scheduling, and are essential to support more complex user-facing tools that rely on setting up and then using state.
+Critically, indexes (used to efficiently store and then look up components by value) require some form of atomicity to ensure that users are not reading from bad state.
+
+In addition, atomicity can be a powerful tool for plugin authors, allowing them to impose strong guarantees of privacy without disabling configuration.
+
+While system piping creates a simple form of atomicity, atomic groups are substantially more expressive. They:
+
+- allows for systems with conflicting data accesses to co-exist
+- allows for nonlinear atomicity
 
 ## User-facing explanation
 
@@ -82,7 +91,8 @@ This reduces the risk of an unsatisfiable schedule by allowing locks to be relea
 
 ## Drawbacks
 
-Why should we *not* do this?
+- This is a complex feature!
+- It could slow down evaluation of the schedule, including in cases where this feature is not used.
 
 ## Rationale and alternatives
 
@@ -92,26 +102,16 @@ Why should we *not* do this?
 - What is the impact of not doing this?
 - Why is this important to implement as a feature of Bevy itself, rather than an ecosystem crate?
 
-## \[Optional\] Prior art
-
-Discuss prior art, both the good and the bad, in relation to this proposal.
-This can include:
-
-- Does this feature exist in other libraries and what experiences have their community had?
-- Papers: Are there any published papers or great posts that discuss this?
-
-This section is intended to encourage you as an author to think about the lessons from other tools and provide readers of your RFC with a fuller picture.
-
-Note that while precedent set by other engines is some motivation, it does not on its own motivate an RFC.
-
 ## Unresolved questions
 
 - Should we allow overlapping atomic groups that don't have a subset-superset relationship?
   - An atomic group is supposed to make multiple systems look like one system to outside systems.
   - What do overlapping subsets mean conceptually?
 
-## \[Optional\] Future possibilities
+## Future possibilities
 
-- Indexes!
-- Relations!
-- Automatic flush inference!
+- Built-in index primitives
+  - Reduces boilerplate
+  - Allows the community to reuse optimized, featureful code
+- Automatic inference of index rebuilds
+  - Increases usability by deduplicating state refreshes without risking stale state
