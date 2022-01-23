@@ -104,13 +104,6 @@ The complete overview of shapes, their dimensions and their names can be seen in
 
 ## Implementation strategy
 
-### Helper Types
-
-```rust
-/// Stores an angle in radians, and supplies builder functions to prevent errors (from_radians, from_degrees)
-struct Angle(f32);
-```
-
 ### Traits (REFERENCE ONLY!)
 
 **These traits are provided as reference to illustrate how these primitive shape types might be used. The details of implementation and interface should be determined in a separate RFC, PR, or independent prototypes.**
@@ -191,7 +184,7 @@ struct RegularPolygon2d {
   /// Number of faces.
   faces: u8,
   /// Clockwise rotation of the polygon about the origin. At zero rotation, a point will always be located at the 12 o'clock position.
-  orientation: Angle,
+  orientation: f32,
 }
 impl Meshable for RegularPolygon2d {}
 
