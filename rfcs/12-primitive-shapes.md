@@ -43,13 +43,16 @@ The difference between the two is somewhat semantic. Both bounding and collision
 
 In this potential bounding and collision interface, translation and rotation are **not** defined using bevy's `Transform` components, nor are they stored in the base primitive shape types. This is because types that implement `Bounding` and `Collider` must be fully self-contained. This:
 
-* makes the API simpler when using these components in functions and systems
-* ensures bounding and collision types use an absolute minimum of memory
-* prevents errors caused by nonuniform scale invalidating the shape of the primitive.
+* Makes the API simpler when using these components in functions and systems
+* Ensures bounding and collision types use an absolute minimum of memory
+* Prevents errors caused by nonuniform scale invalidating the shape of the primitive
 
 Instead, changes to the parent's `GlobalTransform` should be used to derive a new primitive on scale changes - as well as a new translation and rotation if required.
 
-Although bounding and collision are out of scope of this RFC, this helps to explain why primitive shape types contain no positional information. This hypothetical bounding/collision interface shows how the base primitive shapes can be composed to build common game engine functinality without adding memory overhead.
+Note: We could use transforms in the future _if_ the `translation`, `rotation`, and `scale` fields were distinct components, and shape primitives could be bundled with a `translation` or `rotation` where applicable.
+
+This hypothetical bounding/collision interface shows how the base primitive shapes can be composed to build common game engine functinality without adding memory overhead and highlight the incompatibility of shape primitives with the `Transform` component.
+
 
 ### Meshing
 
@@ -468,12 +471,6 @@ struct Frustum {
 impl Meshable for Frustum {}
 
 ```
-
-### Bounding and Collision
-
-Primitives colliders and bounding volumes are fully defined in space (in their hypothetical implementation here), and do not use `Transform` or `GlobalTransform`. This is an intentional decision. Because transforms can include nonuniform scale, they are fundamentally incompatible with shape primitives. We could use transforms in the future if the `translation`, `rotation`, and `scale` fields were distinct components, and shape primitives could be bundled with a `translation` or `rotation` if applicable.
-
-The provided reference implementaiton of bounding and collision types demonstrate how primitive shape types can be composed with other types, triats, or components to build added functionality from shared parts. While the collder and bounding primitives provided as reference are out of scope, they also highlight the incompatibility of shape primitives with the `Transform` component.
 
 ### Frustum Culling
 
