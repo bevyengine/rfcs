@@ -58,4 +58,4 @@ The alternative to this proposal is for bevy to continue providing only `Default
 
 ## Unresolved questions
 
-TODO:
+Which default plugin sets do we want to include right now, and how precisely do they differ?
