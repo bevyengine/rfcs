@@ -12,21 +12,19 @@ Bevy would be doing this to support easier and faster 'getting started' user sto
 
 Where there used to just be `DefaultPlugins` and `MiniminalPlugins` there will now be many different `DefaultPlugins` a user can choose from that exist for many common catagories of bevy applications.
 
+Bevy now provides you a number of convenient PluginGroups to help you get your application started with sensible defaults for your use case.
+The current list is:
+
+- MinimalPlugins: The very basic internal structure required to ensure things like Time function properly.
+- GamePlugins: Suitable for making both 2D and 3D realtime games with input handling, audio and rendering (note: previously DefaultPlugins).
+- 2dGamePlugins: Like GamePlugins, but limited to the systems and resources needed in a 2D game.
+- TuiPlugins: Suitable for making TUI applications.
+- ApplicationPlugins: Suitable for making CAD applicaions or something like excel.
+- SimulationPlugins: Plugins that make writing scientific simulations esiear like enhanced determinism and ordering guarantees.
+
 ## Implementation strategy
 
-The catagories of bevy apps are at least the following:
-
-- minimal (current bevy DefaultPlugins)
-- game
- - 2D
- - 3D
-- TUI
-- application
- - 2D
- - 3D 
-- simulation
-
-Each of which may have some combination of the following divergent platform configuration needs:
+Each of the above outlined `Plugins` may have some combination of the following divergent platform configuration needs:
 
 - desktop
  - native
