@@ -2,7 +2,19 @@
 
 ## Summary
 
-There are many different catagories of bevy applications. Each use case has a sufficiently different commonsense default configuration to warrant different use case specific default plugins. The catagories of bevy apps are at least the following:
+There are many different catagories of bevy applications. Each use case has a sufficiently different commonsense default configuration to warrant different use case specific default plugins.
+
+## Motivation
+
+Bevy would be doing this to support easier and faster 'getting started' user story for non-minimal bevy applications. It will be particularly helpful to beginners but would also be a nice ergonomics/UX win for experienced bevy devs to not have to configure every minute detail manually when setting up a new project that is in one of the above outlined application domains.
+
+## User-facing explanation
+
+Where there used to just be `DefaultPlugins` and `MiniminalPlugins` there will now be many different `DefaultPlugins` a user can choose from that exist for many common catagories of bevy applications.
+
+## Implementation strategy
+
+The catagories of bevy apps are at least the following:
 
 - minimal (current bevy DefaultPlugins)
 - game
@@ -38,34 +50,14 @@ For example work-minimizing scheduling for low-power consumption web and mobile 
 
 Building for touch vs mouse vs gamepad or other midi/advanced input controllers different use cases with very different requirements.
 
-## Motivation
-
-Bevy would be doing this to support easier and faster 'getting started' user story for non-minimal bevy applications. It will be particularly helpful to beginners but would also be a nice ergonomics/UX win for experienced bevy devs to not have to configure every minute detail manually when setting up a new project that is in one of the above outlined application domains.
-
-## User-facing explanation
-
-TODO:
-
-## Implementation strategy
-
-TODO:
-
 ## Drawbacks
 
-TODO:
+The primary drawback I can see is the need for bevy to maintain the multiple `DefaultPlugins`, however, I forsee the mainenance burden of this to be exceedingly minimal.
 
 ## Rationale and alternatives
 
-TODO:
-
-## \[Optional\] Prior art
-
-TODO:
+The alternative to this proposal is for bevy to continue providing only `DefaultPlugins` and `MinimalPlugins` and for users to customize the plugins themselves through writitng their own or using 3rd-party plugins.
 
 ## Unresolved questions
-
-TODO:
-
-## \[Optional\] Future possibilities
 
 TODO:
