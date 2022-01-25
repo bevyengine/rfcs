@@ -10,8 +10,6 @@ Bevy would be doing this to support easier and faster 'getting started' user sto
 
 ## User-facing explanation
 
-Where there used to just be `DefaultPlugins` and `MiniminalPlugins` there will now be many different `DefaultPlugins` a user can choose from that exist for many common categories of bevy applications.
-
 Bevy now provides you a number of convenient `PluginGroups` to help you get your application started with sensible defaults for your use case. The current list is:
 
 - `MinimalPlugins`: The very basic internal structure required to ensure things like `Time` function properly.
