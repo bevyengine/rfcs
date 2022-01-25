@@ -47,7 +47,7 @@ Building for touch vs mouse vs gamepad or other midi/advanced input controllers 
 
 ## Drawbacks
 
-The primary drawback I can see is the need for bevy to maintain the multiple `DefaultPlugins`, however, I foresee the maintenance burden of this to be exceedingly minimal.
+The primary drawback I can see is the need for Bevy to maintain the multiple `PluginGroups`, however, I foresee the maintenance burden of this to be exceedingly minimal.
 
 ## Rationale and alternatives
 
