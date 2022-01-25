@@ -18,7 +18,7 @@ Bevy now provides you a number of convenient `PluginGroups` to help you get your
 - `GamePlugins`: Suitable for making both 2D and 3D real-time games with input handling, audio and rendering (note: previously `DefaultPlugins`).
 - `2dGamePlugins`: Like `GamePlugins`, but limited to the systems and resources needed in a 2D game.
 - `TuiPlugins`: Suitable for making TUI applications.
-- `ApplicationPlugins`: Suitable for making CAD applicaions or something like excel.
+- `ApplicationPlugins`: Suitable for making relatively static non-game applications.
 - `SimulationPlugins`: Plugins that make writing scientific simulations easier like enhanced determinism and ordering guarantees.
 
 ## Implementation strategy
