@@ -39,7 +39,7 @@ Each of the above outlined `Plugins` may have some combination of the following 
 
 This feature also touches on not-yet-implemented but planned bevy features that will have different implementations per use case.
 
-For example work-minimizing scheduling for low-power consumption web and mobile applications, or desktop productivity apps are a very different configuration from high performance gaming and high performance scientific simulation.
+For example, using making low-power consumption web and mobile applications,  desktop productivity apps and high performance games will all have very different scheduling needs.
 
 2D vs 3D will have different built-in bevy selection methods/mechanisms and different cameras.
 
