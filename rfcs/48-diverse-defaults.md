@@ -18,6 +18,9 @@ Bevy now provides you a number of convenient `PluginGroups` to help you get your
 - `TuiPlugins`: Suitable for making TUI applications.
 - `ApplicationPlugins`: Suitable for making relatively static non-game applications.
 - `SimulationPlugins`: Plugins that make writing scientific simulations easier like enhanced determinism and ordering guarantees.
+- `HeadlessServerPlugins`: Like MinimalPlugins but with no rendering or windowing.
+- `HeadlessIntegrationTestPlugins`: Suitable for running Bevy's integration tests as rapidly as possible.
+- `RenderTestPlugins`: The minimal plugins necessary for testing the Bevy renderer.
 
 ## Implementation strategy
 
