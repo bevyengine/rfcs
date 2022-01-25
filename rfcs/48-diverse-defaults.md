@@ -2,7 +2,7 @@
 
 ## Summary
 
-There are many different categories of bevy applications. Each use case has a sufficiently different commonsense default configuration to warrant different use case specific default plugins.
+There are many different categories of Bevy applications. Each use case has distinct needs, and so we should provide a collection of `PluginGroups` to give our users good defaults.
 
 ## Motivation
 
