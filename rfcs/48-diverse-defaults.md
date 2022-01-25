@@ -6,7 +6,7 @@ There are many different categories of Bevy applications. Each use case has dist
 
 ## Motivation
 
-Bevy would be doing this to support easier and faster 'getting started' user story for non-minimal bevy applications. It will be particularly helpful to beginners but would also be a nice ergonomics/UX win for experienced bevy devs to not have to configure every minute detail manually when setting up a new project that is in one of the above outlined application domains.
+Bevy would benefit from an improved 'getting started' user story for non-minimal bevy applications. This is particularly helpful for beginners, but would also be a nice ergonomics/UX win for experienced bevy devs to not have to configure every minute detail manually when setting up a new project that is in one of the above outlined application domains.
 
 ## User-facing explanation
 
