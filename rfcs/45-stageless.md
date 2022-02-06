@@ -846,9 +846,9 @@ Not any less magic than the tuples.
 
 There are a few proposals that should be considered immediately, hand-in-hand with this RFC:
 
-1. If-needed ordering constraints ([RFC #47](https://github.com/bevyengine/rfcs/pull/46)).
+1. If-needed ordering constraints ([RFC #47](https://github.com/bevyengine/rfcs/pull/47)).
 2. Opt-in automatic insertion of flushing systems for command and state (see discussion in [RFC #34](https://github.com/bevyengine/rfcs/pull/34)).
-3. Multiple worlds (see [RFC #16](https://github.com/bevyengine/rfcs/pull/43), [RFC #43](https://github.com/bevyengine/rfcs/pull/43)), as a natural extension of the way that apps can store multiple schedules.
+3. Multiple worlds (see [RFC #16](https://github.com/bevyengine/rfcs/pull/16), [RFC #43](https://github.com/bevyengine/rfcs/pull/43)), as a natural extension of the way that apps can store multiple schedules.
    1. This is needed to ensure the `SubApps` introduced for rendering pipelining work.
 
 In addition, there is quite a bit of interesting but less urgent follow-up work:
