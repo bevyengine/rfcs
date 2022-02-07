@@ -190,9 +190,41 @@ Systems `A` and `C` do not share an atomic group, and data that is virtually loc
 
 This reduces the risk of an unsatisfiable schedule by allowing locks to be released in a maximally permissive fashion.
 
+### Is atomicity transitive?
+
+In other words, can we "chain" atomicity between groups in meaningful ways?
+
+**Yes, both isolated and coherent atomicity are transitive. Mixing the two causes the larger group to become coherent.**
+
+Suppose that we have two atomic groups `X = {A, B}` and `Y = {B, C}`, where `X` runs before `Y`.
+From an outside perspective, does the collection of `X` and `Y` look as though it's atomic?
+
+Let's walk through what happens.
+
+1. `X` begins, applying a virtual lock on the data for `A` and `B`.
+2. `Y` checks if it can run, checking the locks for `B` and `C`.
+   1. If `B` is compatible with itself (as it only reads data), we can immediately begin `Y`.
+   2. If `B` is not compatible with itself:
+      1. If `X` is coherent, the locks are released as `X` completes.
+
+### Are atomic groups strictly hierachical?
+
+**For isolated groups, the answer is "effectively yes". For coherent groups however "surprisingly, no!".**
+
+This is conceptually important, as it shapes the API users should use to interact with atomic groups.
+
+Suppose that we have a minimal pair of two atomic groups `X = {A, B}` and `Y = {B, C}`, where `A`, `B` and `C` are distinct systems.
+Atomic groups must be strictly hierarchical if-and-only if the schedule is unsatisfiable.
+
+TODO: Complete.
+
+### Scheduling
+
 ### Unsatisfiability
 
 This RFC adds an additional satisfiability constraint: if a data access is required during the execution of an atomic group, the requesting system's data access must be compatible with the data accesses of that group at the appropriate time.
+
+TODO: Complete.
 
 ## Drawbacks
 
