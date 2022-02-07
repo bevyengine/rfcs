@@ -804,6 +804,9 @@ Not any less magic than the tuples.
 
 - Should while-active systems of states be handled using run criteria?
   - Currently, all of the while-active systems of the next state will be handled on the same frame
+- Do we care about reimplementing the state stack as a first-party tool?
+- How does this fit into the planned pipelining work?
+  - Should be answered in the Multiple Worlds RFC.
 - Is automatic inference of sync points required in order to make this design sufficiently ergonomic?
 
 ## Future possibilities
