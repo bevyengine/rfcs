@@ -59,61 +59,25 @@ Just as importantly, we are not over-constraining our ordering. Subtle ordering 
 
 ### The `App` stores multiple schedules
 
-The `App` can store multiple `Schedules`: each with their own `impl ScheduleLabel` type, allowing you to cleanly execute coherent blocks of logic when the need arises.
-By default, each app stores both a startup and main schedule: the former runs only once on app creation, while the latter loops endlessly.
+Each `App` can store multiple `Schedules` in a `HashMap<Box<dyn ScheduleLabel>, Schedule>`.
+Schedules allow you to cleanly execute coherent blocks of logic without sacrificing parallelism.
+
+By default, each app stores both a startup (`DefaultSchedule::Startup`) and main (`DefaultSchedule::Main`) schedule: the former runs only once on app creation, while the latter loops endlessly.
 However, schedules are a surprisingly powerful and flexible tool: they can be used to handle initialization and cleanup logic when working with states or used ad-hoc to run game logic in complex patterns.
 
-The main, startup and rendering schedules can be accessed using the `DefaultSchedule::Main`, `DefaultSchedule::Startup`, `DefaultSchedule::Rendering` labels respectively.
 By default, systems are added to the main schedule.
-You can control this by adding the `.to_schedule(ScheduleLabel::Variant)` system descriptor to your system.
-To add an entirely new schedule to your app (which can be run on the world in an exclusive system), use `app.add_schedule(label, schedule)`.
+You can control this by adding the `.to_schedule(ScheduleLabel::Variant)` system descriptor to your system or label.
+To insert a new scedule into the `Schedules` collection, use `app.insert_schedule(label, schedule)`.
 
-You can access the schedules stored in the app using the `&Schedules`.
+To read the schedules stored in your app, request `&Schedules` as a system parameter.
 Unsurprisingly, this never conflicts with entities or resources in the `World`, as they are stored one level higher.
 Schedules can be modified by emitting `ScheduleCommands`, which apply to the specified schedule just before it is next started.
-For safety reasons, you cannot mutate schedules direclty: instead, you can defer their modification until just before next time that schedule is run using `ScheduleCommands`.
-
-```rust
-/// Each level has its own collection of dedicated systems
-/// in addition to the core logic
-#[derive(ScheduleLabel)]
-struct LevelSchedule(usize);
-
-struct CurrentLevel(0);
-struct PreviousLevel(0);
-
-impl LevelSchedule {
-   fn new(level: usize) -> Schedule {
-      // Insert diverse systems here based on which level was provided
-   }
-}
-
-fn main(){
-   App::new()
-      .add_plugins(DefaultPlugins)
-      .add_system(toggle_level_specific_systems)
-      .run()
-}
-
-/// Adds and removes systems from the schedule according to the currently active level
-///
-/// This could be done with run criteria instead, but this method will result in lower overhead
-fn toggle_level_specific_systems(current_level: Res<CurrentLevel>, previous_level: Res<PreviousLevel>, schedule_commands: ScheduleCommands){
-   if current_level.is_changed(){
-      // Add all of the systems from the current level's schedule to the main schedule, as if adding a plugin
-      schedule_commands.schedule(CoreSchedule::Main).merge_schedule(LevelSchedule::new(current_level.0))
-      // Remove all systems previously added by the old level's schedule
-      // Systems will only be removed if both the function signature and configuration are a perfect match.
-      schedule_commands.schedule(CoreSchedule::Main).extract_schedule(LevelSchedule::new(previous_level.0))
-   }
-   // These changes will only take effect on the next pass of the main schedule
-}
-```
+For safety reasons, you cannot mutate schedules directly: instead, you can defer their modification until just before next time that schedule is run using `ScheduleCommands`.
 
 #### Startup systems
 
 Startup systems are stored in their own schedule, with the `DefaultSchedule::Startup` label.
-When using the runner added by `MinimalPlugins` and `DefaultPlugins`, this schedule will run exactly once on app startup.
+When using the runner added by `MinimalPlugins` or `DefaultPlugins`, this schedule will run exactly once on app startup.
 
 You can add startup systems with the `.add_startup_system(on_startup)` method on `App`, which is simply sugar for `.add_system(on_startup.to_schedule(DefaultSchedule::Startup))`.
 
