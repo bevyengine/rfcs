@@ -69,10 +69,8 @@ By default, systems are added to the main schedule.
 You can control this by adding the `.to_schedule(ScheduleLabel::Variant)` system descriptor to your system or label.
 To insert a new scedule into the `Schedules` collection, use `app.insert_schedule(label, schedule)`.
 
-To read the schedules stored in your app, request `&Schedules` as a system parameter.
+To read (but not write) the schedules stored in your app, request `&Schedules` as a system parameter.
 Unsurprisingly, this never conflicts with entities or resources in the `World`, as they are stored one level higher.
-Schedules can be modified by emitting `ScheduleCommands`, which apply to the specified schedule just before it is next started.
-For safety reasons, you cannot mutate schedules directly: instead, you can defer their modification until just before next time that schedule is run using `ScheduleCommands`.
 
 #### Startup systems
 
@@ -817,6 +815,8 @@ There are a few proposals that should be considered immediately, hand-in-hand wi
 2. Opt-in automatic insertion of flushing systems for command and state (see discussion in [RFC #34](https://github.com/bevyengine/rfcs/pull/34)).
 3. Multiple worlds (see [RFC #16](https://github.com/bevyengine/rfcs/pull/16), [RFC #43](https://github.com/bevyengine/rfcs/pull/43)), as a natural extension of the way that apps can store multiple schedules.
    1. This is needed to ensure the `SubApps` introduced for rendering pipelining work.
+4. Schedule commands and schedule merging.
+   1. This is complex enough to warrant its own RFC, and should probably be considered in concert with multiple worlds.
 
 In addition, there is quite a bit of interesting but less urgent follow-up work:
 
