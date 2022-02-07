@@ -574,7 +574,8 @@ When the executor is presented with a system, it must choose whether or not the 
 - check that the joint data access of the system and its run criteria are available
   - if not, the system is put back into the queue and the next system is checked
 - evaluate each run criteria on the `World`, in an arbitrary order
-  - return early and skip the system if any run criteria return `false`
+  - skip the system if any run criteria return `false`
+  - the change ticks of each run criteria and the controlled system(s) must still be updated, or change detection will break
 - if and only if all of the run criteria have returned `true`:
   - spawn a task
   - lock the data access required by the system
