@@ -558,9 +558,9 @@ While they reuse much of the system machinery, they have several important const
 
 - they cannot mutate data
   - required to avoid having to order run criteria relative to each other
+  - avoids very surprising side effects
 - they cannot capture or store local data
-  - required to avoid user footguns
-  - required to efficiently special-case their execution
+  - required to avoid user footguns: local data would be updated even if the system itself doesn't run
 - they cannot be configured
   - required to avoid user footguns
   - required to efficiently special-case their execution
