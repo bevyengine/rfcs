@@ -647,7 +647,7 @@ fn check_tick(world_tick: u32, saved_tick: &mut u32) {
    2. Users will typically need to think a bit harder about exactly when they want their gameplay systems to run. In most cases, they should just add the `CoreLabel::AppLogic` label to them, which will place them after input and before rendering.
 2. It will be harder to immediately understand the global structure of Bevy apps.
    1. Powerful system debugging and visualization tools become even more important.
-   2. Labels do not have a hierarchy and can be entangled.
+   2. Labels do not necessarily have a hierarchy, unlike stages.
    3. If multiple labels are added to a single system it can suddenly create wide-spread consequences (particularly with strict ordering constraints).
 3. State transitions are no longer queued up in a stack.
    1. This also removes "in-stack" and related system groups / logic.
