@@ -101,7 +101,7 @@ level solution built on top of it is made.
 
 Bevy absolutely needs some form of a first-party animation system, no modern game
 engine can be called production ready without one. Having this exist solely as a
-third-party ecosystem crate is definitely unacceptable as it would promote a
+third-party ecosystem crate is unacceptable as it would promote a
 facturing of the ecosystem with multiple incompatible baseline animation system
 implementations.
 
