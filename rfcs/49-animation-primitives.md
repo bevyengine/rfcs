@@ -2,7 +2,7 @@
 
 ## Summary
 
-Animation is a particularly complex, with many stateful and intersecting
+Animation is particularly complex, with many stateful and intersecting
 elements. This RFC aims to detail a set of lowest-level APIs for authoring and
 playing animations within Bevy.
 
@@ -118,9 +118,10 @@ on the stored data. Atomic operations disrupt the CPU cache; however, they're
 only used when cloning or dropping an `Arc`. The structure of the animation
 graphs are, for the most part, static. Likewise, the trait object use is likely
 unavoidable so long as we rely on traits as a point of abstraction within the
-graph. An alternative mgiht be to we want to transfer ownership of the curve, and
-just make multiple copies of a potentially large and immutable animation data
-buffer, but that comes with a signfigant memory and CPU cache performance cost.
+graph. One alternative would be to transfer ownership of the Sample implementation,
+and/or just make multiple copies of a potentially large and immutable animation
+data buffer, but that comes with a signfigant memory and CPU cache performance
+cost.
 
 ## Prior art
 
