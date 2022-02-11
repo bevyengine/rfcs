@@ -11,7 +11,7 @@ playing animations within Bevy.
 Animation is at the heart of modern game development. A game engine without an
 animation system is generally not considered production-ready.
 
-This RFC aims to detail the absolute lowest level APIs to unblock ecosystem
+This RFC aims to detail the absolute lowest-level APIs to unblock ecosystem
 level experimentation with building more complex animation systems (i.e. inverse
 kinematics, animation state machine, humanoid retargetting, etc.)
 
