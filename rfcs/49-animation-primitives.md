@@ -85,7 +85,7 @@ animating.
 
 ## Implementation strategy
 
-Protoytpe implementation: https://github.com/HouraiTeahouse/bevy_prototype_animation
+Prototype implementation: https://github.com/HouraiTeahouse/bevy_prototype_animation
 
 TODO: Complete this section.
 
