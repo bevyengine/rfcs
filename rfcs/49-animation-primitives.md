@@ -140,7 +140,6 @@ engine developers or game developers can build them if they need to.
 
 Currently nothing like this exists in the entire Rust ecosystem.
 
-Note that while precedent set by other engines is some motivation, it does not on its own motivate an RFC.
 
 [playable]: https://docs.unity3d.com/Manual/Playables.html
 [animgraph]: https://docs.unrealengine.com/4.27/en-US/AnimatingObjects/SkeletalMeshAnimation/AnimBlueprints/AnimGraph/
