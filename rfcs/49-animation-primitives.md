@@ -222,7 +222,7 @@ Curves can be quite big. Each buffer can be quite large depending on the number
 of keyframes and the representation of said keyframes, and a typical game with
 multiple character animations may several hundreds or thousands of curves to
 sample from. To both help cut down on memory usage and minimize cache misses,
-it's useful to compress the most usecases seen by a
+it'd be useful to compress the most common usecases.
 
 `f32` is by far the most commonly animated type, and is foundational for building
 more complex types (i.e. Vec2, Vec3, Vec4, Quat, Transform), which makes it a
@@ -269,7 +269,13 @@ enum CompressedFloatCurve {
 }
 ```
 
-TODO: Add note about [quaternion compression][quat-compression]
+A more complex, but crucial optimization is quaternion compression. In skeletal
+animation, both scale and translation are typically unchanged throughout the
+entire animation, relying primarily on rotation to convey motion
+instead. Using the mathematical properties of quaternions, it's possible to
+shrink a 128 bit Quaternion (four 4-byte f32s) into 48 bits with minimal
+numerical error, a compression ratio of 0.375. Riot Games has detailed the
+general approach in [this article](https://technology.riotgames.com/news/compressing-skeletal-animation-data).
 
 We can then use this compose these compressed structs together to construct
 more complex curves:
@@ -288,7 +294,7 @@ struct CompressedTransformCurve {
 }
 ```
 
-[quat_compression]: https://technology.riotgames.com/news/compressing-skeletal-animation-data
+
 
 ### PropertyPath
 To reduce reliance on expensive runtime parsing and raw stringly-typed
