@@ -29,73 +29,223 @@ Animation is a huge area that spans multiple problem domains:
     animated behaviors.
  4. **Authoring**: this is how we create the animation assets used by the engine.
 
-This RFC specifically aims to resolve only problems within the domains of storage
-and sampling. Application can be distinctly decoupled from these earlier two
-stages, treating the sampled values as a black box output, and composition and
+This RFC primarily aims to resolve only problems within the domains of storage
+and sampling. Composition will only be touched briefly upon for the purposes of
+animated type selection. Application can be distinctly decoupled from these
+earlier two stages, treating the sampled values as a black box output, and
 authoring can be built separately upon the primitives provided by this RFC and
 thus are explicit non-goals here.
 
 ## User-facing explanation
 
-The core of this system is a trait called `Sample<T>` which allows sampling
-values of `T` from an underlying type at a provided time. `T` here can be
-anything considered animatable. A few examples of high priority types to be
-supported here are:
+The core of this system is a trait called `Curve<T>` which defines a serializable
+set of time-sequenced values that a user can opaquely sample values of type `T`
+at a provided time. `T` here can be anything considered animatable. A few
+examples of high priority types to be supported here are:
 
  - `f32`/`f64`
  - `Vec2`/`Vec3`/`Vec3A`/`Vec4` (and their `f64` variants)
  - `Color`
- - `Option<T>` where `T` can also be sampled
  - `bool` for toggling on and off features.
  - `Range<T>` for a range for randomly sampling from (think particle systems)
  - `Handle<T>` for sprite animation, though can be generically used for any asset
    swapping.
  - etc.
 
-Built on top of this trait is the concept of a **animation graph**, a runtime
-mutable directed acyclic graph of nodes for altering the sampling behavior for
-a given property. There is always one root level node that is directly sampled
-from the app world. It can either be a terminal node, or be a composition node
-that samples it's children for values and combines the outputs before passing it
-upstream. Some examples include:
-
- - `MixerNode<T>` - a stateful multi-input composition node that outputs a
-   weighted sum of it's inputs. Can be used to make arbitrary blending of it's
-   inputs.
- - `SelectorNode<T>` - a multi-input composition node that outputs only the
-   currently selected input as it's output. All other inputs are not evaluated.
-   Like a MixerNode with a one-hot weight blend, but more computationally
-   efficient.
- - `ConstantNode<T>` - only outputs a constant value all times.
- - `RepeatNode<T>` - a single input node that loops it's initial input over time.
- - `PingPongNode<T>` - a single input node that loops it's initial input over
-   time, will
- - `Arc<dyn Sample<T>>`/`Box<dyn Sample<T>>` - Anything that can be sampled can
-   be used as an input to the graph.
-
-The final lowest level and the concrete implementors of Sample are implemetors
-of the trait `Curve<T>`. Curves are meant to store the raw data for time-sampled
-values. There may be multiple implementations of this trait, and they're
-typically what is serialized and stored in assets.
-
-Finally the last major introduction is the `AnimationClip` asset, which bundles a
-set of curves to the asoociated `Reflect` path they're bound to. This is the main
-metadata source for actually binding sampled outputs to the fields they're
-animating.
+These curves can be used by themselves in dedicated contexts (i.e. particle
+system sampling), or used as a part of a `AnimationClip` asset.
+AnimationClips bundle multiple curves together in a cohesive manner to allow
+sampling all curves in the clip together. Curves are keyed by the associated
+`Reflect` path that is animated by the curve. AnimationClips are meant to sample
+most, if not all, of the curves at the same time.
 
 ## Implementation strategy
 
 Prototype implementation: https://github.com/HouraiTeahouse/bevy_prototype_animation
 
+### `Curve<T>` Trait
+
+TODO: Detail why this exists.
+
+```rust
+trait Curve<T> {
+  fn duration(&self) -> f32;
+  fn sample(&self, time: f32) -> T;
+}
+```
+
+#### `Animatable` Trait
+
+The sampled values of `Curve<T>` need to implement `Animatable`, a trait that
+allows interpolating and blending the stored values in curves. The general trait
+may look like the following:
+
+```rust
+struct BlendInput<T> {
+  weight: f32,
+  value: T,
+}
+
+trait Animatable {
+  fn interpolate(a: &Self, b: &Self, time: f32) -> Self;
+  fn blend(inputs: impl Iterator<Item=BlendInput<Self>>) -> Self;
+}
+```
+
+`interpolate` implements interpolation between two values of a given type given a
+time. This typically will be a [linear interpolation][lerp], and have the `time`
+parameter clamped to the domain of [0, 1]. However, this may not necessarily be
+strictly be a continuous interpolation for discrete types like the integral
+types or `Handle<T>`. This may also be implemented as [spherical linear
+interpolation][slerp] for quaternions.  This will typically be required to
+provide smooth sampling from the variety of curve implementations. If it is
+desirable to "override" the default lerp behavior, newtype'ing an underlying
+`Animatable` type and implementing `Animatable` on the newtype instead.
+
+`blend` expands upon this and provides a way to blend a collection of weighted
+inputs into one output. This can be used as the base primitive implementation for
+building more complex compositional systems. For typical numerical types, this
+will often come out to just be a weighted sum. For non-continuous discrete types
+like `Handle<T>`, it may select the highest weighted input.
+
+A blanket implementation could be done on types that implement `Add +
+Mul<Output=Self>`, though this might conflict with a need for specialized
+implementations for the following types:
+ - `Vec3` - needed to take advantage of SIMD instructions via `Vec3A`.
+ - `Handle<T>` - need to properly use `clone_weak`.
+
+[lerp]: https://en.wikipedia.org/wiki/Linear_interpolation
+[slerp]: https://en.wikipedia.org/wiki/Slerp
+
+#### Concrete Implementation: `CurveFixed`
+
+`CurveFixed` is the typical initial attempt at implementing an animation curve.
+It assumes a fixed frame rate and stores each frame as individual elements in a
+`Vec<T>` or `Box<[T]>`. Sampling simply requires finding the corresponding
+indexes in the buffer and calling `interpolate` on with the between the two
+frames. This is very fast, typically incuring only the cost of one cache miss per
+curve sampled. The main downside to this is the memory usage: a keyframe must be
+stored every for `1 / framerate` seconds, even if the value does not change,
+which may lead to storing a large amount of redundant data.
+
+#### Concrete Implementation: `CurveVariable`
+
+`CurveVariable`, like `CurveFixed`, stores its keyframe values in a contiguous
+buffer like `Vec<T>`. However, it stores the exact keyframe times in a parallel
+`Vec<T>`, allowing for the time between keyframes to be variable. This comes at a
+cost: sampling the curve requires performing a binary search to find the
+surroudning keyframe before sampling a value from the curve itself. This can
+result in multiple cache misses just to sample from one curve.
+
+This cost can be mitigated by using cursor based sampling, where sampling returns
+a keyframe index alongside the sampled value, which can be reused when sampling
+again to minimize the time spent searching for the correct value. This notably
+complicates sampling from these curves
+
+#### Concrete Implementation: `CurveVariableLinear`
+
+TODO: Complete this section.
+
+### Special Case: Mesh Deformation Animation (Skeletal/Morph)
+
+The heaviest use case for this animation system is for 3D mesh deformation
+animation. This includes [skeletal animation][skeletal_animation] and [morph
+target animation][morph_target_animation]. This section will not get into the
+requisite rendering techniques to display the results of said deformations and
+only focus on how to store curves for animation.
+
+Both `AnimationClip` and surrounding types that utilize it may need a specialized
+shortcut for accessing and sampling `Transform` based poses from the clip.
+
+[skeletal_animation]: https://en.wikipedia.org/wiki/Skeletal_animation
+[morph_target_animation]: https://en.wikipedia.org/wiki/Morph_target_animation
+
+### Curve Compression and Quantization
+
+Curves can be quite big. Each buffer can be quite large depending on the number
+of keyframes and the representation of said keyframes, and a typical game with
+multiple character animations may several hundreds or thousands of curves to
+sample from. To both help cut down on memory usage and minimize cache misses,
+it's useful to compress the most usecases seen by a
+
+`f32` is by far the most commonly animated type, and is foundational for building
+more complex types (i.e. Vec2, Vec3, Vec4, Quat, Transform), which makes it a
+prime target for compression. An effective method of compression is use of
+quantization, where the upper and lower bounds of a curve are computed, and all
+intermediate values are stored as discrete `u16`. This can cut memory usage of
+`f32` curves by up to 50%. As `u16` can be converted back to `f32` losslessly,
+the only loss in accuracy is when a source curve is quantized. An example of how
+an implementation of how a struct might look can be seen below.
+
+```rust
+struct QuantizedFloatCurve {
+  frame_rate: f32,
+  start_time: f32,
+  min_value: f32,
+  increment: f32,
+  frames: Vec<u16>,
+}
+```
+
+One optional optimization for `Curve<bool>` is to use a bitvector to store values
+instead a `Vec`, which would allow storing up to 8 fixed-framerate keyframes in
+one byte.
+
+Another common low hanging fruit for compression is static curves: curves with a
+singular value throughout the full duration of the curve itself. This drops the
+need to store a full `Vec` to store only one value. This can be easily
+represented as a enum. Extending the above example implementation, a resultant
+implemntation might look like the following:
+
+```rust
+enum CompressedFloatCurve {
+  Static {
+    start_time: f32,
+    duration: f32,
+  },
+  Quantized {
+    start_time: f32,
+    frame_rate: f32,
+    min_value: f32,
+    increment: f32,
+    frames: Vec<u16>,
+  },
+}
+```
+
+TODO: Add note about [quaternion compression][quat-compression]
+
+We can then use this compose these compressed structs together to construct
+more complex curves:
+
+```rust
+struct CompressedVec3Curve {
+  x: CompressedVec3Curve,
+  y: CompressedVec3Curve,
+  z: CompressedVec3Curve,
+}
+
+struct CompressedTransformCurve {
+  translation: CompressedVec3Curve,
+  scale: CompressedVec3Curve,
+  rotation: CompressedQuatCurve,
+}
+```
+
+[quat_compression]: https://technology.riotgames.com/news/compressing-skeletal-animation-data
+
+### `AnimationClip`
+
 TODO: Complete this section.
 
 ## Drawbacks
 
-The main drawback to this approach is code complexity. There are a lot of `dyn
-Trait` or `impl Trait` in these APIs and it might get a bit difficult to follow
-without external 1000ft views of the entire system. However, this is meant to be
-a flexible low-level API so this might be easier to gloss over once a more higher
-level solution built on top of it is made.
+The main drawback to this approach is the complexity. There are many different
+implementors of `Curve<T>`, required largely out of necessity for performance. It
+may be difficult to know which one to use for when and will require signfigant
+documentation effort. The core also centering around `Curve<T>` as a trait also
+encourages use of trait objects over concrete types, which may have runtime costs
+associated with its use.
 
 ## Rationale and alternatives
 
@@ -104,24 +254,6 @@ engine can be called production ready without one. Having this exist solely as a
 third-party ecosystem crate is unacceptable as it would promote a
 facturing of the ecosystem with multiple incompatible baseline animation system
 implementations.
-
-The design chosen here was explicitly to allow for maximum flexibility for both
-engine and game developers alike. The main alternative is to completely remove
-`Sample<T>`, the animation graph, and it's nodes, and let developers directly
-hook up animation curves from clips to entities. However, this lacks flexibility
-and does not allow for users of the API to inject their own alterations to the
-animation stream.
-
-The main potential issue with the current implementation is the very heavy use of
-`Arc<dyn Sample<T>>` which has CPU cache, lifetime, and performance implications
-on the stored data. Atomic operations disrupt the CPU cache; however, they're
-only used when cloning or dropping an `Arc`. The structure of the animation
-graphs are, for the most part, static. Likewise, the trait object use is likely
-unavoidable so long as we rely on traits as a point of abstraction within the
-graph. One alternative would be to transfer ownership of the Sample implementation,
-and/or just make multiple copies of a potentially large and immutable animation
-data buffer, but that comes with a signfigant memory and CPU cache performance
-cost.
 
 ## Prior art
 
@@ -140,14 +272,14 @@ engine developers or game developers can build them if they need to.
 
 Currently nothing like this exists in the entire Rust ecosystem.
 
-
 [playable]: https://docs.unity3d.com/Manual/Playables.html
 [animgraph]: https://docs.unrealengine.com/4.27/en-US/AnimatingObjects/SkeletalMeshAnimation/AnimBlueprints/AnimGraph/
 [animation-trees]: https://docs.godotengine.org/en/stable/tutorials/animation/animation_tree.html
 
 ## Unresolved questions
 
-TODO: Complete
+ - Can we safely interleave multiple curves together so that we do not incur
+   mulitple cache misses when sampling from animation clips?
 
 ## Future possibilities
 
