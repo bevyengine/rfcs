@@ -38,13 +38,28 @@ thus are explicit non-goals here.
 
 ## User-facing explanation
 
-The core of this system is a trait called `Curve<T>` which defines a serializable
-set of time-sequenced values that a user can opaquely sample values of type `T`
-at a provided time. `T` here can be anything considered animatable. A few
-examples of high priority types to be supported here are:
+The end goal of this, and subsequent RFCs, is to deliver on a end-to-end
+property-based animation system. Animation here specifically aims to provide
+asset based, not-code based, workflows for altering *any* visibly mutable
+property of a entity. This may include skeletal animation, where the bones deform
+the verticies of a mesh, to make a 3D character run, but also may include
+3D material animation, swapping sprites in a cycle for a 2D game,
+enabling/disabling gameplay elements based on time and character movements
+(i.e. hitboxes), etc.
+
+To oversimplify the entire system, this involves a pipeline that samples values,
+based on time, optionally alters or blends multiple samples together, then
+applies the final value to a component in the ECS World.
+
+The core of this system's storage is a trait called `Curve<T>` which defines a
+a serializable set of time-sequenced values that a user can opaquely sample
+values of type `T` at a provided time. `T` here can be anything considered
+animatable. A few examples of high priority types to be supported here are:
 
  - `f32`/`f64`
  - `Vec2`/`Vec3`/`Vec3A`/`Vec4` (and their `f64` variants)
+ - Any integer type, usually as a quantization of `f32` or `f64`.
+ - `Transform` (see "Special Case: Mesh Deformation Animation" below)
  - `Color`
  - `bool` for toggling on and off features.
  - `Range<T>` for a range for randomly sampling from (think particle systems)
@@ -58,6 +73,9 @@ AnimationClips bundle multiple curves together in a cohesive manner to allow
 sampling all curves in the clip together. Curves are keyed by the associated
 `Reflect` path that is animated by the curve. AnimationClips are meant to sample
 most, if not all, of the curves at the same time.
+
+These base primitives can then be combined and composed together to build the
+rest of the system, which will be detailed in one or more followup RFCs.
 
 ## Implementation strategy
 
@@ -96,7 +114,7 @@ trait Animatable {
 time. This typically will be a [linear interpolation][lerp], and have the `time`
 parameter clamped to the domain of [0, 1]. However, this may not necessarily be
 strictly be a continuous interpolation for discrete types like the integral
-types or `Handle<T>`. This may also be implemented as [spherical linear
+types, `bool`, or `Handle<T>`. This may also be implemented as [spherical linear
 interpolation][slerp] for quaternions.  This will typically be required to
 provide smooth sampling from the variety of curve implementations. If it is
 desirable to "override" the default lerp behavior, newtype'ing an underlying
@@ -242,7 +260,7 @@ TODO: Complete this section.
 
 The main drawback to this approach is the complexity. There are many different
 implementors of `Curve<T>`, required largely out of necessity for performance. It
-may be difficult to know which one to use for when and will require signfigant
+may be difficult to know which one to use for when and will require signifigant
 documentation effort. The core also centering around `Curve<T>` as a trait also
 encourages use of trait objects over concrete types, which may have runtime costs
 associated with its use.
@@ -257,24 +275,13 @@ implementations.
 
 ## Prior art
 
-This proposal is largely inspired by Unity's [Playable][playable] API, which has
-a similar goal of building composable time-sequenced graphs for animation, audio,
-and game logic. Several other game engines have very similar APIs and features:
+On the subject of animation data compression, [ACL][acl] aims to provide a set of
+animation compression algorithms for general use in game engines. It is
+unfortunately written in C++, which may make it difficult to directly integrate
+with Bevy, but it's open sourced under MIT, which would make a reimplementation
+of its algorithms in Rust compatible with Bevy.
 
- - Unreal has [AnimGraph][animgraph] for creating dynamic animations in
-   Blueprints.
- - Godot has [animation trees][animation-trees] for creating dynamic animations in
-   Blueprints.
-
-The proposed API here doesn't purport or aim to directly replicate the features
-seen in these other engines, but provide the absolute bare minimum API so that
-engine developers or game developers can build them if they need to.
-
-Currently nothing like this exists in the entire Rust ecosystem.
-
-[playable]: https://docs.unity3d.com/Manual/Playables.html
-[animgraph]: https://docs.unrealengine.com/4.27/en-US/AnimatingObjects/SkeletalMeshAnimation/AnimBlueprints/AnimGraph/
-[animation-trees]: https://docs.godotengine.org/en/stable/tutorials/animation/animation_tree.html
+[acl]: https://technology.riotgames.com/news/compressing-skeletal-animation-data
 
 ## Unresolved questions
 
