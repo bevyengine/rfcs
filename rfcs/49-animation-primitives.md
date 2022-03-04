@@ -95,6 +95,7 @@ struct BlendInput<T> {
 trait Animatable {
   fn interpolate(a: &Self, b: &Self, time: f32) -> Self;
   fn blend(inputs: impl Iterator<Item=BlendInput<Self>>) -> Option<Self>;
+  unsafe fn post_process(&mut self, world: &World) {}
 }
 ```
 
@@ -122,6 +123,19 @@ Mul<Output=Self>`, though this might conflict with a need for specialized
 implementations for the following types:
  - `Vec3` - needed to take advantage of SIMD instructions via `Vec3A`.
  - `Handle<T>` - need to properly use `clone_weak`.
+
+An unsafe `post_process` trait function is going to be required to build values
+that are dependent on the state of the World. An example of this is `Handle<T>`,
+which requires strong handles to be used properly: a `Curve<HandleId>` can
+implement `Curve<Handle<T>>` by postprocessing the `HandleId` by reading the
+associated `Assets<T>` resource to make a strong handle. This is applied only
+after blending is applied so post processing is only applied once per sampled
+value. This function is unsafe by default as it may be unsafe to read any
+non-Resource or NonSend resource from the World if application is run over
+multiple threads, which may cause aliasing errors if read. Other unsafe
+operations that mutate the World from a read-only reference is also unsound. The
+default implementation here is a no-op, as most implementations do not need this
+functionality, and will be optimized out via monomorphization.
 
 [lerp]: https://en.wikipedia.org/wiki/Linear_interpolation
 [slerp]: https://en.wikipedia.org/wiki/Slerp
