@@ -26,10 +26,16 @@ Animation is a huge area that spans multiple problem domains:
  4. **Authoring**: this is how we create the animation assets used by the engine.
 
 This RFC primarily aims to resolve only problems within the domains of storage
-and sampling. Composition will only be touched briefly upon for the purposes of
-animated type selection. Application can be distinctly decoupled from these
-earlier two stages, treating the sampled values as a black box output, and
-authoring can be built separately upon the primitives provided by this RFC and
+and sampling. The following will only be touched upon briefly:
+
+ - Composition will only be touched briefly upon for the purposes of animated
+   type selection.
+ - Application is only touched upon in relation to how to select which property
+   is to be animated by which asset, as well as sampled value post-processing.
+   The rest can be distinctly decoupled from these earlier two stages, treating
+   the sampled values as a black box output.
+
+Authoring can be built separately upon the primitives provided by this RFC and
 thus are explicit non-goals here.
 
 ## User-facing explanation
@@ -270,12 +276,65 @@ struct CompressedTransformCurve {
 
 [quat_compression]: https://technology.riotgames.com/news/compressing-skeletal-animation-data
 
+### PropertyPath
+To reduce reliance on expensive runtime parsing and raw stringly-typed
+operations, the path to which a property is animated can be parsed into a
+`PropertyPath` struct, which contains the metadata for fetching the correct
+property in an component to animate during application. Property paths roughly
+take the form of `path/to/entity@crate::module::Component.field.within.component`.
+
+The first part of the path is the named path in the Entity hierarchy. This relies
+on the `Name` component to be populated at every Entity along a Transform
+hierarchy to be present. If there are multiple children at any level with the
+same name, the first child in `Children` with the matching name will be used.
+
+The second part of path is the component within the entity that is being
+animated. This is the fullly qualified type name of the component being animated.
+Dynamic components are not supported by this initial design.
+
+The third and final part of the path is a field path within the given component.
+This should be a vailid path usable with the `GetPath` trait functions. This is
+likely to be the most costly operation when implementing application, so a
+pre-parsed subpath struct `FieldPath` should be used here if possible.
+
+A rough outline of how such a `PropertyPath` struct might look like:
+
+```rust
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, ParitialOrd)]
+pub struct EntityPath {
+  parts: Box<[Name]>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, ParitialOrd)]
+pub struct PropertyPath {
+  entity: EntityPath,
+  component_type_id: TypeId,
+  component_name: String,
+  field: FieldPath,
+}
+```
+
+A component TypeId will be stored alongside the component name. The TypeId is
+required to remove string based component name lookups during application.
+Using the TypeId also accelerates `Eq`, `Ord`, and `Hash` implementations as
+these paths are commonly used as HashMap and BTreeMap keys. The raw component
+name is only used when converting back into a raw string.
+
+As a result of needing runtime type information, serialization and deserialzation
+cannot be implemented with serde derive macros, but will require a `TypeRegistry`
+to handle the TypeId lookup. For simpler file representations, upon serialization,
+PropertyPaths are written out as raw strings, and parsed on deserialization.
+
 ### `AnimationClip`
 A `AnimationClip` is a serializable asset type that encompasses a mapping of
-property paths to curves. It effectively acts as a `HashMap<String, Curve<T>>`,
-but will require a bit of type erasure to ensure that the
+property paths to curves. It effectively acts as a `HashMap<PropertyPath,
+Curve<T>>`, but will require a bit of type erasure to ensure that the generics of
+each curve is not visible in the concrete type definition.
 
-TODO: Devise a strategy for serializing curves here.
+As PropertyPath cannot be serialized without a TypeRegistry, AnimationClips will
+also require one to be present during both serialization and deserialization. The
+type erasure of each curve will also likely require `typetag`-like serialization
+using the `TypeRegistry`.
 
 #### Special Case: Mesh Deformation Animation (Skeletal/Morph)
 The heaviest use case for this animation system is for 3D mesh deformation
@@ -285,14 +344,10 @@ requisite rendering techniques to display the results of said deformations and
 only focus on how to store curves for animation.
 
 Both `AnimationClip` and surrounding types that utilize it may need a specialized
-shortcut for accessing and sampling `Transform` based poses from the clip.
-
-Instead of using string-based property paths, individual integer based bone IDs
-should be used here to minimize curve lookup cost, and curves here should not be
-trait objects but rather the aformentioned compressed tranform curves as concrete
-types to reduce pointer indirections and cut out vtable lookups. This will likely
-require dedicated skeletal animation sampling and application systems, as well as
-specialized APIs for fetching and composing `Transform` values from these curves.
+shortcut for accessing and sampling `Transform` based poses from the clip. This
+will likely take the form of a separate internal map from EntityPath to a
+concrete curve type for Transform to avoid any dynamic dispatch overhead, and
+dedicated lookup and sampling functions explicitly for this special case.
 
 [skeletal_animation]: https://en.wikipedia.org/wiki/Skeletal_animation
 [morph_target_animation]: https://en.wikipedia.org/wiki/Morph_target_animation
