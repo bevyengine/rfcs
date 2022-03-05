@@ -51,6 +51,8 @@ The PRs for the initial feature, various changes during its finalization and for
 
 The feature gate should not be exposed on the main `bevy` crate, but only on the subcrates where it is relevant. It can be enabled as a user by adding dependencies directly on the subcrates and enabling the feature. The tracking issue should list the subcrates impacted.
 
+For organization and discovery, a GitHub project can be used to track the stabilization issues.
+
 ## Drawbacks
 
 This will increase complexity in Bevy code.
