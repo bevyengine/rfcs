@@ -57,6 +57,8 @@ This will increase complexity in Bevy code.
 
 It will also increase complexity of a contribution that would like to use this process, but it is opt in and not mandatory. Think of it as a fast track for unstable features.
 
+Stabilizing a feature could be harder, as it would mean a review across several PRs, and may not easily work with GitHub review UI. But the stabilization review should be easier than a large PR as there would be actual usage feedback.
+
 ## Rationale and alternatives
 
 - Improve the process to get new features in Bevy that would benefir from iterative work.
