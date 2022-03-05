@@ -14,7 +14,7 @@ In this RFC, "feature" means the new feature or change under development, and "f
 
 So you want to contribute a new feature to Bevy! You have a few paths available to you, depending on the scope of the feature:
 - A small feature with a clear implementation? Go ahead and open that PR!
-- A large feature with an open design space that could use some discution about how to implement it? A RFC would be good.
+- A large feature with an open design space that could use some discussion about how to implement it? A RFC would be good.
 - Something in between that would benefit from iterative work? Here come the unstable feature workflow for you!
 
 You will need to open a tracking issue to explain the new feature you want to add. If it looks good, you'll be ready to open that PR with a feature gate for your changes!
