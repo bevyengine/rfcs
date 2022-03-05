@@ -32,7 +32,18 @@ The feature gate should follow the following convention for its name: `unstable-
 
 An existing PR can be retroffited in this process on the suggestion of Bevy community members, and if the PR author agrees.
 
-The RFCs and the unstable features are closely related. An RFC can be implemented as an unstable feature to help resolve issues that need more experimentation. An unstable feature could require an RFC to reach stabilization.
+The RFCs and the unstable features are closely related. An RFC can be implemented as an unstable feature to help resolve issues that need more experimentation, or split a large implementation. An unstable feature could require an RFC to reach stabilization. For example:
+- RFC to Unstable Feature
+    - Open a RFC, reaching a design
+    - Implement part of the RFC as an unstable feature
+    - Feedback into the RFC with the gained knowledge of implementation and usage
+- Unstable Feature to RFC
+    - Open an tracking issue, start implementing it
+    - Part of the unstable feature is larger than expected with several deisgn possibilities
+    - Open a RFC, reaching a decision on the design
+    - Implement the RFC for the unstable feature
+
+
 
 Each PR will still need to be approved by Bevy community members, and would still need to have the same level of quality as other PRs merged.
 
