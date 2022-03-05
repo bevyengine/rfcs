@@ -285,7 +285,7 @@ fn main(){
     // for when you want to check the value of a resource (commonly an enum)
     .add_system(gravity.run_if_resource_equals(Gravity::Enabled))
     // Run criteria can be attached to labels: a copy of the run criteria will be applied to each system with that label
-    .configure_label(GameLabel::Physics.run_if_resource_equals(Paused(false)))
+    .add_label(GameLabel::Physics.run_if_resource_equals(Paused(false)))
     .run();
 }
 ```
@@ -543,14 +543,14 @@ struct LabelConfig {
 
 ### Label configuration
 
-When building the constraint graph, all constraints between labels are expanded into constraints between the systems nested within them.
+When building the dependency graph, all edges (constraints) between labels are expanded into edges between the systems nested within them.
 
 ### Run criteria
 
 Run criteria are systems with several key constraints:
 
 - They cannot have system params that give mutable access to data.
-  - Required so we don't have order them.
+  - Required so we don't have order to them.
   - Read-only access avoids very surprising side effects.
 - They cannot capture or store local data.
   - Required to avoid user footguns: local data would be updated even if the guarded system ultimately doesn't run.
@@ -573,7 +573,7 @@ When the executor is presented with a system, it does the following:
   - Spawn a task to run the system.
   - Release its "locks" when the task completes.
 
-This lightweight approach minimizes task overhead. Since we don't spawn tasks for run criteria (which are extremely likely to be simple tests), we don't have to lock other systems out of the data they access.
+This lightweight approach minimizes task overhead. Since we don't spawn tasks for run criteria (which are extremely likely to be simple tests), we don't have to lock other systems out of the data they access. Likewise, we don't spawn tasks for systems that were skipped.
 
 ### Flushed ordering constraints
 
@@ -603,7 +603,7 @@ Schedules can be unsatisfiable for several reasons:
 
 ### Change detection
 
-The reliable change detection users have come to know and love is completely unaffected by these architectural changes. Each world still has an atomic counter that increments each time a system runs (skipped systems do not count) and tracks change ticks for its components and systems.
+The reliable change detection users have come to know and love stays the same. The only difference with this architecture is when/where we check if a `check_tick` scan is needeed. Each world still has an atomic counter that increments each time a system runs (skipped systems do not count) and tracks change ticks for its components and systems.
 
 For a system to detect changes (assuming one of its queries has a `Changed<T>` filter), its tick and the change ticks of any matched components are compared against the current world tick. If the system's last run is older than a change, the query will yield that component value.
 
