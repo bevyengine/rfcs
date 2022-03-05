@@ -341,7 +341,6 @@ If system `A` is `before_and_flush_state::<S>` system `B`, the schedule will be 
 
 Apps can have multiple orthogonal states representing independent facets of your game: these operate fully independently.
 States can also be defined as a nested enum: these work as you may expect, with each leaf node representing a distinct group of systems.
-If you wish to share behavior among siblings, add the systems repeatedly to each sibling, typically by saving a schedule and then using `Schedule::merge_schedule` to combine that into the specialized schedule of choice.
 
 ### Complex control flow
 
