@@ -26,7 +26,8 @@ The new workflow for this kind of feature would be:
 - If approved, submit a PR with the new feature and the feature gate
 - This PR can be merged by someone with the merge rights on the related part of Bevy as soon as it's `S-Ready-For-Final-Review`, without an approval by the main Bevy maintainers.
 - Subsequent PRs on the feature must be linked to the tracking issue and follow the same process.
-- Once the feature is finished, enter the stabilization period. Open a PR that will remove the feature gate. This PR need to be approved by the main Bevy maintainers.
+- Once the feature is finished, enter the stabilization period. Open a PR that will remove the feature gate. This PR needs to be approved by the main Bevy maintainers.
+
 The feature gate should follow the following convention for its name: `unstable-<#tracking-issue-number>-feature-name`.
 
 
@@ -38,7 +39,7 @@ Each PR will still need to be approved by Bevy community members, and would stil
 
 The PRs for the initial feature, various changes during its finalization and for the stabilization can be opened by different persons.
 
-The feature gate should not be exposed on the main `bevy` crate, but only on the subcrates where it is relevant. It can be enabled as a user by adding dependencies directly on the subcrates and enabling the feature.
+The feature gate should not be exposed on the main `bevy` crate, but only on the subcrates where it is relevant. It can be enabled as a user by adding dependencies directly on the subcrates and enabling the feature. The tracking issue should list the subcrates impacted.
 
 ## Drawbacks
 
@@ -61,7 +62,7 @@ It will also increase complexity of a contribution that would like to use this p
 
 ## Unresolved questions
 
-- Do we want to limit the number of feature gates in Bevy to reduce complexity?
+- Do we want to limit the number of feature gates in Bevy?
     - this could help control the increased complexity in Bevy
 - Do we want to limit the maximum age of a unstabilized feature?
     - this could help control the increased complexity in Bevy, and requires being ready to cut a feature off if it's not getting the use / stabilization expected
