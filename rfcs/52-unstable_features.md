@@ -28,8 +28,7 @@ The new workflow for this kind of feature would be:
 - Subsequent PRs on the feature must be linked to the tracking issue and follow the same process.
 - Once the feature is finished, enter the stabilization period. Open a PR that will remove the feature gate. This PR needs to be approved by the main Bevy maintainers.
 
-The feature gate should follow the following convention for its name: `unstable-<#tracking-issue-number>-feature-name`.
-
+The feature gate should follow the following convention for its name: `unstable-<#tracking-issue-number>-<feature-name>`.
 
 An existing PR can be retroffited in this process on the suggestion of Bevy community members, and if the PR author agrees.
 
