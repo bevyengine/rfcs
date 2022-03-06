@@ -61,6 +61,8 @@ It will also increase complexity of a contribution that would like to use this p
 
 Stabilizing a feature could be harder, as it would mean a review across several PRs, and may not easily work with GitHub review UI. But the stabilization review should be easier than a large PR as there would be actual usage feedback.
 
+An unstable feature accepted in Bevy may stop working due to the merge of another PR. This is the same burden as keeping a PR up to date with Bevy while it's waiting to be merged, but more visible. On the positive side, it would be easier for someone else to jump in and fix it.
+
 ## Rationale and alternatives
 
 - Improve the process to get new features in Bevy that would benefir from iterative work.
