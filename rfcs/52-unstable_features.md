@@ -65,7 +65,7 @@ An unstable feature accepted in Bevy may stop working due to the merge of anothe
 
 ## Rationale and alternatives
 
-- Improve the process to get new features in Bevy that would benefir from iterative work.
+- Improve the process to get new features in Bevy that would benefit from iterative work.
 - Alternatives:
     - Continue as it is now, with semi large PRs that bitrot and RFCs that don't often move forward
     - Work harder to implement a new feature as a third party crate (this is not always possible)
