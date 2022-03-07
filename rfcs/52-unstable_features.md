@@ -72,7 +72,8 @@ An unstable feature accepted in Bevy may stop working due to the merge of anothe
 
 ## Prior art
 
-[The Rust process](https://rustc-dev-guide.rust-lang.org/implementing_new_features.html)
+- [The Rust process](https://rustc-dev-guide.rust-lang.org/implementing_new_features.html)
+- [Discussion about slowness of RFCs](https://www.reddit.com/r/rust/comments/sy65f7/we_need_to_talk_about_rfcs/)
 
 ## Unresolved questions
 
