@@ -2,11 +2,11 @@
 
 ## Summary
 
-Accepting PRs for new features that may not have reach the high bar we set for Bevy, and disable their changes with a feature gate.
+Experimental new features are merged into main behind a feature gate before stabilization.
 
 ## Motivation
 
-Some features would benefit from iterative work in Bevy, but that may be hard to do when a PRs need a high level of quality to be merged in.
+Some features would benefit from iterative work in Bevy, but that may be hard to do when a PRs need a high level of quality to be merged in. 
 
 In this RFC, "feature" means the new feature or change under development, and "feature gate" the conditional compilation flag. "unstable" means a feature that is subject to change, not something that will break Bevy.
 
@@ -39,10 +39,9 @@ The RFCs and the unstable features are closely related. An RFC can be implemente
     - Feedback into the RFC with the gained knowledge of implementation and usage
 - Unstable Feature to RFC
     - Open an tracking issue, start implementing it
-    - Part of the unstable feature is larger than expected with several deisgn possibilities
+    - Part of the unstable feature is larger than expected with several design possibilities
     - Open a RFC, reaching a decision on the design
     - Implement the RFC for the unstable feature
-
 
 
 Each PR will still need to be approved by Bevy community members, and would still need to have the same level of quality as other PRs merged.
@@ -57,7 +56,7 @@ For organization and discovery, a GitHub project can be used to track the stabil
 
 This will increase complexity in Bevy code.
 
-It will also increase complexity of a contribution that would like to use this process, but it is opt in and not mandatory. Think of it as a fast track for unstable features.
+It will also increase complexity of a contribution that would like to use this process, but it is opt-in and not mandatory. Think of it as a fast track for unstable features.
 
 Stabilizing a feature could be harder, as it would mean a review across several PRs, and may not easily work with GitHub review UI. But the stabilization review should be easier than a large PR as there would be actual usage feedback.
 
@@ -65,12 +64,10 @@ An unstable feature accepted in Bevy may stop working due to the merge of anothe
 
 ## Rationale and alternatives
 
-- Improve the process to get new features in Bevy that would benefit from iterative work.
 - Alternatives:
     - Continue as it is now, with semi large PRs that bitrot and RFCs that don't often move forward
     - Work harder to implement a new feature as a third party crate (this is not always possible)
-    - Fork Bevy to merge unnaproved PRs and check how they work / interact
-
+    - Fork Bevy to merge unapproved PRs and check how they work / interact
 
 ## Prior art
 
