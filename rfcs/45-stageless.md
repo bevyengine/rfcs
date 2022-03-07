@@ -99,8 +99,9 @@ System configuration can be stored in a `SystemConfig` struct. This can be usefu
 
 ### Label configuration
 
-Each system label has its own associated `SystemConfig`, stored in the corresponding `Schedule`.
-When a label is configured, that configuration is passed down in an additive fashion to each system with that label.
+Each label has its own associated `SystemConfig`, stored in the corresponding `Schedule`. When a label is configured, its configuration is effectively passed down to every system under it. For example, ordering the label `A` to run before the label `B` specifies that all systems in `A` will run before any system in `B` does.
+
+Of course, some properties only make sense at a group level (like whether ambiguities within that label are allowed) and are not propagated down, as they have no meaning for individual systems.
 
 You can apply the same label(s) to many systems at once using the `App::add_systems(systems: impl SystemIterator)` method.
 
@@ -113,16 +114,15 @@ enum Physics {
 }
 
 impl Plugin for PhysicsPlugin{
-
     fn build(app: &mut App){
         // Within each frame, physics logic needs to occur after input handling, but before rendering
         let mut common_physics_config = SystemConfig::new().after(CoreLabel::InputHandling).before(CoreLabel::Rendering);
 
         app
         // We can reuse this shared configuration on each of our labels
-        .configure_label(Physics::Forces.configure(common_physics_config).before(Physics::CollisionDetection))
-        .configure_label(Physics::CollisionDetection.configure(common_physics_config).before(Physics::CollisionHandling))
-        .configure_label(Physics::CollisionHandling.configure(common_physics_config))
+        .add_label(Physics::Forces.configure(common_physics_config).before(Physics::CollisionDetection))
+        .add_label(Physics::CollisionDetection.configure(common_physics_config).before(Physics::CollisionHandling))
+        .add_label(Physics::CollisionHandling.configure(common_physics_config))
         // And then apply that config to each of the systems that have this label
         .add_system(gravity.label(Physics::Forces))
         // These systems have a linear chain of ordering dependencies between them
@@ -135,9 +135,7 @@ impl Plugin for PhysicsPlugin{
 }
 ```
 
-Labels cannot themselves be labelled: composition is generally clearer than ad-hoc inheritance, and this allows us to compute the configuration for each system more quickly.
-If you need to copy the behavior of a label, use `.configure_label(TargetLabel.configure(SourceLabel.config()))`.
-If you need to ensure that your systems are treated as if they were nested within another label to ensure that other systems have the correct relative ordering, also add that label to your systems.
+Just like systems, labels can be given run criteria and be labeled themselves, allowing users to describe properties and run conditions hierarchically.
 
 ### System ordering
 
@@ -287,7 +285,7 @@ fn main(){
     // for when you want to check the value of a resource (commonly an enum)
     .add_system(gravity.run_if_resource_equals(Gravity::Enabled))
     // Run criteria can be attached to labels: a copy of the run criteria will be applied to each system with that label
-    .configure_label(GameLabel::Physics.run_if_resource_equals(Paused(false)))
+    .add_label(GameLabel::Physics.run_if_resource_equals(Paused(false)))
     .run();
 }
 ```
@@ -544,45 +542,37 @@ struct LabelConfig {
 
 ### Label configuration
 
-When a property is applied to a label, it is ultimately applied to each system in the label, as if it had been labelled individually.
-Of course, properties that only make sense at a group level (such as whether ambiguities within that label are allowed) are not propagated down, as they are not defined for inidividual systems.
-
-When building the constraint graph, all labels are expanded into the set of systems that they contain.
-Thus, adding an ordering constraint between label N and M is the same as adding a constraint between each `n * m` pair of systems.
+When building the dependency graph, all edges (constraints) between labels are expanded into edges between the systems nested within them.
 
 ### Run criteria
 
-Run criteria can access arbitrary data from the world, have their own fetches and are run on the world.
-While they reuse much of the system machinery, they have several important constraints:
+Run criteria are systems with several key constraints:
 
-- they cannot mutate data
-  - required to avoid having to order run criteria relative to each other
-  - avoids very surprising side effects
-- they cannot capture or store local data
-  - required to avoid user footguns: local data would be updated even if the system itself doesn't run
-- they cannot be configured
-  - required to avoid user footguns
-  - required to efficiently special-case their execution
-- they must return a `bool`, so we know whether the system they're controlling should run!
+- They cannot have system params that give mutable access to data.
+  - Required so we don't have order to them.
+  - Read-only access avoids very surprising side effects.
+- They cannot capture or store local data.
+  - Required to avoid user footguns: local data would be updated even if the guarded system ultimately doesn't run.
+- They must return a `bool`.
+  - Required so we know whether the system should run!
 
-It's worth calling out that run criteria will always be evaluated seperately, even if applied to an entire label.
-This is required to ensure that run criteria are evaluated atomically with the systems they control.
+It's worth calling out that run criteria cannot be shared. Attaching the same run criteria to multiple systems will create a separate instance for each system. This is to ensure that systems and their run criteria are always evaluated as an atomic unit.
 
-When the executor is presented with a system, it must choose whether or not the system can be run:
+When the executor is presented with a system, it does the following:
 
-- check that the joint data access of the system and its run criteria are available
-  - if not, the system is put back into the queue and the next system is checked
-- evaluate each run criteria on the `World`, in an arbitrary order
-  - skip the system if any run criteria return `false`
-  - the change ticks of each run criteria and the controlled system(s) must still be updated, or change detection will break
-- if and only if all of the run criteria have returned `true`:
-  - spawn a task
-  - lock the data access required by the system
-  - run the system
-  - release the locks when the system completes
+- Check if the joint data access of the system, its run criteria, and the run criteria of its not-yet-seen labels is available.
+  - If not, the system is left in the queue and the next system is checked.
+- If the joint access is available, then in hierarchical order, evaluate the run criteria of each not-yet-seen label.
+  - Mark the label as seen.
+  - If any run criteria return `false`, skip *all* systems nested under the label. Also mark all labels nested under it as seen.
+- If all label run criteria passed, evaluate the system's run criteria.
+  - Skip the system if any run criteria return `false`.
+- If all run criteria have returned `true`:
+  - "Lock" the data access required by the system.
+  - Spawn a task to run the system.
+  - Release its "locks" when the task completes.
 
-This approach is very light-weight (as the overwhelming majority of run criteria are extremely simple).
-It allows us to avoid ever locking data for run criteria, and skip spawning a new task for systems that are skipped.
+This lightweight approach minimizes task overhead. Since we don't spawn tasks for run criteria (which are extremely likely to be simple tests), we don't have to lock other systems out of the data they access. Likewise, we don't spawn tasks for systems that were skipped.
 
 ### Flushed ordering constraints
 
@@ -612,7 +602,7 @@ Schedules can be unsatisfiable for several reasons:
 
 ### Change detection
 
-The reliable change detection users have come to know and love is completely unaffected by these architectural changes. Each world still has an atomic counter that increments each time a system runs (skipped systems do not count) and tracks change ticks for its components and systems.
+The reliable change detection users have come to know and love stays the same. The only difference with this architecture is when/where we check if a `check_tick` scan is needeed. Each world still has an atomic counter that increments each time a system runs (skipped systems do not count) and tracks change ticks for its components and systems.
 
 For a system to detect changes (assuming one of its queries has a `Changed<T>` filter), its tick and the change ticks of any matched components are compared against the current world tick. If the system's last run is older than a change, the query will yield that component value.
 
@@ -624,17 +614,17 @@ fn is_changed(world_tick: u32, system_tick: u32, change_tick: u32) -> bool {
 }
 ```
 
-To ensure graceful operation, change ticks are periodically scanned, and those older than a certain threshold are clamped to prevent their age from overflowing. Because of this, a system will never falsely report or miss a change provided its age and the age of the changed component have not *both* saturated.
+To ensure graceful operation, change ticks are periodically scanned, and any older than a certain threshold are clamped to prevent their age from overflowing and triggering false positives.
 
-Every schedule will perform a scan once at least `N` (currently several million) ticks have elapsed since its previous scan, and no more than `2N - 1` ticks should occur between scans. The latter can be circumvented if nested schedules are used in strange ways, but most users aren't likely to encounter these edge cases in practice.
+We perform a scan once at least `N` (currently ~530 million) ticks (and no more than `2N - 1`) have elapsed since the previous scan. The latter can be circumvented if exclusive and chained systems are abused in strange ways, but since `N` is so large, users are extremely unlikely to encounter that in practice.
 
 ```rust
-pub const CHANGE_DETECTION_MAX_DELTA: u32 = u32::MAX - (2 * N);
+pub const MAX_CHANGE_AGE: u32 = u32::MAX - (2 * N - 1);
 
 fn check_tick(world_tick: u32, saved_tick: &mut u32) {
-   let delta = world_tick.wrapping_sub(*saved_tick);
-   if delta > CHANGE_DETECTION_MAX_DELTA {
-      *saved_tick = world_tick.wrapping_sub(CHANGE_DETECTION_MAX_DELTA);
+   let age = world_tick.wrapping_sub(*saved_tick);
+   if age > MAX_CHANGE_AGE {
+      *saved_tick = world_tick.wrapping_sub(MAX_CHANGE_AGE);
    }
 }
 ```
