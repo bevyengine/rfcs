@@ -8,6 +8,10 @@ Experimental new features are merged into main behind a feature gate before stab
 
 Some features would benefit from iterative work in Bevy, but that may be hard to do when a PRs need a high level of quality to be merged in. 
 
+Merging new features behind a feature gate could improve this situation. New features could start getting user feedback, helping reach a higher quality before stabilization.
+
+This would also improve the contributor experience for PRs that stay open for some time and ends up conflicting with main.
+
 In this RFC, "feature" means the new feature or change under development, and "feature gate" the conditional compilation flag. "unstable" means a feature that is subject to change, not something that will break Bevy.
 
 ## User-facing explanation
