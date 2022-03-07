@@ -58,7 +58,7 @@ For organization and discovery, a GitHub project can be used to track the stabil
 
 ## Drawbacks
 
-This will increase complexity in Bevy code.
+This will increase complexity in Bevy code. Increased complexity can be controlled by limiting the number of unstable features available at a given time, or their scope.
 
 It will also increase complexity of a contribution that would like to use this process, but it is opt-in and not mandatory. Think of it as a fast track for unstable features.
 
