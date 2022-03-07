@@ -66,6 +66,7 @@ An unstable feature accepted in Bevy may stop working due to the merge of anothe
 
 - Alternatives:
     - Continue as it is now, with semi large PRs that bitrot and RFCs that don't often move forward
+    - Grant scoped merge rights to teams / team leads for more areas of the Bevy engine, and tell users to deal with the instability
     - Work harder to implement a new feature as a third party crate (this is not always possible)
     - Fork Bevy to merge unapproved PRs and check how they work / interact
 
