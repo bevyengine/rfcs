@@ -56,6 +56,8 @@ The feature gate should not be exposed on the main `bevy` crate, but only on the
 
 For organization and discovery, a GitHub project can be used to track the stabilization issues.
 
+While it should be avoided, if another PR breaks an unstable feature, it is not the PR author responsability to fix it. They may do it if they want, otherwise it must be reported on the unstable feature tracking issue.
+
 ## Drawbacks
 
 This will increase complexity in Bevy code. Increased complexity can be controlled by limiting the number of unstable features available at a given time, or their scope.
