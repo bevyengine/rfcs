@@ -118,7 +118,7 @@ management commands. The following should be added as extensions to
       - A HierarchyEvent is added to the queue to reflect this update.
   - `move_to_first(Entity)` - Moves one of the children to the front.
   - `move_to_last(Entity)` - Moves one of the children to the end.
-  - `remove_all_children()` - Disconnects all children from a parent. All
+  - `disconnect_children()` - Disconnects all children from a parent. All
     children become roots.
       - A HierarchyEvent is added to the queue to reflect this update.
 
