@@ -105,7 +105,7 @@ This type has no public constructors and has no public APIs that allow for
 mutation of any of the internal data, only getters. The consistency between
 multiple instances of the component is maintained by a set of dedicated hierachy
 management commands. The following should be added as extensions to
-EntityCommands:
+`EntityCommands`:
 
   - `set_parent(Option<Entity>)` - sets the parent of a given entity.
       - If `Hierarchy` is on neither parent or child, it will be added and both
