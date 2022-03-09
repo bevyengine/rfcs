@@ -127,7 +127,7 @@ Optionally, we could also mark these components as changed (even though they're
 ZSTs) to leverage change detection.
 
 One optional extension to this design is to create dedicated `HierarchyQuery<Q,
-F>`, which is a custom SystemParam that wraps multiple Query objects to simplify
+F>`, which is a custom `SystemParam` that wraps multiple `Query` objects to simplify
 querying for items in the hierarchy:
 
  - `iter_descendants(_mut)` - returns an iterator over `(parent, child)` results
