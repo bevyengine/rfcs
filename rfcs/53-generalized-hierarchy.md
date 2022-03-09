@@ -70,7 +70,7 @@ entity forms a doubly-linked list of siblings. It may also cache infromation
 about the component's position within the hierarchy like it's depth.
 
 Mutations to the hierarchy: de-parenting, re-parenting, re-ordering of children,
-etc. can only be done via Commands. This enforces a globally consistent view at
+etc. can only be done via commands. This enforces a globally consistent view at
 any given time. Delaying any modifications to a global synchronization point,
 much like component removal. The `Hierarchy` component is not publicly
 constructible and must be made via the dedicated hierarchy management commnds.
