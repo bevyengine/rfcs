@@ -27,7 +27,7 @@ or forests of linked entities. Throughout each of these operations, it's
 imperative that Bevy provides a globally consistent view of the
 hierarchy/hiearchies.
 
-Many of these operations are not cheap to do at runtime. Queries and traversals
+Many of these operations are both abundantly common and moderately expensive. Queries and traversals
 can be linear in the number of children and involve heavy random access patterns
 which can be detrimental to game performance.
 
