@@ -120,7 +120,7 @@ management commands. The following should be added as extensions to
   - `move_to_last(Entity)` - Moves one of the children to the end.
   - `disconnect_children()` - Disconnects all children from a parent. All
     children become roots.
-      - A HierarchyEvent is added to the queue to reflect this update.
+      - A `HierarchyEvent` is added to the queue to reflect this update.
 
 All of these commands will also update the four marker components appropriately.
 Optionally, we could also mark these components as changed (even though they're
