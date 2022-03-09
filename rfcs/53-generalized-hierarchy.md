@@ -137,7 +137,7 @@ querying for items in the hierarchy:
    from a query parameter. This bubbles up queries from the bottom to the top
    starting at some entity.
 
-As these operations are handled at any command buffer flush. The hierarchy
+As these operations are handled at any command buffer flush, the hierarchy
 maintenance system can be removed.
 
 ## Benefits
