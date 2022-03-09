@@ -34,14 +34,14 @@ which can be detrimental to game performance.
 ## Background
 In this RFC, we will be using the following terms repeatedly:
 
- - Parent: this refers to the upper level Entity relative to their children. Each
+ - **Parent:** this refers to the upper level Entity relative to their children. Each
    Entity can either have zero or one parents, but may have zero or more
    children.
- - Child: this refers to a lower level Entity relative to their parent. Any child
+ - **Child:** this refers to a lower level Entity relative to their parent. Any child
    will have exactly one parent. Children can have children of their own.
- - Sibling: a child that shares the same parent as another different entity.
- - Roots: These are entities without parents. May or may not have children.
- - Leaves: These are entities without children. May or may not have a parent.
+ - **Sibling:** a child that shares the same parent as another different entity.
+ - **Roots:** These are entities without parents. May or may not have children.
+ - **Leaves:** These are entities without children. May or may not have a parent.
 
 Currently, there are two components under `bevy_transform` that describe Bevy's
 current hierarchy: `Parent` and `Children`. Adding or altering the `Parent`
