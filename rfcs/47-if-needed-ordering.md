@@ -22,7 +22,6 @@ There are two basic forms of system ordering constraints:
    2. Simple and explicit.
    3. Can cause unnecessary blocking, particularly when systems are configured at a high-level.
 2. **If-needed ordering constraints:** `.before` and `.after`
-This conversation was marked as resolved by alice-i-cecile
    1. A system cannot be scheduled until any "before" systems that it is incompatible with have completed during this iteration of the schedule.
    2. In the vast majority of cases, this is the desired behavior. Unless you are using interior mutability (or accessing something outside of the ECS), systems that are compatible will always be **commutative**: their ordering doesn't matter, and these constraints behave "as-if" they were strict.
    3. Note that if-needed ordering constraints are transitive. `a.before(b)` and `b.before(c)` implies `a.before(c)`. This behavior, while intuitive, can have some unexpected effects: it occurs even if the chain is broken by a **spurious** constraint (in which the two systems are compatible).
