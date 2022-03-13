@@ -1,8 +1,10 @@
 # Feature Name: `generalized-hierarchies`
 
 ## Summary
-Create a general hierarchy or hierarchies for Bevy worlds that is ergonomic to
-use and always globally consistent.
+The current transform hierarchy operations currently allow for it to remain in a
+inconsistent state. This RFC proposes a few changes to make it globally
+consistent at any given time, as well as make it easier to support non-Tranform
+uese cases.
 
 ## Motivation
 Hierarchies are present in all parts of game development. The one that
@@ -195,7 +197,7 @@ The primary goal of this proposal is to get rid of the hierarchy maintenance
 system and the consistency issues that come with it's design, which it delivers
 on.
 
-### Hierarchy as a Resource
+### Alternative: Hierarchy as a Resource
 This would store the resource of the entire world as a dedicated Resource
 instead of as components in normal ECS storage. A prototypical design for this
 resource would be:
@@ -233,14 +235,14 @@ can be kept to O(n) in the next depth.
    parallelism of systems traversing the hierarchy. The alternative requires a
    dedicated O(n) sweep over the hierarchy whenever it's mutated.
 
-### Linked List Hierarchy
-Instead of using two separate components to manage the hierarchy, this alternative
-aims to have only one: `Hierarchy`. This hierarchy component provides *read-only*
-access into an entity's immediate hierarchial relationships: its parent,
-previous sibling, next sibling, and it's first child. All of these may return
-`Option<Entity>`, signalling that such relationships do not exist. This creates
-a single component that creates a top-down forest of entity trees, where each
-entity forms a doubly-linked list of siblings. It may also cache infromation
+### Alternative: Linked List Hierarchy
+Instead of using two separate components to manage the hierarchy, this
+alternative aims to have only one: `Hierarchy`. This hierarchy component provides
+*read-only* access into an entity's immediate hierarchial relationships: its
+parent, previous sibling, next sibling, and it's first child. All of these may
+return `Option<Entity>`, signalling that such relationships do not exist. This
+creates a single component that creates a top-down forest of entity trees, where
+each entity forms a doubly-linked list of siblings. It may also cache infromation
 about the component's position within the hierarchy like it's depth.
 
 ```rust
@@ -258,7 +260,8 @@ relying only on commands to mutate the internals.
 
 #### Benefits
 
- - Hierarchy updates are all `O(1)`.
+ - Hierarchy updates are all `O(1)`, and can be maintained within a system. Does
+   not require commands to ensure consistency.
  - The Hierarchy component is smaller in ECS storage than the current
    Parent/Children combination. With Entity-niching, a `Hierarchy` component is
    only 32 bytes in memory, compared to the 64 + 8 used by the current two
@@ -276,7 +279,7 @@ relying only on commands to mutate the internals.
  - Change detection and With/Without filters no longer work as is. Will need
    dedicated ZST marker components to get the same filtering capacity.
 
-### HashSet `Children`
+### Alternative: HashSet `Children`
 The internals of `Children` could be replaced with a `HashSet<T>`.
 operations close to `O(1)`, versus `O(n)` operations against a `SmallVec`.
 
@@ -322,7 +325,7 @@ each other depending on the use case.
 This can be quite confusing to show in an editor and is reasonably complex to
 understand from a user perspective. A compelling use case might be needed here.
 
-### Hierarchical ECS Storage
+### Alternative: Hierarchical ECS Storage
 This involves directly adding a third ECS storage option. In this solution, a
 data-oriented SoA structure of split BlobVec columns is used, virtually identical
 to the way Tables are currently stored. However, entities are stored in
@@ -353,7 +356,7 @@ The need to mutate and shuffle the storage during iteration also means parallel
 iteration cannot be supported on it, so going wide might not be possible. Even
 read-only queries against this storage requires exclusive access to the table.
 
-### ECS Relations
+### Alternative: ECS Relations
 ECS relations can be used to represent the exact same links in the hierarchy, and
 might be usable as a different backing for the hierarchy, provided the same
 consistency guarentees.
