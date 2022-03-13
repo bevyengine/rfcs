@@ -114,8 +114,7 @@ querying for items in the hierarchy:
    query parameters that do not have a parent.
  - `parent(_mut)` - returns single result from the parent of an entity.
  - `iter_children(_mut)` - returns an iterator over `(parent, child)` results
-   from a query parameter. This does a depth-first traversal over the hierarchy
-   starting at some entity.
+   from a query parameter. This does not return Children of Children.
  - `iter_descendants(_mut)` - returns an iterator over `(parent, child)` results
    from a query parameter. This does a depth-first traversal over the hierarchy
    starting at some entity.
