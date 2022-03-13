@@ -4,7 +4,7 @@
 The current transform hierarchy operations currently allow for it to remain in a
 inconsistent state. This RFC proposes a few changes to make it globally
 consistent at any given time, as well as make it easier to support non-Tranform
-uese cases.
+use cases.
 
 ## Motivation
 Hierarchies are present in all parts of game development. The one that
