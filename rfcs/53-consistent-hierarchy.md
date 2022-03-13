@@ -378,6 +378,13 @@ footgun of using `EntityCommands::remove` on either `Parent` or `Children` via
 add/remove/changed hooks. This is currently mitigatable via documentation, but a
 complete solution prevents users from breaking the invariant in the first place.
 
+### Dedicated RectTransform and Transform2D systems
+Transform/GlobalTransform is not particularly well suited for encoding the
+hierarchy of UIs and 2D-only scenes. By splitting out the hierarchy from the
+exsisting transform system, dedicated transform types and systems for these two
+different types of hierarchies. This could also enable further parallelism by
+allowing each transform system to independently handle propagation.
+
 ### Multiple Hierarchies via Type Markers
 It may be possible to include type markers as a part of the hierarchy components
 to differentiate multiple hierachies from each other. This would allow an entity
