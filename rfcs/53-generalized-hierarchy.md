@@ -60,31 +60,18 @@ world, and is the subject of much frustration from those not intimately familiar
 with the inner workings of the system.
 
 ## User-facing explanation
-Instead of using three separate components to manage the hierachy, this proposal
-aims to have only one: `Hierarchy`. This hierarchy component provides *read-only*
-access into an entity's immediate hierarchial relationships: its parent,
-previous sibling, next sibling, and it's first child. All of these may return
-`Option<Entity>`, signalling that such relationships do not exist. This creates
-a single component that creates a top-down forest of entity trees, where each
-entity forms a doubly-linked list of siblings. It may also cache infromation
-about the component's position within the hierarchy like it's depth.
+Both of the current components' public interface will be made *read-only*.
+Structural mutations to the hierarchy: de-parenting, re-parenting, and moving
+children from one parent to another, etc. can only be done via commands. This
+defers all changes to the hierarchy until the next command buffer flush.
+This enforces a globally consistent view at any given time. Delaying any
+modifications to a global synchronization point, much like component removal.
+Both components will not publicly constructible and must be made via the
+dedicated hierarchy management commands.
 
-Mutations to the hierarchy: de-parenting, re-parenting, re-ordering of children,
-etc. can only be done via commands. This enforces a globally consistent view at
-any given time. Delaying any modifications to a global synchronization point,
-much like component removal. The `Hierarchy` component is not publicly
-constructible and must be made via the dedicated hierarchy management commnds.
-
-To make querying for specific parts of the hierarchy easier, ZST marker
-components will be added and removed to make querying for specific cases easier,
-and will be kept in sync with the hierarchy state: `Parent`, `Child`,
-`FirstSibling`, `LastSibling`. These can be used in conjunction with ECS Query
-filters to speed up finding targetted use cases. For example, `Without<Child>`
-can be used to query for roots, or `With<Parent>` can be used to find all of the
-non-leaf entities.
-
-To signal changes in the hierachy, a `HierarchyEvent` event type is registered
-and any changes made to the hierarchy is published as an event.
+`PreviousParent` will also be removed and replaced with `ChildAdded`,
+`ChildRemoved` and `ChildMoved` events instead. These will signal changes in the
+hierachy instead of relying on change detection on `Parent` and `PreviousParent`.
 
 ## Implementation strategy
 This design attempts to minimize the changes made to the current design while
@@ -170,9 +157,13 @@ transforms for 2D and UI.
    largely provides the same benefits.
  - This design has (nearly) guarenteed global consistency. The hierarchy cannot
    be arbitrarily mutated in inconsistent between synchronization points.
+   Changes are deferred to a until the end of the current stage instead of a
+   single global maintainence system.
  - The cache locality when iterating over the immediate children of an entity is
    retained. This saves an extra cache miss per entity when traversing the
    hierarchy.
+ - The removal of `PreviousParent` should reduce the archetype fragmentation of
+   the current solution.
  - Any update to the hierarchy is "atomic" and is `O(n)` in the number of
    children an entity has. For any practical hierarchy, this will typically be
    a very small n.
@@ -191,6 +182,8 @@ transforms for 2D and UI.
  - Updates are still not immediately visible within a stage and deferred until
    the next command buffer flush.
  - Hierarchy updates are now single threaded.
+ - The commands applied for controlling the hierarchy are computationally more
+   expensive, requiring more branching access and more `World::get` calls.
  - Some potential implementations of this hierarchy requires normal ECS commands
    to be aware of the hierarchy. Using `EntityCommands::remove` to remove
    `Children` or `Parent` will break the invariants of the system without some
@@ -241,8 +234,14 @@ can be kept to O(n) in the next depth.
    dedicated O(n) sweep over the hierarchy whenever it's mutated.
 
 ### Linked List Hierarchy
-The core of this alternative is the `Hierarchy` component, which roughly looks
-like this:
+Instead of using two separate components to manage the hierarchy, this alternative
+aims to have only one: `Hierarchy`. This hierarchy component provides *read-only*
+access into an entity's immediate hierarchial relationships: its parent,
+previous sibling, next sibling, and it's first child. All of these may return
+`Option<Entity>`, signalling that such relationships do not exist. This creates
+a single component that creates a top-down forest of entity trees, where each
+entity forms a doubly-linked list of siblings. It may also cache infromation
+about the component's position within the hierarchy like it's depth.
 
 ```rust
 #[derive(Component)]
