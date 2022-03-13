@@ -27,9 +27,9 @@ or forests of linked entities. Throughout each of these operations, it's
 imperative that Bevy provides a globally consistent view of the
 hierarchy/hiearchies.
 
-Many of these operations are both abundantly common and moderately expensive. Queries and traversals
-can be linear in the number of children and involve heavy random access patterns
-which can be detrimental to game performance.
+Many of these operations are both abundantly common and moderately expensive.
+Queries and traversals can be linear in the number of children and involve heavy
+random access patterns which can be detrimental to game performance.
 
 ## Background
 In this RFC, we will be using the following terms repeatedly:
@@ -87,49 +87,32 @@ To signal changes in the hierachy, a `HierarchyEvent` event type is registered
 and any changes made to the hierarchy is published as an event.
 
 ## Implementation strategy
-The core of this proposal is the `Hierarchy` component, which roughly looks like
-this:
+This design attempts to minimize the changes made to the current design while
+addressing the issues enumerated above. The core changes to be made are as
+follows:
 
-```rust
-#[derive(Component)]
-pub struct Hierarchy {
-  depth: u16,
-  parent: Option<Entity>,
-  prev: Option<Entity>,
-  next: Option<Entity>
-  first_child: Option<Entity>,
-}
-```
+ - Make `Parent` and `Children` (mostly) publicly immutable.
+ - Make mutations to the hierarchy rely solely on commands.
+ - Update hierarchy commands to automatically update both `Parent` and
+   `Children` to remain consistent with each other.
+ - Remove the `parent_update_system`.
+ - Remove `PreviousParent`.
+ - Register several hierarchy events that fires whenever time a new child is
+   added or removed from a parent.
+ - Create a `HiearchyQuery` custom SystemParam for more easily iterating over
+   components in the hierarchy.
 
-This type has no public constructors and has no public APIs that allow for
-mutation of any of the internal data, only getters. The consistency between
-multiple instances of the component is maintained by a set of dedicated hierachy
-management commands. The following should be added as extensions to
-`EntityCommands`:
-
-  - `set_parent(Option<Entity>)` - sets the parent of a given entity.
-      - If `Hierarchy` is on neither parent or child, it will be added and both
-        will be atomically updated to reflect this change.
-      - If the parent already had children, the new child will be prepended at
-        the start of the linked list, and the sibling pointers of both will be
-        updated.
-      - If the child already had a parent, that previous parent will be updated
-        too.
-      - A HierarchyEvent is added to the queue to reflect this update.
-  - `move_to_first(Entity)` - Moves one of the children to the front.
-  - `move_to_last(Entity)` - Moves one of the children to the end.
-  - `disconnect_children()` - Disconnects all children from a parent. All
-    children become roots.
-      - A `HierarchyEvent` is added to the queue to reflect this update.
-
-All of these commands will also update the four marker components appropriately.
-Optionally, we could also mark these components as changed (even though they're
-ZSTs) to leverage change detection.
-
-One optional extension to this design is to create dedicated `HierarchyQuery<Q,
-F>`, which is a custom `SystemParam` that wraps multiple `Query` objects to simplify
+### HierarchyQuery
+An extension to this design is to create dedicated `HierarchyQuery<Q, F>`, which
+is a custom `SystemParam` that wraps multiple `Query` objects to simplify
 querying for items in the hierarchy:
 
+ - `roots(_mut)` - returns an iterator over entities that match the provided
+   query parameters that do not have a parent.
+ - `parent(_mut)` - returns single result from the parent of an entity.
+ - `iter_children(_mut)` - returns an iterator over `(parent, child)` results
+   from a query parameter. This does a depth-first traversal over the hierarchy
+   starting at some entity.
  - `iter_descendants(_mut)` - returns an iterator over `(parent, child)` results
    from a query parameter. This does a depth-first traversal over the hierarchy
    starting at some entity.
@@ -137,51 +120,160 @@ querying for items in the hierarchy:
    from a query parameter. This bubbles up queries from the bottom to the top
    starting at some entity.
 
-As these operations are handled at any command buffer flush, the hierarchy
-maintenance system can be removed.
+As suggested by the generic parameters, the query results and filters are
+identical to the ones used by a normal Query or QueryState.
+
+The main motivation for this is to make creating systems like
+`transform_propagate_system` easier. These queries can be generically used for
+any system that needs some form of hierachy traversal. These queries can be quite
+expensive to run, so the documentation for them should reflect this and
+discourage misuing it.
+
+### HierarchyEvents
+Three new events should be added here, each corresponding to a specific change
+in the hierarchy.
+
+```rust
+pub enum ChildAdded {
+  pub parent: Entity,
+  pub child: Entity,
+}
+
+pub enum ChildRemoved {
+  pub parent: Entity,
+  pub child: Entity,
+}
+
+pub enum ChildMoved {
+  pub parent: Entity,
+  pub previous_parent: Entity,
+  pub new_parent: Entity,
+}
+```
+
+Both `ChildAdded` and `ChildRemoved` will be fired when a child moved occurs.
+These can be used to detect changes where `PreviousParent` is currently used.
+
+### `bevy_hierarchy`-`bevy_transform` split.
+These hierarchy types should be moved to a new `bevy_hierarchy` crate to avoid
+requiring compiling the hierachy alongside the default "f32-based affine
+transform system in Euclidean space". This should allow users to create their own
+transform systems (i.e. f64-based transforms, fixed-point transforms,
+non-Euclidean spaces) while also being able to leverage the same
+parent-sibling-child hierarchies currently found in `bevy_transform`. This should
+also allow us to internally leverage the same decoupling too for specialized
+transforms for 2D and UI.
 
 ## Benefits
-The biggest benefit to this new design is guarenteed global consistency. The
-hierarchy cannot be arbitrarily mutated between synchronization points.
 
-The second benefit is that any update to the hierarchy is "atomic" and is `O(1)`
-for the majority of the operations handled.
+ - This design has (nearly) guarenteed global consistency. The hierarchy cannot
+   be arbitrarily mutated in inconsistent between synchronization points.
+ - The cache locality when iterating over the immediate children of an entity is
+   retained. This saves an extra cache miss per entity when traversing the
+   hierarchy.
+ - Any update to the hierarchy is "atomic" and is `O(n)` in the number of
+   children an entity has. For any practical hierarchy, this will typically be
+   a very small n.
+ - Existing query filters still work as is. For example, `Without<Parent>` can
+   still be used to find root entities, and `Changed<Children>` can be used to
+   find any entity with either new children, removed children, or reordered
+   children.
+ - The hierarchy is decoupled from the base transform system, allowing both Bevy
+   developer and third-party crates to make their own independent transform
+   system without compiling the default transform system.
 
 ## Drawbacks
-There are a notable number of drawbacks to this design:
 
- - Counting children is now `O(n)`. Finding and editing children order is still
-   `O(n)`, that has not changed.
  - The fact that the hierarchy is not optimally stored in memory is still an
    issue, and all hiearchy traversals require heavy random access into memory.
  - Updates are still not immediately visible and deferred until the next command
    buffer flushes.
  - Hierarchy updates are now single threaded.
- - The marker components may cause heavy archetype fragmentation.
  - Some potential implementations of this hierarchy requires normal ECS commands
-   to be aware of the hierarchy. For example, despawning a child in the middle of
-   the linked list without updating it's immediate siblings will violate several
-   invariants of the system.
+   to be aware of the hierarchy. Using `EntityCommands::remove` to remove
+   `Children` or `Parent` will break the invariants of the system without some
+   hooks to enforce the invariants on removal.
 
 ## Rationale and alternatives
 The primary goal of this proposal is to get rid of the hierarchy maintenance
 system and the consistency issues that come with it's design, which it delivers
 on.
 
-### Keep `Parent`/`Children` as is. Implement Commands/Events.
-This simply keeps the components as is but restricts both of them to be
-read-only. The commands and events seen in this proposal can also be implemented
-on top of them. The internals of `Children` could be replaced with a `HashSet<T>`
-to keep operations close to `O(1)`, but a consistent ordering will be lost here.
-Marker components will not be needed and normal change detection can be used. The
-events can also be implemented as a more consistent replacement to
-`PreviousParent`.
+### Hierarchy as a Resource
+This would store the resource of the entire world as a dedicated Resource
+instead of as components in normal ECS storage. A prototypical design for this
+resource would be:
+
+```rust
+pub struct Hierarchy {
+  relations: Vec<(Option<usize>, Vec<usize>)>,
+  entities: Vec<Entity>,
+  indices: SparseArray<Entity, usize>,
+}
+```
+
+This would be strikingly similar to the `SparseSet` used in `bevy_ecs`. The main
+difference here is that the parallel `Vec`s are kept in topological order. When
+iterating over the hierarchy, children that are found before their parent will
+swapped with their parents.
+
+An alternative version of this hierarchy resource only stores parents. This may
+speed up iteration as individual relations are smaller during swaps, but finding
+children in the hierarchy is O(n) over the entire world. If the depth of each
+entity within the hierarchy, and the hierarchy is kept sorted in depth order this
+can be kept to O(n) in the next depth.
+
+#### Benefits
+
+ - Iteration in hierarchy order (parents first) is entirely linear. This may make
+   transform and other parent-reliant propagation signfigantly faster.
+
+#### Drawbacks
+
+ - Merging and splitting hierarchies loaded from scenes can be quite difficult to
+   maintain.
+ - Iteration requires mutative access to the resource, which can limit
+   parallelism of systems traversing the hierarchy. The alternative requires a
+   dedicated O(n) sweep over the hierarchy whenever it's mutated.
+ - Hierarhcy
+
+### Linked List Hierarchy
+The core of this alternative is the `Hierarchy` component, which roughly looks
+like this:
+
+```rust
+#[derive(Component)]
+pub struct Hierarchy {
+  parent: Option<Entity>,
+  prev: Option<Entity>,
+  next: Option<Entity>
+  first_child: Option<Entity>,
+}
+```
+
+Like the main proposal here, there are no public constructors or mutation APIs,
+relying only on commands to mutate the internals.
 
 #### Benefits
 This rocks the boat the least and provides the same benefit.
 
 #### Drawbacks
 TODO: Complete this section.
+
+### HashSet `Children`
+The internals of `Children` could be replaced with a `HashSet<T>`.
+operations close to `O(1)`, versus `O(n)` operations against a `SmallVec`.
+
+#### Benefits
+This makes all operations against `Children` O(1). Could speed up a number of
+hierarchy related commands.
+
+#### Drawbacks
+
+ - We lose any ability to order children. This is critically important for
+   certain use cases like UI.
+ - We lose cache locality for entities with few children. Adding a single child
+   forces an allocation.
 
 ### Type Markers in Components
 It may be possible to include type markers as a part of the hierarchy components
@@ -190,19 +282,21 @@ to be part of multiple hierarchies at the same time.
 
 ```rust
 #[derive(Component)]
-pub struct Hierarchy<T> {
-  depth: u16,
-  parent: Option<Entity>,
-  prev: Option<Entity>,
-  next: Option<Entity>
-  first_child: Option<Entity>,
+pub struct Parent<T> {
+  parent: Entity,
+  _marker: PhantomData<T>,
+}
+
+#[derive(Component)]
+pub struct Children<T> {
+  children: SmallVec<[Entity, 8]>,
   _marker: PhantomData<T>,
 }
 ```
 
 #### Benefits
 This allows us to directly tie hierarchies to the components they're targetting.
-Instead of a general `Hierarchy`, a `Hierarchy<Transform>` declares it's meant
+Instead of a general `Parent`, a `Parent<Transform>` declares it's meant
 for `bevy_transform`'s transform components.
 
 It also allows multiple overlapping hierarchies to be made that may differ from
@@ -224,15 +318,20 @@ index is kept to track a list of all dirty hierarchy entities as a form of chang
 detection. Finally, when iterating over the storage, if a child is found before
 it's parent, it's swapped with it's parent to enforce the depth-first invariant.
 
+This is very similar to the "Hierarchy as a Resource" alternative, but
+
 #### Benefits
-This enables linear iteration time over hierarchical components akin to that of a
-typical ECS table, allowing depth first iteration without random accesses.
+
+ - Iteration in hierarchy order (parents first) is entirely linear. This may make
+   transform and other parent-reliant propagation signfigantly faster.
+ - Unlike the hierarchy as a resource, this guarentees linearity of all iterated
+   components, not just the hierarchy relations itself.
 
 #### Drawbacks
 This method is very write heavy. Components are moved whenever there is a
-mutation, and shuffled around to ensure that the depth first iteration invariant
-is maintained. This may be impractical for hierarchy dependent components that
-are very big in size.
+mutation, and shuffled around to ensure that the topologically ordered iteration
+invariant is maintained. This may be impractical for hierarchy dependent
+components that are very big in size.
 
 The need to mutate and shuffle the storage during iteration also means parallel
 iteration cannot be supported on it, so going wide might not be possible. Even
