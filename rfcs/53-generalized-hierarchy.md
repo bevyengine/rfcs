@@ -166,6 +166,8 @@ transforms for 2D and UI.
 
 ## Benefits
 
+ - This rocks the boat the least compared to the following alternatives and
+   largely provides the same benefits.
  - This design has (nearly) guarenteed global consistency. The hierarchy cannot
    be arbitrarily mutated in inconsistent between synchronization points.
  - The cache locality when iterating over the immediate children of an entity is
@@ -186,13 +188,14 @@ transforms for 2D and UI.
 
  - The fact that the hierarchy is not optimally stored in memory is still an
    issue, and all hiearchy traversals require heavy random access into memory.
- - Updates are still not immediately visible and deferred until the next command
-   buffer flushes.
+ - Updates are still not immediately visible within a stage and deferred until
+   the next command buffer flush.
  - Hierarchy updates are now single threaded.
  - Some potential implementations of this hierarchy requires normal ECS commands
    to be aware of the hierarchy. Using `EntityCommands::remove` to remove
    `Children` or `Parent` will break the invariants of the system without some
-   hooks to enforce the invariants on removal.
+   hooks to enforce the invariants on removal. This is partially mitigatable via
+   documentation until hooks or relations lands.
 
 ## Rationale and alternatives
 The primary goal of this proposal is to get rid of the hierarchy maintenance
@@ -227,6 +230,7 @@ can be kept to O(n) in the next depth.
 
  - Iteration in hierarchy order (parents first) is entirely linear. This may make
    transform and other parent-reliant propagation signfigantly faster.
+ - Can be used with the command-driven interface proposed in this design.
 
 #### Drawbacks
 
@@ -235,7 +239,6 @@ can be kept to O(n) in the next depth.
  - Iteration requires mutative access to the resource, which can limit
    parallelism of systems traversing the hierarchy. The alternative requires a
    dedicated O(n) sweep over the hierarchy whenever it's mutated.
- - Hierarhcy
 
 ### Linked List Hierarchy
 The core of this alternative is the `Hierarchy` component, which roughly looks
@@ -255,10 +258,24 @@ Like the main proposal here, there are no public constructors or mutation APIs,
 relying only on commands to mutate the internals.
 
 #### Benefits
-This rocks the boat the least and provides the same benefit.
+
+ - Hierarchy updates are all `O(1)`.
+ - The Hierarchy component is smaller in ECS storage than the current
+   Parent/Children combination. With Entity-niching, a `Hierarchy` component is
+   only 32 bytes in memory, compared to the 64 + 8 used by the current two
+   components.
+ - Requires less archetype fragmentation due to only requiring one component
+   instaed of two.
+ - Getting siblings does not require a parent Query::get call.
 
 #### Drawbacks
-TODO: Complete this section.
+
+ - Iterating over children requires `O(n)` Query::get calls.
+ - Despawning a child without updating it's sibilings causes all subsequent
+   children to be in a broken state. This exacerbates the lack of hooks, and
+   would require query access in hooks to fix up.
+ - Change detection and With/Without filters no longer work as is. Will need
+   dedicated ZST marker components to get the same filtering capacity.
 
 ### HashSet `Children`
 The internals of `Children` could be replaced with a `HashSet<T>`.
