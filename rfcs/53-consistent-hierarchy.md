@@ -196,7 +196,12 @@ transforms for 2D and UI.
    issue, and all hiearchy traversals require heavy random access into memory.
  - Updates are still not immediately visible within a stage and deferred until
    the next command buffer flush.
- - Hierarchy updates are now single threaded.
+ - Hierarchy updates are now single threaded. Commands can be generated from
+   multiple systems at the same time, but they now require exclusive access to
+   apply.
+ - Each of the changed commands do a lot more work before and are signifgantly
+   more branch heavy. This could negatively impact the performance of
+   command-heavy workloads (i.e.  scene loading)
  - The commands applied for controlling the hierarchy are computationally more
    expensive, requiring more branching access and more `World::get` calls.
  - Some potential implementations of this hierarchy requires normal ECS commands
