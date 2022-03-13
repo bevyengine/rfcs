@@ -1,4 +1,4 @@
-# Feature Name: `generalized-hierarchies`
+# Feature Name: `consistent-hierarchy`
 
 ## Summary
 The current transform hierarchy operations currently allow for it to remain in a
@@ -90,6 +90,20 @@ follows:
    added or removed from a parent.
  - Create a `HiearchyQuery` custom SystemParam for more easily iterating over
    components in the hierarchy.
+
+This change will repurpose the following existing `EntityCommand` extension
+functions for this purpose:
+
+ - `add_child`
+ - `push_children`
+ - `insert_children`
+ - `remove_child` (this will be added as a wrapper around `remove_children`)
+ - `remove_children`
+
+An additional `set_parent(Option<Entity>)` command should also be added as a
+child-side way of altering the hierarchy, defaulting to adding the entity as the
+last child to the provided parent if provided, and detaching the child from it's
+parent if `None`.
 
 ### HierarchyQuery
 An extension to this design is to create dedicated `HierarchyQuery<Q, F>`, which
@@ -294,37 +308,6 @@ hierarchy related commands.
  - We lose cache locality for entities with few children. Adding a single child
    forces an allocation.
 
-### Type Markers in Components
-It may be possible to include type markers as a part of the hierarchy components
-to differentiate multiple hierachies from each other. This would allow an entity
-to be part of multiple hierarchies at the same time.
-
-```rust
-#[derive(Component)]
-pub struct Parent<T> {
-  parent: Entity,
-  _marker: PhantomData<T>,
-}
-
-#[derive(Component)]
-pub struct Children<T> {
-  children: SmallVec<[Entity, 8]>,
-  _marker: PhantomData<T>,
-}
-```
-
-#### Benefits
-This allows us to directly tie hierarchies to the components they're targetting.
-Instead of a general `Parent`, a `Parent<Transform>` declares it's meant
-for `bevy_transform`'s transform components.
-
-It also allows multiple overlapping hierarchies to be made that may differ from
-each other depending on the use case.
-
-#### Drawbacks
-This can be quite confusing to show in an editor and is reasonably complex to
-understand from a user perspective. A compelling use case might be needed here.
-
 ### Alternative: Hierarchical ECS Storage
 This involves directly adding a third ECS storage option. In this solution, a
 data-oriented SoA structure of split BlobVec columns is used, virtually identical
@@ -384,6 +367,42 @@ penalties for heavy use.
 
  - [GameObject.GetComponentsInChildren](https://docs.unity3d.com/ScriptReference/GameObject.GetComponentsInChildren.html)
  - [GameObject.GetComponentsInParent](https://docs.unity3d.com/ScriptReference/GameObject.GetComponentsInParent.html)
+
+## Future Work
+One of the immediate pieces of future work here is to patch up the potential
+footgun of using `EntityCommands::remove` on either `Parent` or `Children` via
+add/remove/changed hooks. This is currently mitigatable via documentation, but a
+complete solution prevents users from breaking the invariant in the first place.
+
+### Multiple Hierarchies via Type Markers
+It may be possible to include type markers as a part of the hierarchy components
+to differentiate multiple hierachies from each other. This would allow an entity
+to be part of multiple hierarchies at the same time.
+
+```rust
+#[derive(Component)]
+pub struct Parent<T> {
+  parent: Entity,
+  _marker: PhantomData<T>,
+}
+
+#[derive(Component)]
+pub struct Children<T> {
+  children: SmallVec<[Entity, 8]>,
+  _marker: PhantomData<T>,
+}
+```
+
+This allows us to directly tie hierarchies to the components they're targetting.
+Instead of a general `Parent`, a `Parent<Transform>` declares it's meant
+for `bevy_transform`'s transform components.
+
+It also allows multiple overlapping hierarchies to be made that may differ from
+each other depending on the use case.
+
+However, this may be quite confusing to show in an editor and is reasonably
+complex to understand from a user perspective. A compelling use case might be
+needed to justify this kind of change.
 
 ## Unresolved questions
 
