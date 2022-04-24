@@ -31,7 +31,6 @@ Note that a `Circle` does not contain any information about the position of the 
 | Cone      | ✔ | ❌               | ✔ + Trans + Rot |
 | Wedge     | ✔ | ❌               | ✔ + Trans + Rot |
 | Plane     | ✔ | ❌               | ✔ |
-| Torus     | ✔ | ❌               | ❌ |
 
 ### Bounding vs. Collision
 
@@ -102,7 +101,6 @@ The complete overview of shapes, their dimensions and their names can be seen in
 | Capsule         | -               | Capsule       | A capsule with its origin at the center of the volume                                    |
 | Cone            | -               | Cone          | A cone with the origin located at the center of the circular base                        |
 | Wedge           | -               | Wedge         | A ramp with the origin centered on the width, and coincident with the rear vertical wall |
-| Torus           | -               | Torus         | A torus, shaped like a donut                                                             |
 | Frustum         | -               | Frustum       | The portion of a pyramid that lies between two parallel planes                           |
 
 ## Implementation strategy
@@ -441,12 +439,6 @@ impl Collider for WedgeCollider {}
 
 // Other Types
 
-struct Torus {
-  major_radius: f32,
-  tube_radius: f32,
-}
-impl Meshable for Torus {}
-
 /// A 3d frustum used to represent the volume rendered by a camera, defined by the 6 planes that set the frustum limits.
 struct Frustum {
   near: Plane3d,
@@ -559,3 +551,4 @@ Many game engine docs appear to have oddly-named and disconnected shape primitiv
 * Physics
 * SDF rendering
 * Immediate mode debug Rendering (just call `.mesh()`!)
+* Non-convex primitive types
