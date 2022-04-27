@@ -152,7 +152,8 @@ In addition to the `.before` and `.after` methods, you can use **system chains**
 ```rust
 fn main(){
    App::new()
-   // This systems are connected using a string of ordering constraints
+   // These systems are connected using a string of ordering constraints
+
    .add_systems((compute_attack, 
                  compute_defense,
                  check_for_crits,
