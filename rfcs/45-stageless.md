@@ -571,9 +571,9 @@ fn check_tick(world_tick: u32, saved_tick: &mut u32) {
 1. This will be a massively breaking change to every single Bevy user.
    1. Any non-trivial control over system ordering will need to be completely reworked.
    2. Users will typically need to think a bit harder about exactly when they want their gameplay systems to run. In most cases, they should just add it to the `CoreSet::Update` set, which will place them after input and before rendering.
-2. It will be harder to immediately understand the global structure of Bevy apps.
-   1. Powerful system debugging and visualization tools become even more important.
-   2. Sets do not necessarily have a hierarchy, unlike stages.
+2. It may be harder to immediately understand the global structure of Bevy apps.
+   1. Powerful system debugging and visualization tools become even more important (but easier to write).
+   2. It may become harder to reason about exactly when command flushing occurs.
    3. If a single system belongs to multiple sets it can suddenly create wide-spread consequences.
 3. State transitions are no longer queued up in a stack.
    1. This also removes "in-stack" and related system groups / logic.
@@ -583,7 +583,6 @@ fn check_tick(world_tick: u32, saved_tick: &mut u32) {
    2. Users can duplicate critical logic in the while-active and on-enter collections.
    3. Similarly, arbitrarily long chains of state transitions are no longer be processed in the same schedule pass.
    4. However, users can add as many copies of the `flush_state` system as they would like, and loop it within an exclusive system.
-5. It may become harder to reason about exactly when command flushing occurs.
 
 ## Rationale and alternatives
 
@@ -591,7 +590,7 @@ fn check_tick(world_tick: u32, saved_tick: &mut u32) {
 
 Yes. This is a large part of the point.
 
-The complete inability to configure plugins is the source of [significant user pain](https://github.com/bevyengine/bevy/issues/2160).
+The difficulties configuring plugins is a source of [significant user pain](https://github.com/bevyengine/bevy/issues/2160).
 Plugin authors cannot know all of the needs of the end user's app, and so some degree of control must be handed back to the end users.
 
 This control is carefully limited though: systems can only be configured if they are part of a public set, and all of the systems under a common set are configured as a group.
@@ -599,21 +598,13 @@ In addition, configuration defined by a private set (or directly on systems) can
 
 These limitation allows plugin authors to carefully design a public API, ensure critical invariants hold, and make serious internal changes without breaking their dependencies (as long as the public sets and their meanings are relatively stable).
 
-### Why can't we just use system piping (previously system chaining) for run criteria?
-
-There are two reasons why this doesn't work:
-
-1. The system we're applying a run criteria to does not have an input type.
-2. System piping does not work if the `SystemParam` of the input and output systems are incompatible.
-
 ### Why aren't run criteria cached?
 
 In practice, almost all run criteria are extremely simple, and fast to check.
 Verifying that the cache is still valid will require access to the data anyways, and involve more overhead than simple computations on one or two resources.
 
 In addition, this is required to guarantee atomicity.
-We could add atomic groups to this proposal to get around this, but adding multiple atomic ordering constraints originating from a single system is extremely prone to dead-locks.
-We should not hand users this foot-gun.
+We could add atomic groups to this proposal to get around this, but that is another large research project.
 
 ## What sugar should we use for adding multiple systems at once?
 
@@ -718,11 +709,6 @@ Not any less magic than the tuples.
 
 ## Unresolved questions
 
-- Should while-active systems of states be handled using run criteria?
-  - Currently, all of the while-active systems of the next state will be handled on the same frame
-- Do we care about reimplementing the state stack as a first-party tool?
-- How does this fit into the planned pipelining work?
-  - Should be answered in the Multiple Worlds RFC.
 - Is automatic inference of sync points required in order to make this design sufficiently ergonomic?
 
 ## Future possibilities
@@ -742,9 +728,9 @@ In addition, there is quite a bit of interesting but less urgent follow-up work:
    1. This could be useful, but is a large design that can largely be considered independently of this work.
    2. How does this work for run criteria that are not locally defined?
 4. A more cohesive look at plugin definition and configuration strategies.
-5. A graph-based system ordering API for dense, complex dependencies.
+5. A [graph-based system ordering API](https://github.com/bevyengine/bevy/pull/2381) for dense, complex dependencies.
 6. Warn if systems that emit commands do not have an appropriate command-flushing ordering constraint.
 7. Run schedules without exclusive world access, inferring access based on the contents of the `Schedule`.
 8. Automatically add and remove systems based on `World` state to reduce schedule clutter and better support one-off logic.
-9. Tooling to force specific schedule execution orders: useful for debugging system order bugs and precomputing strategies.
+9. Tooling to force a specific schedule execution order: useful for debugging system order bugs and precomputing strategies.
 10. Better tools to tackle system execution order ambiguities.
