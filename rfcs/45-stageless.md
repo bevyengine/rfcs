@@ -161,7 +161,6 @@ Each system can have any number of run criteria, which read data from the world 
 If (and only if) all of its run criteria return `true`, the system will run.
 If any of the run criteria are `false`, the system will be skipped.
 Systems that are skipped are considered completed for the purposes of ordering constraints.
-
 Run criteria are not systems, but can be created from systems which can read (but not write) data from the `World` and returns a boolean value.
 
 You can specify run criteria in several different ways:
@@ -208,10 +207,9 @@ fn main(){
 There are a few important subtleties to bear in mind when working with run criteria:
 
 - when multiple run criteria are attached to the same system, the system will run if and only if all of those run criteria return true
-- run criteria are evaluated "just before" the system that it is attached to is run
-- if a run criterion is attached to a system set, a run-criterion-system will be generated for each contained system
-  - this is essential to ensure that run criteria are checking fresh state without creating very difficult-to-satisfy ordering constraints
-  - if you need to ensure that all systems behave the same way during a single pass of the schedule or avoid expensive recomputation, precompute the value and store the result in a resource, then read from that in your run criteria instead
+- each run criteria are evaluated once during each pass of the schedule
+  - this occurs just before the first system controlled by that criteria would be run
+  - the value is then shared for all other systems with that run criteria, ensuring all systems in the set stay synchronized
 
 Run criteria are evaluated by the executor just before the system that they are controlling is run: it is impossible to modify the data that they rely on in an observable way before the system completes.
 This is important to ensure that the state of the world always matches the state expected by the system at the time it is executed.
@@ -481,7 +479,8 @@ Run criteria are systems with several key constraints:
 - They must return a `bool`.
   - Required so we know whether the system should run!
 
-It's worth calling out that run criteria cannot be shared. Attaching the same run criteria to multiple systems will create a separate instance for each system. This is to ensure that systems and their run criteria are always evaluated as an atomic unit.
+Run criteria are shared.
+They are evaluated a single time during each schedule pass, and the result applies to all systems with that run criteria for the tick.
 
 When the executor is presented with a system, it does the following:
 
@@ -586,13 +585,15 @@ In addition, configuration defined by a private set (or directly on systems) can
 
 This limitation allows plugin authors to carefully design a public API, ensure critical invariants hold, and make serious internal changes without breaking their dependencies (as long as the public sets and their meanings are relatively stable).
 
-### Why aren't run criteria cached?
+### Why are run criteria shared?
 
-In practice, almost all run criteria are extremely simple, and fast to check.
-Verifying that the cache is still valid will require access to the data anyways, and involve more overhead than simple computations on one or two resources.
+Rather than sharing run criteria within a tick, we could evaluate them once for each system.
+This would have a small performance impact, as in practice, almost all run criteria are extremely simple, and fast to check.
 
-In addition, this is required to guarantee atomicity.
-We could add atomic groups to this proposal to get around this, but that is another large research project.
+However, this behavior is unintuitive, and can result in desynchronization between members with the same run criteria, potentially leading to serious logic errors.
+
+This design can worked around this by adding duplicate run criteria to systems that require atomic operation, but the opposite workaround is less reliable, involving the creation of dummy resources.
+Atomic groups may improve this level of control in the future.
 
 ## What sugar should we use for adding multiple systems at once?
 
