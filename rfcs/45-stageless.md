@@ -129,7 +129,7 @@ The most important way we can configure systems is by telling the scheduler *whe
 The ordering of systems is always defined relative to other systems: either directly or by checking the systems that belong to a set.
 
 Applying an ordering constraint between sets causes ordering constraints to be created between all individual members of those sets.
-If an ordering is defined relative to a non-existent system or an unused set, it will have no effect, emitting a warning.
+If an ordering is defined relative to an empty set, it will have no effect, and a warning will be emitted.
 This relatively gentle failure mode is important to ensure that plugins can order their systems with relatively strong assumptions that the default system sets exist, but continue to (mostly) work if those systems or sets are not present.
 
 In addition to the `.before` and `.after` methods, you can use **system chains** to create very simple linear dependencies between the successive members of an array of systems.
