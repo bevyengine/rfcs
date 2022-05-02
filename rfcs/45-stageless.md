@@ -14,9 +14,9 @@ Of particular note:
 - Dependencies do not work across stages.
 - States do not work across stages.
 - Plugins can add new, standalone stages.
-- Run criteria (including states!) cannot be composed.
+- Run criteria (including states and fixed timestep run criteria!) cannot be composed.
+- Run criteria cannot be reused across states or stages.
 - The stack-driven state model is overly elaborate and does not enable enough use cases to warrant its complexity.
-- Fixed timestep run criteria do not correctly handle the logic needed for robust game physics.
 - The architecture for turn-based games and other even slightly unusual patterns is not obvious.
 - We cannot easily implement a builder-style strategy for configuring systems.
 
@@ -35,7 +35,7 @@ The following elements are substantially reworked:
 - exclusive systems (no longer special-cased)
 - command processing (now performed in a `flush_commands` exclusive system)
 - labels (can now be directly configured)
-- system sets (now just used to mass-apply a label to a group of systems)
+- system sets (use `.add_systems` instead)
 - stages (yoten)
 
 ### Scheduling overview and intent-based configuration
@@ -64,11 +64,13 @@ For example, by default, each app stores both a startup and main schedule: the f
 This is used for the enter and exit schedules of states, but can also be used to store, mutate and access additional schedules.
 
 The main and startup schedules can be accessed using the `CoreSchedule::Main` and `CoreSchedule::Startup` labels respectively.
+However, schedules are a surprisingly powerful and flexible tool: they can be used to handle initialization and cleanup logic when working with states or used ad-hoc to run game logic in complex patterns.
 By default, systems are added to the main schedule.
-You can control this by adding the `.to_schedule(MySchedule::Variant)` system descriptor to your system.
+You can control this by adding the `.to_schedule(ScheduleLabel::Variant)` system descriptor to your system or label.
+To insert a new scedule into the `Schedules` collection, use `app.insert_schedule(label, schedule)`.
 
-You can access the schedules stored in the app using the `&Schedules` or `&mut Schedules` system parameters.
-Unsurprisingly, these never conflict with entities or resources in the `World`, as they are stored one level higher.
+To read (but not write) the schedules stored in your app, request `&Schedules` as a system parameter.
+Unsurprisingly, this never conflicts with entities or resources in the `World`, as they are stored one level higher.
 
 #### Startup systems
 
@@ -97,10 +99,11 @@ System configuration can be stored in a `SystemConfig` struct. This can be usefu
 
 ### Label configuration
 
-Each system label has its own associated `SystemConfig`, stored in the corresponding `Schedule`.
-When a label is configured, that configuration is passed down in an additive fashion to each system with that label.
+Each label has its own associated `SystemConfig`, stored in the corresponding `Schedule`. When a label is configured, its configuration is effectively passed down to every system under it. For example, ordering the label `A` to run before the label `B` specifies that all systems in `A` will run before any system in `B` does.
 
-You can apply the same label(s) to many systems at once using **system sets** with the `App::add_system_set(systems: impl SystemIterator, labels: impl SystemLabelIterator)` method.
+Of course, some properties only make sense at a group level (like whether ambiguities within that label are allowed) and are not propagated down, as they have no meaning for individual systems.
+
+You can apply the same label(s) to many systems at once using the `App::add_systems(systems: impl SystemIterator)` method.
 
 ```rust
 #[derive(SystemLabel)]
@@ -111,103 +114,179 @@ enum Physics {
 }
 
 impl Plugin for PhysicsPlugin{
-
     fn build(app: &mut App){
         // Within each frame, physics logic needs to occur after input handling, but before rendering
         let mut common_physics_config = SystemConfig::new().after(CoreLabel::InputHandling).before(CoreLabel::Rendering);
 
         app
         // We can reuse this shared configuration on each of our labels
-        .configure_label(Physics::Forces.configure(common_physics_config).before(Physics::CollisionDetection))
-        .configure_label(Physics::CollisionDetection.configure(common_physics_config).before(Physics::CollisionHandling))
-        .configure_label(Physics::CollisionHandling.configure(common_physics_config))
+        .add_label(Physics::Forces.configure(common_physics_config).before(Physics::CollisionDetection))
+        .add_label(Physics::CollisionDetection.configure(common_physics_config).before(Physics::CollisionHandling))
+        .add_label(Physics::CollisionHandling.configure(common_physics_config))
         // And then apply that config to each of the systems that have this label
         .add_system(gravity.label(Physics::Forces))
         // These systems have a linear chain of ordering dependencies between them
         // Systems earlier in the chain must run before those later in the chain
-        // Other systems can run in between these systems;
-        // use `add_atomic_system_chain` if this is not desired
-        .add_system_chain([broad_pass, narrow_pass].label(Physics::CollisionDetection))
-        // System sets apply a set of labels to a collection of systems
-        // and are helpful for reducing boilerplate
-        .add_system_set([compute_forces, collision_damage], Physics::CollisionHandling);
+        // Other systems can run in between these systems
+        .add_systems((broad_pass, narrow_pass).chain().label(Physics::CollisionDetection))
+        // Add multiple systems as once to reduce boilerplate!
+        .add_systems((compute_forces, collision_damage).label(Physics::CollisionHandling));
     }
 }
 ```
 
-As a natural consequence of the fact that each label stores a `SystemConfig`, labels can themselves be labelled, causing the contained labels to apply to all systems that this label is attached to.
-With great power comes great responsibility: use this feature sparingly (e.g. to label external systems that you cannot access directly).
-Excessively tight constraints make it harder for a schedule to be both scheduled in parallel and satisfied at all, and deeply nested label trees will quickly make your code base incomprehensible.
+Just like systems, labels can be given run criteria and be labeled themselves, allowing users to describe properties and run conditions hierarchically.
 
 ### System ordering
 
 The most important way we can configure systems is by telling the scheduler *when* they should be run.
 The ordering of systems is always defined relative to other systems: either directly or by checking the systems that belong to a label.
 
-There are two basic forms of system ordering constraints:
-
-1. **Strict ordering constraints:** `strictly_before` and `strictly_after`
-   1. A system cannot be scheduled until "strictly before" systems have been completed during this iteration of the schedule.
-   2. Simple and explicit.
-   3. Can cause unnecessary blocking, particularly when systems are configured at a high-level.
-2. **If-needed ordering constraints:** `.before` and `.after`
-   1. A system cannot be scheduled until any "before" systems that it is incompatible with have completed during this iteration of the schedule.
-   2. In the vast majority of cases, this is the desired behavior. Unless you are using interior mutability (or accessing something outside of the ECS), systems that are compatible will always be **commutative**: their ordering doesn't matter, and these constraints behave "as-if" they were strict.
-   3. Note that if-needed ordering constraints are transitive. `a.before(b)` and `b.before(c)` implies `a.before(c)`. This behavior, while intuitive, can have some unexpected effects: it occurs even if the chain is broken by a **spurious** constraint (in which the two systems are compatible).
-
 Applying an ordering constraint to or from a label causes a ordering constraint to be created between all individual members of that label.
 If an ordering is defined relative to a non-existent system or an unused label, it will have no effect, emitting a warning.
 This relatively gentle failure mode is important to ensure that plugins can order their systems with relatively strong assumptions that the default system labels exist, but continue to (mostly) work if those systems or labels are not present.
 
 In addition to the `.before` and `.after` methods, you can use **system chains** to create very simple linear dependencies between the successive members of an array of systems.
-(Note to readers: this is not the same as "system chaining" in Bevy 0.6 and earlier: that concept has been renamed to "system handling".)
+(Note to readers: this is not the same as "system chaining" in Bevy 0.6 and earlier: that concept has been renamed to "system piping".)
 
-When discussing system ordering, it is particularly important to call out the `flush_commands` system.
-This **exclusive system** (meaning, it can modify the entire `World` in arbitrary ways and cannot be run in parallel with other systems) collects all created commands and applies them to the `World`.
+```rust
+fn main(){
+   App::new()
+   // These systems are connected using a string of ordering constraints
 
-Commands (commonly used to spawn and despawn entities or add and remove components) will not take effect until this system is run, so be sure that you run a copy of the `flush_commands` system before relying on the result of a command!
+   .add_systems((compute_attack, 
+                 compute_defense,
+                 check_for_crits,
+                 compute_damage,
+                 deal_damage,
+                 check_for_death)
+                 .chain()
+                 // We can configure and label all systems in the chain at once
+                 .label(GameLabel::Combat)
+   )
+   .run()
+}
+```
+
+#### Ordering with `Commands`
+
+Commands (commonly used to spawn and despawn entities or add and remove components) do not take effect immediately.
+Instead, they are applied whenever the `flush_commands` system runs.
+This exclusive system collects all created commands and applies them to the `World`, mutating it directly.
 
 This pattern is so common that a special form of ordering constraint exists for it: **command-flushed ordering constraints**.
 If system `A` is `before_and_flush` system `B`, the schedule will be unsatisfiable unless there is an intervening `flush_commands` system.
-Note that **this does not insert new copies of a `flush_commands` system**: instead, it functions like an `assert!` statement.
-It has no direct effect, and is merely used to verify that your schedule has been set up correctly according the specified constraint.
+Note that **this does not insert new copies of a `flush_commands` system** (yet).
+Instead, it has two purposes:
+
+- acting like an assert statement, ensuring that the schedule is set up the way you expect it to be (even after refactors)
+- allows plugin authors to safely export configurable groups of systems that can be inserted into the schedule where the user wishes
+  - without this constraint, requirements that the user place one group before a command sync and another after would silently break
+
+```rust
+use bevy::prelude::*;
+
+#[derive(SystemLabel)]
+enum StartupLabel{
+   CommandFlush,
+   UiSpawn,
+}
+
+/// This example has no `DefaultPlugins`,
+/// so all command flushing is done manually
+fn main(){
+   App::new()
+   // All systems that do not have this label are implicitly before this label
+   .add_system(flush_commands.label(CoreLabel::Last))
+   // Recall that this adds systems to the startup schedule, not the main one
+   .add_startup_system(flush_commands.label(CoreLabel::Last))
+   // Commands will be processed in the basic flush_commands system that occurs at the end of the schedule
+   .add_startup_system(spawn_player)
+   // We need to customize this after it's spawned
+   .add_startup_system(spawn_ui.before(StartupLabel::CommandFlush).label(StartupLabel::UiSpawn))
+   .add_startup_system(customize_ui.after(StartupLabel::CommandFlush).after_and_flush(StartupLabel::UiSpawn))
+   .add_startup_system(flush_commands.label(StartupLabel::CommandFlush);
+   // Less verbosely, we can use the `.chain()` helper method
+   .add_systems((spawn_ui, flush_commands, customize_ui).chain().to_schedule(CoreSchedule::Startup))
+   .run();
+}
+```
+
+With `DefaultPlugins`, managing command flushing is likely to look more like this:
+
+```rust
+use bevy::prelude::*;
+
+struct ProjectilePlugin;
+
+impl Plugin for ProjectilePlugin {
+  fn build(app: &mut App){
+    app
+    // DefaultPlugins adds three command flushes:
+    // 1. CommandFlush::PreUpdate (runs after input is processed)
+    // 2. CommandFlush::PostUpdate (runs after most game logic)
+    // 3. CommandFlush::EndOfFrame (runs after data is extracted for rendering, at the end of the schedule)
+    .add_system(spawn_projectiles.before(CommandFlush::PostUpdate))
+    .add_systems(
+      (check_if_projectiles_hit, despawn_projectiles_that_hit)
+      .chain()
+      .after_and_flush(spawn_projectiles).after(CommandFlush::PostUpdate)
+    )
+    // If we need to add more command flushes to make our logic work, we can manually insert them
+    .add_system(flush_commands.label("DespawningFlush").after(CommandFlush::PostUpdate).before(CommandFlush::EndOfFrame))
+    .add_system(fork_projectiles.after("DespawningFlush"));
+  }
+}
+```
 
 ### Run criteria
 
 While ordering constraints determine *when* a system will run, **run criteria** will determine *if* it will run at all.
-A run criterion is a special kind of system which can read (but not write) data from the `World` and returns a boolean value.
-If its output is `true`, the system it is attached to will run during this pass of the `Schedule`;
-if it is `false`, the system will be skipped.
+Each system can have any number of run criteria, which read data from the world to control whether or not that system runs.
+If (and only if) all of its run criteria return `true`, the system will run.
+If any of the run criteria are `false`, the system will be skipped.
 Systems that are skipped are considered completed for the purposes of ordering constraints.
-Run criteria cannot be labelled, otherwise ordered or themselves have run criteria: order other systems relative to the system they control instead.
+
+Run criteria are not systems, but can be created from systems which can read (but not write) data from the `World` and returns a boolean value.
 
 You can specify run criteria in several different ways:
 
 ```rust
+// This is just an ordinary system: timers need to be ticked!
+fn tick_construction_timer(timer: ResMut<ConstructionTimer>, time: Res<Time>){
+    timer.tick(time.delta());
+}
+
 // This function can be used as a run criterion system,
-// because it only reads from the `World` and returns `bool`
+// because it does not mutate data and returns `bool`
 fn construction_timer_finished(timer: Res<ConstructionTimer>) -> bool {
     timer.finished()
 }
 
-// Timers need to be ticked!
-fn tick_construction_timer(timer: ResMut<ConstructionTimer>, time: Res<Time>){
-    timer.tick(time.delta());
+// You can use queries, event readers and resources with arbitrarily complex internal logic
+fn too_many_enemies(population_query: Query<(), With<Enemy>>, population_limit: Res<PopulationLimit>) -> bool {
+   population_query.iter().count() > population_limit
 }
 
 fn main(){
     App::new()
     .add_plugins(DefaultPlugins)
     // We can add functions with read-only system parameters as run criteria
-    .add_system_chain([tick_construction_timer, update_construction_progress.run_if(construction_timer_finished)])
+    .add_system((
+       tick_construction_timer, 
+       update_construction_progress)
+       .chain()
+       .run_if(construction_timer_finished)
+    )
+   .add_system(system_meltdown_mitigation.run_if(too_many_enemies))
     // We can use closures for simple one-off run criteria, 
     // which automatically fetch the appropriate data from the `World`
     .add_system(spawn_more_enemies.run_if(|difficulty: Res<Difficulty>| difficulty >= 9000))
-    // The `run_if_resource_equals` method is convenient syntactic sugar that generates a run criterion
+    // The `run_if_resource_equals` method is fast, special-cased syntax that generates a run criterion
     // for when you want to check the value of a resource (commonly an enum)
     .add_system(gravity.run_if_resource_equals(Gravity::Enabled))
     // Run criteria can be attached to labels: a copy of the run criteria will be applied to each system with that label
-    .configure_label(GameLabel::Physics.run_if_resource_equals(Paused(false)))
+    .add_label(GameLabel::Physics.run_if_resource_equals(Paused(false)))
     .run();
 }
 ```
@@ -215,39 +294,14 @@ fn main(){
 There are a few important subtleties to bear in mind when working with run criteria:
 
 - when multiple run criteria are attached to the same system, the system will run if and only if all of those run criteria return true
-- run criteria are evaluated "just before" the system that is attached to is run
+- run criteria are evaluated "just before" the system that it is attached to is run
+
 - if a run criterion is attached to a label, a run-criterion-system will be generated for each system that has that label
   - this is essential to ensure that run criteria are checking fresh state without creating very difficult-to-satisfy ordering constraints
   - if you need to ensure that all systems behave the same way during a single pass of the schedule or avoid expensive recomputation, precompute the value and store the result in a resource, then read from that in your run criteria instead
 
-Run criteria are always executed "just before" the system that they are controlling is run: it is impossible to modify the data that they rely on in an observable way before the system completes.
+Run criteria are evaluated by the executor just before the system that they are controlling is run: it is impossible to modify the data that they rely on in an observable way before the system completes.
 This is important to ensure that the state of the world always matches the state expected by the system at the time it is executed.
-In order to understand exactly what this means, we need to understand atomic ordering constraints.
-
-### Atomic ordering constraints
-
-**Atomic ordering constraints** are a form of ordering constraints that ensure that two systems are run directly after each other.
-At least, as far as "directly after" is a meaningful concept in a parallel, nonlinear ordering.
-Like the atom, they are indivisible: nothing can get between them!
-
-To be more precise, if a system `A` is `atomically_before` system `B`, no external systems can mutate the data that both system `A` and `B` access until `B` completes.
-
-In addition to their use in run criteria, atomic ordering constraints are extremely useful for forcing tight interlocking behavior between systems.
-They allow us to ensure that the state read from and written to the earlier system cannot be invalidated.
-This functionality is extremely useful when updating indexes (used to look up components by value):
-allowing you to ensure that the index is still valid when the system using the index uses it.
-
-Of course, atomic ordering constraints should be used thoughtfully.
-As the strictest of the three types of system ordering dependency, they can easily result in unsatisfiable schedules if applied to large groups of systems at once.
-For example, consider the simple case, where we have an atomic ordering constraint from system A to system B.
-If for any reason commands must be flushed between systems A and system B, we cannot satisfy the schedule.
-The reason for this is quite simple: the lock on data from system A will not be released when it completes, but we cannot run exclusive systems unless all locks on the `World's` data are clear.
-As we add more of these atomic constraints (particularly if they share a single ancestor), the risk of these problems grows.
-In effect, atomically-connected systems look "almost like" a single system from the scheduler's perspective.
-
-On the other hand, atomic ordering constraints can be helpful when attempting to split large complex systems into multiple parts.
-By guaranteeing that the initial state of your complex system cannot be altered before the later parts of the system are complete,
-you can safely parallelize the rest of the work into separate systems, improving both performance and maintainability.
 
 ### States
 
@@ -257,16 +311,16 @@ Typically, these are used for relatively complex, far-reaching facets of the gam
 The current value of each state is stored in a resource, which must derive the `State` trait.
 These are typically (but not necessarily) enums, where each distinct state is represented as an enum variant.
 
-Each state is associated with three sets of systems:
+Each state is associated with three groups of systems:
 
-1. **Update systems:** these systems run each schedule iteration if and only if the value of the state resource matches the provided value.
+1. **While-active:** these systems run each schedule iteration if and only if the value of the state resource matches the provided value.
    1. `app.add_system(apply_damage.run_in_state(GameState::Playing))`
 2. **On-enter systems:** these systems run once when the specified state is entered.
    1. `app.add_system(generate_map.run_on_enter(GameState::Playing))`
 3. **On-exit systems:** these systems run once when the specified state is exited.
    1. `app.add_system(autosave.run_on_exit(GameState::Playing))`
 
-Update systems are by far the simplest: they're simply powered by run criteria.
+While-active systems are by far the simplest: they're simply powered by run criteria.
 `.run_in_state` is precisely equivalent to `run_if_resource_equals`, except with an additional trait bound that the resource must implement `State`.
 
 On-enter and on-exit systems are stored in dedicated schedules, two per state, within the `App's` `Schedules`.
@@ -286,14 +340,13 @@ If system `A` is `before_and_flush_state::<S>` system `B`, the schedule will be 
 
 Apps can have multiple orthogonal states representing independent facets of your game: these operate fully independently.
 States can also be defined as a nested enum: these work as you may expect, with each leaf node representing a distinct group of systems.
-If you wish to share behavior among siblings, add the systems repeatedly to each sibling, typically by saving a schedule and then using `Schedule::merge` to combine that into the specialized schedule of choice.
 
 ### Complex control flow
 
 Occasionally, you may find yourself yearning for more complex system control flow than "every system runs once in a loop".
 When that happens: **create an exclusive system and run a schedule in it.**
 
-Within an exclusive system, you can freely fetch the desired schedule from the `App` with the `&Schedules` (or `&mut Schedules`) system parameter and use `Schedule::run(&mut world)`, applying each of the systems in that schedule a single time to the world of the exclusive system.
+Within an exclusive system, you can freely fetch the desired schedule from the `App` with the `&Schedules` system parameter and use `Schedule::run(&mut world)`, applying each of the systems in that schedule a single time to the world of the exclusive system.
 However, because you're in an ordinary Rust function you're free to use whatever logic and control flow you desire: branch and loop in whatever convoluted fashion you need!
 
 This can be helpful when:
@@ -308,17 +361,17 @@ If you need absolute control over the entire schedule, consider having a single 
 #### Fixed time steps
 
 Running a set of systems (typically physics) according to a fixed time step is a particularly critical case of this complex control flow.
-These systems should run a fixed number of times for each wall-clock second elapsed.
+These systems should run a fixed number of times for each second elapsed.
 The number of times these systems should be run varies (it may be 0, 1 or more each frame, depending on the time that the frame took to complete).
 
 Simply adding run criteria is inadequate: run criteria can only cause our systems to run a single time, or not run at all.
-By moving this logic into its own schedule within an exclusive system, we can loop until the accumulated time has been spent, running the schedule repeatedly and ensuring that our physics always uses the same elapsed delta-time and stays synced with the wall-clock, even in the face of serious stutters.
+By moving this logic into its own schedule within an exclusive system, we can loop until the accumulated time has been spent, running the schedule repeatedly and ensuring that our physics always uses the same delta-time and stays synced with the clock, even in the face of serious stutters.
 
 ### Tools to help you work with schedules
 
 Bevy provides some tools to help you keep your schedule properly woven as your game grows in complexity and is refactored.
 
-### Ambiguous execution order
+#### Ambiguous execution order
 
 The first of these is a tool that reports pairs of systems with an **ambiguous execution order**.
 A pair of systems has an **ambiguous execution order** if they are incompatible and do not have any ordering constraints between them, either directly or indirectly.
@@ -360,51 +413,6 @@ This can be helpful to clean up execution order ambiguities that you genuinely d
 Note that execution order ambiguities are based on **hypothetical incompatibility**: the scheduler cannot know that entities with both a `Player` and `Tile` component will never exist.
 You can fix these slightly silly execution order ambiguities by adding `Without` filters to your queries.
 
-### Spurious ordering constraints
-
-While if-needed ordering dependencies can be useful for configuring the relative behavior of large groups of systems in an unrestrictive way,
-their transitive behavior can lead to some silly results in cases where there's no need for ordering.
-
-Suppose we have two very large, complex groups of systems: `Systems::Early` and `Systems::Late`.
-They are well-mixed, and no ordering dependencies exist between the groups.
-All is right with the world, and the systems live together in parallel-executing harmony.
-
-Then one day, Bavy adds the following system to our app:
-
-```rust
-fn null_system(){}
-
-app.add_system(null_system.after(Systems::Early).before(Systems::Late));
-```
-
-Seems innocuous, right?
-The `null_system` doesn't access any data; it's trivially compatible with every other system and so the if-needed dependencies should never have any effect.
-Except that's not true under Model 1.
-
-Instead, attempting to maintain transitivity, we've induce an if-needed ordering dependency between *every* system in `Systems::Early` to *every* system in `Systems::Late`.
-The entire schedule is bifurcated into two blocks, attempting to flow through a entirely pointless bottleneck.
-To add insult to injury,`null_system` doesn't even *run* between these two blocks, instead executing at a completely arbitrary time as it has no observable effect.
-
-While this example is deliberately absurd, such situations can naturally arise in real, complex code bases as they grow and are refactored.
-Pointless ordering constraints hang around, as we cannot warn that they are useless, since they have non-local effects.
-Eventually they become *load-bearing* spurious ordering constraints, and removing these if-needed ordering constraints which seemingly have no effect causes the high-level structure of your schedule to radically change, creating a massive collection of new system ordering ambiguities (and the corresponding non-local, non-deterministic bugs)!
-
-As a result, the schedule will warn you each time you have a **spurious** ordering constraint: an if-needed ordering constraint that has no effect for any system that it is connecting.
-Don't be like Bavy: try to clean these up ASAP, and then resolve any resulting execution order ambiguities with carefully thought-out constraints.
-
-Like with execution order ambiguities, this behavior can be configured using the `SpuriousOrderingConstraints` resource.
-
-```rust
-enum SpuriousOrderingConstraints{
-   /// The schedule will not be checked for spurious ordering constraints
-   Allow,
-   /// The details of each spurious ordering cosntraint is reported to the console
-   Warn,
-   /// The schedule will panic if an spurious ordering constraint is found
-   Forbid,
-}
-```
-
 ## Implementation strategy
 
 Let's take a look at what implementing this would take:
@@ -414,6 +422,7 @@ Let's take a look at what implementing this would take:
    2. `Schedule`
    3. `SystemDescriptor`
    4. `IntoExclusiveSystem`
+   5. `SystemContainer` and friends
 2. Build out a basic schedule abstraction:
    1. Create a `ScheduleLabel` trait
    2. Store multiple schedules in a keyed `SystemRegistry` resource
@@ -428,33 +437,27 @@ Let's take a look at what implementing this would take:
    2. Systems labels store a `SystemConfig`
    3. Allow systems to be labelled
    4. Store `ConfiguredSystems` in the schedule
-   5. Add `.add_system_set` method
-   6. Use [system builder syntax](https://github.com/bevyengine/rfcs/pull/31), rather than adding more complex methods to `App`
-5. Add basic ordering constraints: basic data structures and configuration methods
-   1. Begin with strict ordering constraints: simplest and most fundamental
-   2. Add if-needed ordering constraints
-6. Add atomic ordering groups
-   1. Add atomic ordering constraints
-7. Add run criteria
-   1. Create `IntoRunCriteriaSystem` machinery
-   2. Store the run criteria of each `ConfiguredSystem` in the schedule
-   3. Add atomic ordering constraints
-   4. Check the values of the run-criteria of systems before deciding whether it can be run
-   5. Add methods to configure run criteria
-8. Add states
+   5. Add `.add_systems` method, the `SystemGroup` type and the convenience methods for system groups
+   6. Special-case `CoreLabel::First` and `CoreLabel::Last` for convenience
+   7. Use [system builder syntax](https://github.com/bevyengine/rfcs/pull/31), rather than adding more complex methods to `App`
+5. Re-add strict ordering constraints
+6. Add run criteria
+   1. Create the machinery to generate run criteria from functions
+   2. Cache the accesses of run criteria on `ConfiguredSystem` in the schedule
+   3. Check the values of the run-criteria of systems before deciding whether it can be run
+7. Add states
    1. Create `State` trait
-   2. Implement on-update states as sugar for simple run criteria
+   2. Implement while-active states as sugar for simple run criteria
    3. Create on-enter and on-exit schedules
    4. Create sugar for adding systems to these schedules
-9. Rename "system chaining" to "system handling"
+8. Rename "system chaining" to "system piping"
    1. Usage was very confusing for new users
-   2. Almost exclusively used for error handling
-   3. New concept of "systems with a linear graph of ordering constraints between them" is naturally described as a chain
-10. Add new examples
+   2. New concept of "systems with a linear graph of ordering constraints between them" is naturally described as a chain
+9. Add new examples
     1. Complex control flow with supplementary schedules
     2. Fixed time-step pattern
-11. Port the entire engine to the new paradigm
-    1. We almost certainly need to port the improved ambiguity checker over to make this reliable
+10. Port the entire engine to the new paradigm
+    1. We almost certainly need to port the improved ambiguity checker over to make this new paradigm usable
 
 Given the massive scope, that sounds relatively straightforward!
 However, doing so will break approximately the entire engine, and tests will not pass again until step 10.
@@ -476,18 +479,13 @@ struct Schedule{
    systems: HashMap<SystemId, ConfiguredSystem>,
    // Stores the fully initialized, efficient graph of ordering constraints
    // for all systems in the schedule.
-   // All labels are converted to specific systems,
-   // and all if-needed ordering constraints are either 
-   // solidified to strict ordering constraints or removed.
+   // All labels are converted to specific systems.
    // `Graph` is a bikeshed-avoidance graph storage structure,
    // the exact strategy should be benchmarked
    ordering_constraints: Graph<SystemId>,
    // Label configuration must be stored at the schedule level,
    // rather than attached to specific label instances
    labels: HashMap<Box<dyn SystemLabel>, LabelConfig>,
-   // Used to quickly look up system ids by the type ids of their underlying function
-   // when checking atomic ordering constraints
-   system_function_type_map: HashMap<TypeId, Vec<SystemId>>,
    // Used to check if mutation is allowed
    currently_running: bool,
 }
@@ -524,15 +522,13 @@ enum OrderingTarget {
 
 struct SystemConfig {
    strict_ordering_before: Vec<OrderingTarget>,
-   if_needed_ordering_before: Vec<OrderingTarget>,
-   atomic_ordering_before: Vec<OrderingTarget>,
    strict_ordering_after: Vec<OrderingTarget>,
-   if_needed_ordering_after: Vec<OrderingTarget>,
-   atomic_ordering_after: Vec<OrderingTarget>,
    // The `TypeId` here is the type id of the flushing system
    flushed_ordering_before: Vec<(TypeId, OrderingTarget)>,
    flushed_ordering_after: Vec<(TypeId, OrderingTarget)>,
    run_criteria: Vec<SystemId>,
+   // The combined access requirements of the system and its run criteria
+   joint_access: FilteredAccessSet<ComponentId>,
    // This vector is always empty when this struct is used for labels
    labels: Vec<Box dyn SystemLabel>,
 }
@@ -540,87 +536,43 @@ struct SystemConfig {
 struct LabelConfig {
    system_config: SystemConfig,
    allow_ambiguities: bool,
-   atomic: AtomicityLevel,
 }
 
 ```
 
-### If-needed ordering constraints
+### Label configuration
 
-During schedule initialization, if-needed ordering constraints are either converted to strict ordering constraints, or removed.
-They can be removed if and only if the schedule is *unobservably* different (ignoring interior mutability), regardless of the relative order of the two systems.
+When building the dependency graph, all edges (constraints) between labels are expanded into edges between the systems nested within them.
 
-In the case where we only have two systems with an if-needed ordering, this is relatively simple.
-If neither system can write to the data the other reads, we *cannot tell* which order they ran in, and so any ordering constraint between them is pointless.
-This, of course, is equivalent to the two systems being compatible.
+### Run criteria
 
-Subtly, this **hypothetical compatibility** (also used to determined if system parameters conflict or if schedules are ambiguous) must be determined statically: on the basis of the filtered access to component and resource types (via `FilteredAccessSet<ComponentId>`).
-By contrast, **factual incompatibility** at the time of schedule execution is done based on the actual archetype-components that the systems access (via `Access<ArchetypeComponentId>`).
-Just like strict ordering constraints though, ordering constraints inferred on the basis of if-needed ordering constraints are respected at the time of schedule execution, even if there is no data conflict at the time the systems are being run.
+Run criteria are systems with several key constraints:
 
-If-needed ordering constraints are intended to behave exactly like strict ordering constraints (unless interior mutability or other strangeness is involved), and so they are transitive.
-In order to achieve this, the following algorithm is used:
+- They cannot have system params that give mutable access to data.
+  - Required so we don't have order to them.
+  - Read-only access avoids very surprising side effects.
+- They cannot capture or store local data.
+  - Required to avoid user footguns: local data would be updated even if the guarded system ultimately doesn't run.
+- They must return a `bool`.
+  - Required so we know whether the system should run!
 
-1. For each system that is at the start of an if-needed constraint:
-   1. Walk down the tree of if-needed ordering constraints and identify all downstream systems.
-   2. Add an if-needed ordering constraint between the root system and each downstream system.
-2. For each if-needed ordering constraint:
-   1. If the two systems are compatible, remove the constraint.
-   2. If they are incompatible, promote it to a strict ordering constraint.
-3. Deduplicate all strict ordering constraints.
-   1. Each pair of systems can only have one strict ordering constraint between them.
-   2. Any edges that are implied by the transitive property can be removed.
+It's worth calling out that run criteria cannot be shared. Attaching the same run criteria to multiple systems will create a separate instance for each system. This is to ensure that systems and their run criteria are always evaluated as an atomic unit.
 
-### Atomic ordering constraints and atomic system groups
+When the executor is presented with a system, it does the following:
 
-If we have system `A` that runs "atomically before" system `B` (`.add_system(a.atomically_before(b))`):
+- Check if the joint data access of the system, its run criteria, and the run criteria of its not-yet-seen labels is available.
+  - If not, the system is left in the queue and the next system is checked.
+- If the joint access is available, then in hierarchical order, evaluate the run criteria of each not-yet-seen label.
+  - Mark the label as seen.
+  - If any run criteria return `false`, skip *all* systems nested under the label. Also mark all labels nested under it as seen.
+- If all label run criteria passed, evaluate the system's run criteria.
+  - Skip the system if any run criteria return `false`.
+- If all run criteria have returned `true`:
+  - "Lock" the data access required by the system.
+  - Spawn a task to run the system.
+  - Release its "locks" when the task completes.
 
-- `A` is strictly before `B`
-- `A` and `B` are part of the same **atomic system group**
-  - this concept can be fleshed out further in later work
-  - for now, we're going to use the simplest form in order to get run criteria working correctly
-
-For all systems that are part of the same atomic system group:
-
-- When a system in an atomic group completes, its write-locks and read-locks are downgraded to **virtual locks**.
-- Virtual locks are treated as if they were real locks for all systems outside of the atomic group.
-- Virtual locks are ignored by systems in the same atomic group.
-
-This can be modelled as:
-
-```rust
-enum DataLock{
-   Read,
-   Write,
-   VirtualRead(Box<dyn SystemLabel>),
-   VirtualWrite(Box<dyn SystemLabel>),
-}
-```
-
-Each atomic group has its own label (implicitly generated if needed), and the atomicity of a label can be controlled via the `.set_atomicity(level: AtomicityLevel)` method.
-Atomic groups are a (very) advanced feature that can be used to carefully control how much information other systems can see about the internal state of a group of systems while they are executing.
-
-There are three levels of atomicity:
-
-```rust
-enum AtomicityLevel {
-   // Read and write-locks are released when a system completes
-   None,
-   // Read and write-locks are downgraded to a virtual read lock when a system completes
-   Coherent,
-   // Read and write-locks are converted to an equivalent virtual lock when a system completes
-   Isolated,
-}
-```
-
-Labels are non-atomic by default, and atomic ordering constraints create coherent atomic groups.
-Isolated atomic groups are relatively niche, used only when you want to be certain that no information about internal progress can leak out.
-
-Multiple virtual locks on the same data can exist at once, and membership in an atomic system group is *not* transitive.
-Suppose we have two atomic groups, `GroupX = {A, B}` and `GroupY = {B, C}`.
-Systems `A` and `C` do not share an atomic group, and data that is virtually locked by both `GroupX` and `GroupY` can only be accessed by system `B`.
-
-This reduces the risk of an unsatisfiable schedule by allowing locks to be released in a maximally permissive fashion.
+This lightweight approach minimizes task overhead. Since we don't spawn tasks for run criteria (which are extremely likely to be simple tests), we don't have to lock other systems out of the data they access. Likewise, we don't spawn tasks for systems that were skipped.
 
 ### Flushed ordering constraints
 
@@ -646,10 +598,36 @@ Schedules can be unsatisfiable for several reasons:
 
 1. The graph of label ordering constraints contains a cycle.
    1. Each label is treated as a node, and each type of ordering constraint is treated as the same type of edge.
-   2. This is technically stricter than is necessary: a label could be both if-needed-before and if-needed-after another label. This would work as long as there were no incompatible systems, but this is almost certainly a logic bug that we should fail on.
 2. The cached schedule graph contains a cycle.
-   1. This is computed after if-needed orderings are resolved into strict orderings.
-3. A system wishes to mutate data that is shared between two systems of an atomic group, and wishes to run between those members of the group.
+
+### Change detection
+
+The reliable change detection users have come to know and love stays the same. The only difference with this architecture is when/where we check if a `check_tick` scan is needeed. Each world still has an atomic counter that increments each time a system runs (skipped systems do not count) and tracks change ticks for its components and systems.
+
+For a system to detect changes (assuming one of its queries has a `Changed<T>` filter), its tick and the change ticks of any matched components are compared against the current world tick. If the system's last run is older than a change, the query will yield that component value.
+
+```rust
+fn is_changed(world_tick: u32, system_tick: u32, change_tick: u32) -> bool {
+   let ticks_since_change = world_tick.wrapping_sub(change_tick);
+   let ticks_since_system = world_tick.wrapping_sub(system_tick);
+   ticks_since_system > ticks_since_change
+}
+```
+
+To ensure graceful operation, change ticks are periodically scanned, and any older than a certain threshold are clamped to prevent their age from overflowing and triggering false positives.
+
+We perform a scan once at least `N` (currently ~530 million) ticks (and no more than `2N - 1`) have elapsed since the previous scan. The latter can be circumvented if exclusive and chained systems are abused in strange ways, but since `N` is so large, users are extremely unlikely to encounter that in practice.
+
+```rust
+pub const MAX_CHANGE_AGE: u32 = u32::MAX - (2 * N - 1);
+
+fn check_tick(world_tick: u32, saved_tick: &mut u32) {
+   let age = world_tick.wrapping_sub(*saved_tick);
+   if age > MAX_CHANGE_AGE {
+      *saved_tick = world_tick.wrapping_sub(MAX_CHANGE_AGE);
+   }
+}
+```
 
 ## Drawbacks
 
@@ -658,12 +636,14 @@ Schedules can be unsatisfiable for several reasons:
    2. Users will typically need to think a bit harder about exactly when they want their gameplay systems to run. In most cases, they should just add the `CoreLabel::AppLogic` label to them, which will place them after input and before rendering.
 2. It will be harder to immediately understand the global structure of Bevy apps.
    1. Powerful system debugging and visualization tools become even more important.
+   2. Labels do not necessarily have a hierarchy, unlike stages.
+   3. If multiple labels are added to a single system it can suddenly create wide-spread consequences (particularly with strict ordering constraints).
 3. State transitions are no longer queued up in a stack.
    1. This also removes "in-stack" and related system groups / logic.
    2. This can be easily added later, or third-party plugins can create their own abstraction.
-4. When a state transition occurs, the systems in the on-update set are no longer applied immediately.
+4. When a state transition occurs, the systems in the while-active set are no longer applied immediately.
    1. Instead, the normal flow of logic continues.
-   2. Users can duplicate critical logic in the on-update and on-enter collections.
+   2. Users can duplicate critical logic in the while-active and on-enter collections.
    3. Similarly, arbitrarily long chains of state transitions are no longer be processed in the same schedule pass.
    4. However, users can add as many copies of the `flush_state` system as they would like, and loop it within an exclusive system.
 5. It will become harder to reason about exactly when command flushing occurs.
@@ -684,114 +664,153 @@ In addition, configuration defined by a private label (or directly on systems) c
 
 These limitation allows plugin authors to carefully design a public API, ensure critical invariants hold, and make serious internal changes without breaking their dependencies (as long as the public labels and their meanings are relatively stable).
 
-### Why is if-needed the correct default ordering strategy?
-
-Strict ordering is simple and explicit, and will never result in strange logic errors.
-On the other hand, it *will* result in pointless and surprising blocking behavior, possibly leading to unsatisfiable schedules.
-
-If-needed ordering is the correct strategy in virtually all cases: in Bevy, interior mutability at the component or resource level is rare, almost never needed and results in other serious and subtle bugs.
-
-As we move towards specifying system ordering dependencies at scale, it is critical to avoid spuriously breaking users schedules, and silent, pointless performance hits are never good.
-
-### Why can't we just use system handling (previously system chaining) for run criteria?
+### Why can't we just use system piping (previously system chaining) for run criteria?
 
 There are two reasons why this doesn't work:
 
-1. The system we're applying a run criteria does not have an input type.
-2. System handling does not work if the `SystemParam` of the original and handling systems are incompatible. This is far too limiting.
+1. The system we're applying a run criteria to does not have an input type.
+2. System piping does not work if the `SystemParam` of the input and output systems are incompatible.
 
 ### Why aren't run criteria cached?
 
 In practice, almost all run criteria are extremely simple, and fast to check.
 Verifying that the cache is still valid will require access to the data anyways, and involve more overhead than simple computations on one or two resources.
 
-In addition, adding multiple atomic ordering constraints originating from a single system is extremely prone to dead-locks; we should not hand users this foot-gun.
+In addition, this is required to guarantee atomicity.
+We could add atomic groups to this proposal to get around this, but adding multiple atomic ordering constraints originating from a single system is extremely prone to dead-locks.
+We should not hand users this foot-gun.
 
-## Should if=needed ordering constraints be transitive?
+## What sugar should we use for adding multiple systems at once?
 
-If `A` is before `B`, and `B` is before `C`, must `A` be before `C`?
+When using convenience methods like `add_systems`, we need to be able to refer to conveniently refer to collections of systems.
+This will become increasingly important as more complex graph-builder APIs are added.
 
-Naturally, this seems like it must be the case: strict ordering constraints are transitive, and time is well-ordered after all!
-But if either the `A-B` or `B-C` edges are dissolved due to compatibility (and the `A-C` edge matters due to incompatibility), then `C` could be executed before `A`!
+**In summary:**
 
-There are two possible models that we could handle this important edge case:
+- array syntax: optimal but literally impossible
+- tuple syntax: magic but pretty
+- builder syntax: way too verbose for a pattern that's supposed to increase convenience
+- `vec!`-style macro: not any less magic than tuple syntax, not as pretty
 
-- **Model 1:** Infer if-needed-ordering constraints over each subgraph.
-  - Transitivity holds, as expected.
-  - Non-transitive if-needed ordering constraints cannot be represented.
-  - Some computational overhead, as we must create, evaluate and then deduplicate if-needed ordering constraints over each subgraph.
-- **Model 2:** Do nothing, report execution order ambiguities and allow the user to resolve this by adding additional constraints.
-  - Reduces risk of accidentally creating unnecessary constraints.
-  - More explicit, and thus more verbose.
-  - Relies on users checking and resolving execution order ambiguities.
+**Conclusion:** tuple syntax, powered by builder syntax under the hood that users can use instead when it's more convenient.
 
-But which behavior is correct?
-Consider the following concrete case:
+Below, we examine the the options by example.
 
-We have five relevant systems:
+### Arrays
 
-1. `determine_player_movement`: reads `Input`, writes `PlayerIntent`
-2. `collision_detection`: reads `Position` and `Velocity`, writes `Events<Collisions>`
-3. `collision_handling`: reads `Events<Collision>`, writes `Velocity`
-4. `apply_player_movement:` reads `PlayerIntent`, writes `Velocity`
-5. `apply_velocity:` reads `Velocity`, writes `Position`
+```rust
+.add_systems([compute_attack, 
+                   compute_defense,
+                   check_for_crits,
+                   compute_damage,
+                   deal_damage,
+                   check_for_death]
+                   .chain()
+                   .label(GameLabel::Combat))
 
-Suppose our user specifies the following if-needed ordering constraints:
+.add_systems([run, jump].after(CoreLabel::Input))
+```
 
-1. `determine_player_movement` is before `collision_detection`
-   1. Spurious: these systems are compatible.
-2. `collision_detection` is before `collision_handling`
-   1. Real: these systems conflict on `Events<Collisions>`
-3. `collision_handling` is before `apply_velocity`
-   1. Real: these systems conflict on `Velocity`
-4. `apply_player_movement` is after `collision_handling`
-   1. Spurious: these systems are compatible.
-5. `apply_player_movement` is before `apply_velocity`
-   1. Real: these systems conflict on `Velocity`
+Very pretty. Doesn't work because types are heterogenous though.
 
-The problem here is that there's no direct link between `determine_player_movement` and `apply_player_movement`: they are ambiguous under Model 2, and the player may move according to stale input!
+### Tuples
 
-Under the transitive Model 1, additional if-needed constraints are created between `determine_player_movement` and `apply_player_movement` via the constraint chain (1, 2, 4).
-Then, the inferred constraint between `determine_player_movement` and `apply_player_movement` is converted into a strict ordering constraint, as the systems are incompatible.
-Finally, all redundant strict ordering constraints (such as between `collision_detection` and `apply_velocity`) are discarded for performance reasons.
+```rust
+.add_systems((compute_attack, 
+              compute_defense,
+              check_for_crits,
+              compute_damage,
+              deal_damage,
+              check_for_death)
+              .chain()
+              .label(GameLabel::Combat)
+            )
 
-Under Model 2, the behavior is much simpler: `determine_player_movement` and `apply_player_movement` are ambiguous.
+.add_systems((run, jump).after(CoreLabel::Input))
+```
 
-Model 1 preserves the "logical" behavior, but in a very implicit fashion that is hard to reason about.
-Model 2 simply causes the user's logic to break.
+Also pretty! Mildly cursed and definitely unidiomatic, but we use this flavor of cursed type system magic already for bundles.
 
-By adding powerful (and prominent) tools for detecting spurious ordering constraints and execution order ambiguities, we can follow the expected (and convenient) transitive property while helping users quash strange, fragile bugs as soon as they're introduced.
+Requires another invocation of the `all_tuples` macro to generate impls.
+
+### Builder pattern
+
+This was the strategy we used for `SystemSet`.
+
+```rust
+.add_systems(SystemGroup:::new()
+               .with(compute_attack), 
+               .with(compute_defense),
+               .with(check_for_crits),
+               .with(compute_damage),
+               .with(deal_damage),
+               .with(check_for_death)
+               .chain()
+               .label(GameLabel::Combat)
+            )
+
+.add_systems(SystemGroup::new().with(run).with(jump).after(CoreLabel::Input))
+```
+
+Oof. Very verbose and cluttered, even with a change from `with_system` to `with`.
+Placement of brackets can be confusing, and there's no clear seperation between systems and their shared config.
+
+This is particularly painful for small groups, and is not significantly more ergonomic than just adding the systems individually.
+
+### Vec-style macro
+
+This strategy is used for the `vec![1,2,3]` macro in the standard library.
+
+```rust
+.add_systems(systems![
+      compute_attack, 
+      compute_defense,
+      check_for_crits,
+      compute_damage,
+      deal_damage,
+      check_for_death
+   ]
+   .chain()
+   .label(GameLabel::Combat)
+)
+
+.add_systems(systems![run, jump].after(CoreLabel::Input))
+```
+
+Reasonably pretty, but still more verbose than the tuple option.
+Requires boilerplate invocation of a macro every single time these methods are used.
+Not any less magic than the tuples.
 
 ## Unresolved questions
 
-- Should on-update systems of stages be handled using run criteria?
-  - Currently, all of the update systems of the next state will be handled on the same frame
+- Should while-active systems of states be handled using run criteria?
+  - Currently, all of the while-active systems of the next state will be handled on the same frame
+- Do we care about reimplementing the state stack as a first-party tool?
+- How does this fit into the planned pipelining work?
+  - Should be answered in the Multiple Worlds RFC.
 - Is automatic inference of sync points required in order to make this design sufficiently ergonomic?
-- What is the best way to handle the migration process from an organizational perspective?
-  - Get an RFC approved, and then merge a massive PR developed on a off-org branch?
-    - Straightforward, but very hard to review
-    - Risks divergence and merge conflicts
-  - Use an official branch with delegated authority?
-    - Easier to review, requires delegation, ultimately creates a large PR that needs to be reviewed
-    - Risks divergence and merge conflicts
-  - Develop `bevy_schedule3` on the `main` branch as a partial fork of `bevy_ecs`?
-    - Some annoying machinery to set up
-    - Requires more delegation and trust to ECS team
-    - Avoids divergence and merge conflicts
-    - Clutters the main branch
 
 ## Future possibilities
 
-Despite the large scope of this RFC, it leaves quite a bit of interesting follow-up work to be done:
+There are a few proposals that should be considered immediately, hand-in-hand with this RFC:
 
-1. Opt-in automatic insertion of flushing systems for command and state (see discussion in [RFC #34](https://github.com/bevyengine/rfcs/pull/34)).
-2. First-class indexes, built using atomic ordering constraints (and likely automatic inference).
-3. Multiple worlds (see [RFC #16](https://github.com/bevyengine/rfcs/pull/43), [RFC #43](https://github.com/bevyengine/rfcs/pull/43)), as a natural extension of the way that apps can store multiple schedules.
-4. Opt-in stack-based states (likely in an external crate).
-5. More complex strategies for run criteria composition.
-   1. This would be very useful, but is a large design that can largely be considered independently of this work.
+1. If-needed ordering constraints ([RFC #47](https://github.com/bevyengine/rfcs/pull/47)).
+2. Opt-in automatic insertion of flushing systems for command and state (see discussion in [RFC #34](https://github.com/bevyengine/rfcs/pull/34)).
+3. Multiple worlds (see [RFC #16](https://github.com/bevyengine/rfcs/pull/16), [RFC #43](https://github.com/bevyengine/rfcs/pull/43)), as a natural extension of the way that apps can store multiple schedules.
+   1. This is needed to ensure the `SubApps` introduced for rendering pipelining work.
+4. Schedule commands and schedule merging.
+   1. This is complex enough to warrant its own RFC, and should probably be considered in concert with multiple worlds.
+
+In addition, there is quite a bit of interesting but less urgent follow-up work:
+
+1. Atomic groups ([RFC #46](https://github.com/bevyengine/rfcs/pull/46)), to ensure that systems are executed in a single block.
+2. Opt-in stack-based states (possibly in an external crate).
+3. More complex strategies for run criteria composition.
+   1. This could be useful, but is a large design that can largely be considered independently of this work.
    2. How does this work for run criteria that are not locally defined?
-6. A more cohesive look at plugin definition and configuration strategies.
-7. A graph-based system ordering API for dense, complex dependencies.
-8. Store systems in the `World` as entities?
-9. Warn if systems that emit commands do not have an appropriate command-flushing ordering constraint.
+4. A more cohesive look at plugin definition and configuration strategies.
+5. A graph-based system ordering API for dense, complex dependencies.
+6. Warn if systems that emit commands do not have an appropriate command-flushing ordering constraint.
+7. Run schedules without exclusive world access, inferring access based on the contents of the `Schedule`.
+8. Automatically add and remove systems based on `World` state to reduce schedule clutter and better support one-off logic.
+9. Tooling to force specific schedule execution orders: useful for debugging system order bugs and precomputing strategies.
