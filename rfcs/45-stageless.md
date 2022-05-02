@@ -482,19 +482,20 @@ Run criteria are systems with several key constraints:
 Run criteria are shared.
 They are evaluated a single time during each schedule pass, and the result applies to all systems with that run criteria for the tick.
 
-When the executor is presented with a system, it does the following:
+ When the executor is presented with a ready system, we do the following:
 
-- Check if the joint data access of the system, its run criteria, and the run criteria of its not-yet-seen sets is available.
-  - If not, the system is left in the queue and the next system is checked.
-- If the joint access is available, then in hierarchical order, evaluate the run criteria of each not-yet-seen set.
-  - Mark the set as seen.
-  - If any run criteria return `false`, skip *all* systems nested under the set. Also mark all sets nested under it as seen.
-- If all set run criteria passed, evaluate the system's run criteria.
-  - Skip the system if any run criteria return `false`.
-- If all run criteria have returned `true`:
-  - "Lock" the data access required by the system.
-  - Spawn a task to run the system.
-  - Release its "locks" when the task completes.
+- Check that all the data accessed by the system, its run criteria (RC), and the RC of any sets it is under (that haven't been evaluated yet) is available.
+  - If not, leave the system in the ready queue and move onto the next one.
+- If yes, evaluate the RC of the non-evaluated sets that the system is under in hierarchical order (from the outermost set to the innermost set).
+  - If any set's RC return false, mark all the systems (incl. current one) and sets under that set as completed/evaluated.
+  - If any set's RC return true, mark the set as evaluated.
+- If all the sets' RC returned true, now evaluate the system's RC.
+  - If any of these return false, mark the system as completed.
+- If all the system's RC returned true, run the system.
+  - "Lock" the world data access required by the system.
+  - Spawn a task for it.
+  - Run that task.
+  - Release the "lock" when the task completes.
 
 This lightweight approach minimizes task overhead. Since we don't spawn tasks for run criteria (which are extremely likely to be simple tests), we don't have to lock other systems out of the data they access. Likewise, we don't spawn tasks for systems that were skipped.
 
