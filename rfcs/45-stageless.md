@@ -249,8 +249,6 @@ Note that commands are not automatically flushed between state transitions. If t
 
 When states are added using `App::add_state::<S: State>(initial_state)`, one `flush_state<S>` system is added to the app, as part of the `GeneratedSet::StateTransition<S>` set.
 You can configure when and if this system is scheduled by configuring this set, and you can add additional copies of this system to your schedule where you see fit.
-Just like with commands, **state-flushed ordering constraints** can be used to verify that state transitions have run at the appropriate time.
-If system `A` is `before_and_flush_state::<S>` system `B`, the schedule will be unsatisfiable unless there is an intervening `flush_state<S>` system.
 
 Apps can have multiple orthogonal states representing independent facets of your game: these operate fully independently.
 States can also be defined as a nested enum: these work as you may expect, with each leaf node representing a distinct group of systems.
@@ -261,14 +259,6 @@ Commands (commonly used to spawn and despawn entities or add and remove componen
 Instead, they are applied whenever the `flush_commands` system runs.
 This exclusive system collects all created commands and applies them to the `World`, mutating it directly.
 
-This pattern is so common that a special form of ordering constraint exists for it: **command-flushed ordering constraints**.
-If system `A` is `before_and_flush` system `B`, the schedule will be unsatisfiable unless there is an intervening `flush_commands` system.
-Note that **this does not insert new copies of a `flush_commands` system** (yet).
-Instead, it has two purposes:
-
-- acting like an assert statement, ensuring that the schedule is set up the way you expect it to be (even after refactors)
-- allows plugin authors to safely export configurable groups of systems that can be inserted into the schedule where the user wishes
-  - without this constraint, requirements that the user place one group before a command sync and another after would silently break
 
 ```rust
 use bevy::prelude::*;
@@ -291,7 +281,7 @@ fn main(){
    .add_startup_system(spawn_player)
    // We need to customize this after it's spawned
    .add_startup_system(spawn_ui.before(StartupSet::CommandFlush).in_set(StartupSet::UiSpawn))
-   .add_startup_system(customize_ui.after(StartupSet::CommandFlush).after_and_flush(StartupSet::UiSpawn))
+   .add_startup_system(customize_ui.after(StartupSet::CommandFlush))
    .add_startup_system(flush_commands.in_set(StartupSet::CommandFlush);
    // Less verbosely, we can use the `.chain()` helper method
    .add_systems((spawn_ui, flush_commands, customize_ui).chain().in_set_schedule(CoreSchedule::Startup))
@@ -317,7 +307,7 @@ impl Plugin for ProjectilePlugin {
     .add_systems(
       (check_if_projectiles_hit, despawn_projectiles_that_hit)
       .chain()
-      .after_and_flush(spawn_projectiles).after(CommandFlush::PostUpdate)
+      .after(CommandFlush::PostUpdate)
     )
     // If we need to add more command flushes to make our logic work, we can manually insert them
     .add_system(flush_commands.in_set("DespawningFlush").after(CommandFlush::PostUpdate).before(CommandFlush::EndOfFrame))
@@ -734,3 +724,4 @@ In addition, there is quite a bit of interesting but less urgent follow-up work:
 8. Automatically add and remove systems based on `World` state to reduce schedule clutter and better support one-off logic.
 9. Tooling to force a specific schedule execution order: useful for debugging system order bugs and precomputing strategies.
 10. Better tools to tackle system execution order ambiguities.
+11. Command-flushed ordering constraints.
