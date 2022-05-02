@@ -115,7 +115,7 @@ impl Plugin for PhysicsPlugin{
         // Systems earlier in the chain must run before those later in the chain
         // Other systems can run in between these systems
         .add_systems((broad_pass, narrow_pass).chain().in_set(Physics::CollisionDetection))
-        // Add multiple systems as once to reduce boilerplate!
+        // Add multiple systems at once to reduce boilerplate!
         .add_systems((compute_forces, collision_damage).in_set(Physics::CollisionHandling));
     }
 }
