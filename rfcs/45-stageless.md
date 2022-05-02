@@ -259,7 +259,6 @@ Commands (commonly used to spawn and despawn entities or add and remove componen
 Instead, they are applied whenever the `flush_commands` system runs.
 This exclusive system collects all created commands and applies them to the `World`, mutating it directly.
 
-
 ```rust
 use bevy::prelude::*;
 
@@ -699,7 +698,7 @@ Not any less magic than the tuples.
 
 ## Unresolved questions
 
-- Is automatic inference of sync points required in order to make this design sufficiently ergonomic?
+- What syntactic strategy should we use for `app.add_systems`?
 
 ## Future possibilities
 
