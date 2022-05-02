@@ -2,7 +2,7 @@
 
 ## Summary
 
-The existing stage boundaries result in a large number of complications: preventing us from operating across stages.
+The existing stage boundaries result in a large number of complications as they prevent us from operating across stages.
 Moreover, several related features (run criteria, states and fixed timesteps) are rather fragile and overly complex.
 This tangled mess needs to be holistically refactored: simplifying the scheduling model down into a single `Schedule`, moving towards an intent-based configuration style, taking full advantage of system labels as sets and leveraging exclusive systems to handle complex logic.
 
@@ -128,12 +128,12 @@ Just like systems, system sets can be given run criteria and be part of other se
 The most important way we can configure systems is by telling the scheduler *when* they should be run.
 The ordering of systems is always defined relative to other systems: either directly or by checking the systems that belong to a set.
 
-Applying an ordering constraimts between sets causes a ordering constraint to be created between all individual members of those sets.
+Applying an ordering constraint between sets causes ordering constraints to be created between all individual members of those sets.
 If an ordering is defined relative to a non-existent system or an unused set, it will have no effect, emitting a warning.
 This relatively gentle failure mode is important to ensure that plugins can order their systems with relatively strong assumptions that the default system sets exist, but continue to (mostly) work if those systems or sets are not present.
 
 In addition to the `.before` and `.after` methods, you can use **system chains** to create very simple linear dependencies between the successive members of an array of systems.
-(Note to readers: this is not the same as "system chaining" in Bevy 0.6 and earlier: that concept has been renamed to "system piping".)
+(Note to readers: this is not the same as "system chaining" in Bevy 0.7 and earlier: that concept has been renamed to "system piping".)
 
 ```rust
 fn main(){
@@ -245,7 +245,7 @@ Due to their disruptive and far-reaching effects, state transitions do not occur
 Instead, they are deferred (like commands), until the next `flush_state<S: State>` exclusive system runs.
 This system first runs the `on_exit` schedule of the previous state on the world, then runs the `on_enter` schedule of the new state on the world.
 Once that is complete, the exclusive system ends and control flow resumes as normal.
-Note that commands are not automatically flushed between state transitions: if this is required, add a copy of `flush_commands` to your schedule.
+Note that commands are not automatically flushed between state transitions. If this is required, add the `flush_commands` system to your schedule.
 
 When states are added using `App::add_state::<S: State>(initial_state)`, one `flush_state<S>` system is added to the app, as part of the `GeneratedSet::StateTransition<S>` set.
 You can configure when and if this system is scheduled by configuring this set, and you can add additional copies of this system to your schedule where you see fit.
@@ -373,7 +373,7 @@ Let's take a look at what implementing this would take:
    2. Explore how to regain parallelism
 4. Add system configuration tools
    1. Create `SystemConfig` type
-   2. Systems sets store a `SystemConfig`
+   2. System sets store a `SystemConfig`
    3. Allow systems to belong to sets
    4. Store `ConfiguredSystems` in the schedule
    5. Add `.add_systems` method, the `SystemGroup` type and the convenience methods for system groups
@@ -596,7 +596,7 @@ Plugin authors cannot know all of the needs of the end user's app, and so some d
 This control is carefully limited though: systems can only be configured if they are part of a public set, and all of the systems under a common set are configured as a group.
 In addition, configuration defined by a private set (or directly on systems) cannot be altered, extended or removed by the app: it cannot be named, and so cannot be altered.
 
-These limitation allows plugin authors to carefully design a public API, ensure critical invariants hold, and make serious internal changes without breaking their dependencies (as long as the public sets and their meanings are relatively stable).
+This limitation allows plugin authors to carefully design a public API, ensure critical invariants hold, and make serious internal changes without breaking their dependencies (as long as the public sets and their meanings are relatively stable).
 
 ### Why aren't run criteria cached?
 
@@ -608,7 +608,7 @@ We could add atomic groups to this proposal to get around this, but that is anot
 
 ## What sugar should we use for adding multiple systems at once?
 
-When using convenience methods like `add_systems`, we need to be able to refer to conveniently refer to collections of systems.
+When using convenience methods like `add_systems`, we need to be able to refer to collections of systems.
 This will become increasingly important as more complex graph-builder APIs are added.
 
 **In summary:**
