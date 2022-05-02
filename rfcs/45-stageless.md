@@ -76,7 +76,7 @@ Each system has a few configurable parameters:
 - it may have one or more **run criteria** attached
   - a system is only executed if all of its run criteria return `true`
   - **states** are a special, more complex pattern that use run criteria to determine whether or not a system should run in a current state
-  - e.g. `.add_system(physics.run_if_resource_equals(EnablePhysics(true)))`
+  - e.g. `.add_system(physics.run_if(resource_equals(EnablePhysics(true))))`
 - it may have one or more **labels**, allowing other systems to refer to it and enabling mass-configuration
   - e.g. `.add_system(physics.in_set(GameSets::Physics)`
 
@@ -197,11 +197,10 @@ fn main(){
     // We can use closures for simple one-off run criteria, 
     // which automatically fetch the appropriate data from the `World`
     .add_system(spawn_more_enemies.run_if(|difficulty: Res<Difficulty>| difficulty >= 9000))
-    // The `run_if_resource_equals` method is fast, special-cased syntax that generates a run criterion
-    // for when you want to check the value of a resource (commonly an enum)
-    .add_system(gravity.run_if_resource_equals(Gravity::Enabled))
-    // Run criteria can be attached to system sets
-    .add_set(GameSet::Physics.run_if_resource_equals(Paused(false)))
+    // The `resource_exists` and `resource_equals` functions generate a closure that you can stick in a run criteria
+    .add_system(gravity.run_if(resource_exists(Gravity)))
+    // Run criteria can be attached to system sets, allowing them to control all systems in that set
+    .add_set(GameSet::Physics.run_if(resource_equals(Paused(false))))
     .run();
 }
 ```
@@ -235,7 +234,7 @@ Each state is associated with three groups of systems:
    1. `app.add_system(autosave.run_on_exit(GameState::Playing))`
 
 While-active systems are by far the simplest: they're simply powered by run criteria.
-`.run_in_state` is precisely equivalent to `run_if_resource_equals`, except with an additional trait bound that the resource must implement `State`.
+`.run_in_state(State::Variant)` is precisely equivalent to `run_if(resource_equals(State::Variant))`, except with an additional trait bound that the resource must implement `State`.
 
 On-enter and on-exit systems are stored in dedicated schedules, two per state, within the `App's` `Schedules`.
 These schedules can be configured in all of the ordinary ways, but, as they live in different schedules, ordering cannot be defined relative to systems in the main schedule.
