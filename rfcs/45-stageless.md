@@ -4,7 +4,7 @@
 
 The existing stage boundaries result in a large number of complications: preventing us from operating across stages.
 Moreover, several related features (run criteria, states and fixed timesteps) are rather fragile and overly complex.
-This tangled mess needs to be holistically refactored: simplifying the scheduling model down into a single `Schedule`, moving towards an intent-based configuration style, taking full advantage of labels and leveraging exclusive systems to handle complex logic.
+This tangled mess needs to be holistically refactored: simplifying the scheduling model down into a single `Schedule`, moving towards an intent-based configuration style, taking full advantage of system labels as sets and leveraging exclusive systems to handle complex logic.
 
 ## Motivation
 
@@ -34,8 +34,7 @@ The following elements are substantially reworked:
 - fixed time steps (no longer a run criterion)
 - exclusive systems (no longer special-cased)
 - command processing (now performed in a `flush_commands` exclusive system)
-- labels (can now be directly configured)
-- system sets (use `.add_systems` instead)
+- labels (merged with the concept of system sets, can now be directly configured)
 - stages (yoten)
 
 ### Scheduling overview and intent-based configuration
@@ -66,7 +65,7 @@ This is used for the enter and exit schedules of states, but can also be used to
 The main and startup schedules can be accessed using the `CoreSchedule::Main` and `CoreSchedule::Startup` labels respectively.
 However, schedules are a surprisingly powerful and flexible tool: they can be used to handle initialization and cleanup logic when working with states or used ad-hoc to run game logic in complex patterns.
 By default, systems are added to the main schedule.
-You can control this by adding the `.to_schedule(ScheduleLabel::Variant)` system descriptor to your system or label.
+You can control this by adding the `.to_schedule(ScheduleLabel::Variant)` system descriptor to your system or system set.
 To insert a new scedule into the `Schedules` collection, use `app.insert_schedule(label, schedule)`.
 
 To read (but not write) the schedules stored in your app, request `&Schedules` as a system parameter.
@@ -85,25 +84,24 @@ Each system has a few configurable parameters:
 
 - it may have **ordering constraints**, causing it to run before or after other systems
   - there are several subtly different types of ordering constraints, see the next section for details
-  - e.g. `.add_system(player_controls.before(GameLabels::Physics).after(CoreLabels::Input))`
+  - e.g. `.add_system(player_controls.before(GameSets::Physics).after(CoreSets::Input))`
 - it may have one or more **run criteria** attached
   - a system is only executed if all of its run criteria return `true`
   - **states** are a special, more complex pattern that use run criteria to determine whether or not a system should run in a current state
   - e.g. `.add_system(physics.run_if_resource_equals(EnablePhysics(true)))`
 - it may have one or more **labels**, allowing other systems to refer to it and enabling mass-configuration
-  - e.g. `.add_system(physics.label(GameLabels::Physics)`
+  - e.g. `.add_system(physics.to(GameSets::Physics)`
 
-This configuration is additive: adding another ordering constraint, run criteria or label does not replace the existing configuration.
+This configuration is additive: adding another ordering constraint, run criteria or set does not replace the existing configuration.
 
-System configuration can be stored in a `SystemConfig` struct. This can be useful to reuse, compose and quickly apply complex configuration strategies, before applying these strategies to labels or individual systems.
+System configuration can be stored in a `SystemConfig` struct.
+This can be useful to reuse, compose and quickly apply complex configuration strategies, before applying these strategies to sets or individual systems.
 
-### Label configuration
+### System set configuration
 
-Each label has its own associated `SystemConfig`, stored in the corresponding `Schedule`. When a label is configured, its configuration is effectively passed down to every system under it. For example, ordering the label `A` to run before the label `B` specifies that all systems in `A` will run before any system in `B` does.
+Each system set has its own associated `SystemConfig`, stored in the corresponding `Schedule`. When a system set is configured, its configuration is effectively passed down to every system under it. For example, ordering the set `A` to run before the set `B` specifies that all systems in `A` will run before any system in `B` does.
 
-Of course, some properties only make sense at a group level (like whether ambiguities within that label are allowed) and are not propagated down, as they have no meaning for individual systems.
-
-You can apply the same label(s) to many systems at once using the `App::add_systems(systems: impl SystemIterator)` method.
+You can add many systems to the same set at once using the `App::add_systems(systems: impl SystemIterator)` method.
 
 ```rust
 #[derive(SystemLabel)]
@@ -116,35 +114,35 @@ enum Physics {
 impl Plugin for PhysicsPlugin{
     fn build(app: &mut App){
         // Within each frame, physics logic needs to occur after input handling, but before rendering
-        let mut common_physics_config = SystemConfig::new().after(CoreLabel::InputHandling).before(CoreLabel::Rendering);
+        let mut common_physics_config = SystemConfig::new().after(InputSet::ReadInputHandling).before(CoreSet::Rendering);
 
         app
-        // We can reuse this shared configuration on each of our labels
-        .add_label(Physics::Forces.configure(common_physics_config).before(Physics::CollisionDetection))
-        .add_label(Physics::CollisionDetection.configure(common_physics_config).before(Physics::CollisionHandling))
-        .add_label(Physics::CollisionHandling.configure(common_physics_config))
-        // And then apply that config to each of the systems that have this label
-        .add_system(gravity.label(Physics::Forces))
+        // We can reuse this shared configuration on each of our sets
+        .add_set(Physics::Forces.configure(common_physics_config).before(Physics::CollisionDetection))
+        .add_set(Physics::CollisionDetection.configure(common_physics_config).before(Physics::CollisionHandling))
+        .add_set(Physics::CollisionHandling.configure(common_physics_config))
+        // And then apply that config to each of the systems that are part of this set
+        .add_system(gravity.to(Physics::Forces))
         // These systems have a linear chain of ordering dependencies between them
         // Systems earlier in the chain must run before those later in the chain
         // Other systems can run in between these systems
-        .add_systems((broad_pass, narrow_pass).chain().label(Physics::CollisionDetection))
+        .add_systems((broad_pass, narrow_pass).chain().to(Physics::CollisionDetection))
         // Add multiple systems as once to reduce boilerplate!
-        .add_systems((compute_forces, collision_damage).label(Physics::CollisionHandling));
+        .add_systems((compute_forces, collision_damage).to(Physics::CollisionHandling));
     }
 }
 ```
 
-Just like systems, labels can be given run criteria and be labeled themselves, allowing users to describe properties and run conditions hierarchically.
+Just like systems, system sets can be given run criteria and be part of other sets themselves, allowing users to describe properties hierarchically.
 
 ### System ordering
 
 The most important way we can configure systems is by telling the scheduler *when* they should be run.
-The ordering of systems is always defined relative to other systems: either directly or by checking the systems that belong to a label.
+The ordering of systems is always defined relative to other systems: either directly or by checking the systems that belong to a set.
 
-Applying an ordering constraint to or from a label causes a ordering constraint to be created between all individual members of that label.
-If an ordering is defined relative to a non-existent system or an unused label, it will have no effect, emitting a warning.
-This relatively gentle failure mode is important to ensure that plugins can order their systems with relatively strong assumptions that the default system labels exist, but continue to (mostly) work if those systems or labels are not present.
+Applying an ordering constraimts between sets causes a ordering constraint to be created between all individual members of those sets.
+If an ordering is defined relative to a non-existent system or an unused set, it will have no effect, emitting a warning.
+This relatively gentle failure mode is important to ensure that plugins can order their systems with relatively strong assumptions that the default system sets exist, but continue to (mostly) work if those systems or sets are not present.
 
 In addition to the `.before` and `.after` methods, you can use **system chains** to create very simple linear dependencies between the successive members of an array of systems.
 (Note to readers: this is not the same as "system chaining" in Bevy 0.6 and earlier: that concept has been renamed to "system piping".)
@@ -161,8 +159,8 @@ fn main(){
                  deal_damage,
                  check_for_death)
                  .chain()
-                 // We can configure and label all systems in the chain at once
-                 .label(GameLabel::Combat)
+                 // We can configure all systems in the chain at once
+                 .to(GameSet::Combat)
    )
    .run()
 }
@@ -187,7 +185,7 @@ Instead, it has two purposes:
 use bevy::prelude::*;
 
 #[derive(SystemLabel)]
-enum StartupLabel{
+enum StartupSet{
    CommandFlush,
    UiSpawn,
 }
@@ -196,16 +194,16 @@ enum StartupLabel{
 /// so all command flushing is done manually
 fn main(){
    App::new()
-   // All systems that do not have this label are implicitly before this label
-   .add_system(flush_commands.label(CoreLabel::Last))
+   // All systems that are not part of this set are implicitly before this set
+   .add_system(flush_commands.to(CoreSet::Last))
    // Recall that this adds systems to the startup schedule, not the main one
-   .add_startup_system(flush_commands.label(CoreLabel::Last))
+   .add_startup_system(flush_commands.to(CoreSet::Last))
    // Commands will be processed in the basic flush_commands system that occurs at the end of the schedule
    .add_startup_system(spawn_player)
    // We need to customize this after it's spawned
-   .add_startup_system(spawn_ui.before(StartupLabel::CommandFlush).label(StartupLabel::UiSpawn))
-   .add_startup_system(customize_ui.after(StartupLabel::CommandFlush).after_and_flush(StartupLabel::UiSpawn))
-   .add_startup_system(flush_commands.label(StartupLabel::CommandFlush);
+   .add_startup_system(spawn_ui.before(StartupSet::CommandFlush).to(StartupSet::UiSpawn))
+   .add_startup_system(customize_ui.after(StartupSet::CommandFlush).after_and_flush(StartupSet::UiSpawn))
+   .add_startup_system(flush_commands.to(StartupSet::CommandFlush);
    // Less verbosely, we can use the `.chain()` helper method
    .add_systems((spawn_ui, flush_commands, customize_ui).chain().to_schedule(CoreSchedule::Startup))
    .run();
@@ -233,7 +231,7 @@ impl Plugin for ProjectilePlugin {
       .after_and_flush(spawn_projectiles).after(CommandFlush::PostUpdate)
     )
     // If we need to add more command flushes to make our logic work, we can manually insert them
-    .add_system(flush_commands.label("DespawningFlush").after(CommandFlush::PostUpdate).before(CommandFlush::EndOfFrame))
+    .add_system(flush_commands.to("DespawningFlush").after(CommandFlush::PostUpdate).before(CommandFlush::EndOfFrame))
     .add_system(fork_projectiles.after("DespawningFlush"));
   }
 }
@@ -285,8 +283,8 @@ fn main(){
     // The `run_if_resource_equals` method is fast, special-cased syntax that generates a run criterion
     // for when you want to check the value of a resource (commonly an enum)
     .add_system(gravity.run_if_resource_equals(Gravity::Enabled))
-    // Run criteria can be attached to labels: a copy of the run criteria will be applied to each system with that label
-    .add_label(GameLabel::Physics.run_if_resource_equals(Paused(false)))
+    // Run criteria can be attached to system sets
+    .add_set(GameSet::Physics.run_if_resource_equals(Paused(false)))
     .run();
 }
 ```
@@ -295,8 +293,7 @@ There are a few important subtleties to bear in mind when working with run crite
 
 - when multiple run criteria are attached to the same system, the system will run if and only if all of those run criteria return true
 - run criteria are evaluated "just before" the system that it is attached to is run
-
-- if a run criterion is attached to a label, a run-criterion-system will be generated for each system that has that label
+- if a run criterion is attached to a system set, a run-criterion-system will be generated for each contained system
   - this is essential to ensure that run criteria are checking fresh state without creating very difficult-to-satisfy ordering constraints
   - if you need to ensure that all systems behave the same way during a single pass of the schedule or avoid expensive recomputation, precompute the value and store the result in a resource, then read from that in your run criteria instead
 
@@ -333,8 +330,8 @@ This system first runs the `on_exit` schedule of the previous state on the world
 Once that is complete, the exclusive system ends and control flow resumes as normal.
 Note that commands are not automatically flushed between state transitions: if this is required, add a copy of `flush_commands` to your schedule.
 
-When states are added using `App::add_state::<S: State>(initial_state)`, one `flush_state<S>` system is added to the app, with the `GeneratedLabel::StateTransition<S>` label.
-You can configure when and if this system is scheduled by configuring this label, and you can add additional copies of this system to your schedule where you see fit.
+When states are added using `App::add_state::<S: State>(initial_state)`, one `flush_state<S>` system is added to the app, as part of the `GeneratedSet::StateTransition<S>` set.
+You can configure when and if this system is scheduled by configuring this set, and you can add additional copies of this system to your schedule where you see fit.
 Just like with commands, **state-flushed ordering constraints** can be used to verify that state transitions have run at the appropriate time.
 If system `A` is `before_and_flush_state::<S>` system `B`, the schedule will be unsatisfiable unless there is an intervening `flush_state<S>` system.
 
@@ -432,13 +429,13 @@ Let's take a look at what implementing this would take:
 3. Rebuild core command processing machinery
    1. Begin with trivial event-style commands
    2. Explore how to regain parallelism
-4. Add system configuration
+4. Add system configuration tools
    1. Create `SystemConfig` type
-   2. Systems labels store a `SystemConfig`
-   3. Allow systems to be labelled
+   2. Systems sets store a `SystemConfig`
+   3. Allow systems to belong to sets
    4. Store `ConfiguredSystems` in the schedule
    5. Add `.add_systems` method, the `SystemGroup` type and the convenience methods for system groups
-   6. Special-case `CoreLabel::First` and `CoreLabel::Last` for convenience
+   6. Special-case `CoreSet::First` and `CoreSet::Last` for convenience
    7. Use [system builder syntax](https://github.com/bevyengine/rfcs/pull/31), rather than adding more complex methods to `App`
 5. Re-add strict ordering constraints
 6. Add run criteria
@@ -479,13 +476,13 @@ struct Schedule{
    systems: HashMap<SystemId, ConfiguredSystem>,
    // Stores the fully initialized, efficient graph of ordering constraints
    // for all systems in the schedule.
-   // All labels are converted to specific systems.
+   // The properties of each set are passed down to specific systems to cache computation results.
    // `Graph` is a bikeshed-avoidance graph storage structure,
    // the exact strategy should be benchmarked
    ordering_constraints: Graph<SystemId>,
-   // Label configuration must be stored at the schedule level,
-   // rather than attached to specific label instances
-   labels: HashMap<Box<dyn SystemLabel>, LabelConfig>,
+   // Set configuration must be stored at the schedule level,
+   // rather than attached to specific set instances
+   sets: HashMap<Box<dyn SystemLabel>, SystemSetConfig>,
    // Used to check if mutation is allowed
    currently_running: bool,
 }
@@ -511,8 +508,8 @@ struct System {
 }
 ```
 
-System configuration stores ordering dependencies, run criteria and labels.
-It can be created raw, or stored in association with either system labels or systems.
+System configuration stores ordering dependencies, run criteria and system sets.
+It can be created raw, or stored in association with either system sets or systems.
 
 ```rust
 enum OrderingTarget {
@@ -529,18 +526,17 @@ struct SystemConfig {
    run_criteria: Vec<SystemId>,
    // The combined access requirements of the system and its run criteria
    joint_access: FilteredAccessSet<ComponentId>,
-   // This vector is always empty when this struct is used for labels
-   labels: Vec<Box dyn SystemLabel>,
+   sets: Vec<Box dyn SystemLabel>,
 }
 
-struct LabelConfig {
+struct SystemSetConfig {
    system_config: SystemConfig,
    allow_ambiguities: bool,
 }
 
 ```
 
-### Label configuration
+### System set configuration
 
 When building the dependency graph, all edges (constraints) between labels are expanded into edges between the systems nested within them.
 
@@ -560,12 +556,12 @@ It's worth calling out that run criteria cannot be shared. Attaching the same ru
 
 When the executor is presented with a system, it does the following:
 
-- Check if the joint data access of the system, its run criteria, and the run criteria of its not-yet-seen labels is available.
+- Check if the joint data access of the system, its run criteria, and the run criteria of its not-yet-seen sets is available.
   - If not, the system is left in the queue and the next system is checked.
-- If the joint access is available, then in hierarchical order, evaluate the run criteria of each not-yet-seen label.
-  - Mark the label as seen.
-  - If any run criteria return `false`, skip *all* systems nested under the label. Also mark all labels nested under it as seen.
-- If all label run criteria passed, evaluate the system's run criteria.
+- If the joint access is available, then in hierarchical order, evaluate the run criteria of each not-yet-seen set.
+  - Mark the set as seen.
+  - If any run criteria return `false`, skip *all* systems nested under the set. Also mark all sets nested under it as seen.
+- If all set run criteria passed, evaluate the system's run criteria.
   - Skip the system if any run criteria return `false`.
 - If all run criteria have returned `true`:
   - "Lock" the data access required by the system.
@@ -594,11 +590,11 @@ To do so, we need to check both direct *and* transitive strict ordering dependen
 
 ### Schedule unsatisfiability
 
-Schedules can be unsatisfiable for several reasons:
+Currently there is only one way in which a schedule can be unsatisfiable:
 
-1. The graph of label ordering constraints contains a cycle.
-   1. Each label is treated as a node, and each type of ordering constraint is treated as the same type of edge.
-2. The cached schedule graph contains a cycle.
+1. The graph of ordering constraints contains a cycle.
+
+However, this list is likely to expand over time.
 
 ### Change detection
 
@@ -633,11 +629,11 @@ fn check_tick(world_tick: u32, saved_tick: &mut u32) {
 
 1. This will be a massively breaking change to every single Bevy user.
    1. Any non-trivial control over system ordering will need to be completely reworked.
-   2. Users will typically need to think a bit harder about exactly when they want their gameplay systems to run. In most cases, they should just add the `CoreLabel::AppLogic` label to them, which will place them after input and before rendering.
+   2. Users will typically need to think a bit harder about exactly when they want their gameplay systems to run. In most cases, they should just add it to the `CoreSet::Update` set, which will place them after input and before rendering.
 2. It will be harder to immediately understand the global structure of Bevy apps.
    1. Powerful system debugging and visualization tools become even more important.
-   2. Labels do not necessarily have a hierarchy, unlike stages.
-   3. If multiple labels are added to a single system it can suddenly create wide-spread consequences (particularly with strict ordering constraints).
+   2. Sets do not necessarily have a hierarchy, unlike stages.
+   3. If a single system belongs to multiple sets it can suddenly create wide-spread consequences.
 3. State transitions are no longer queued up in a stack.
    1. This also removes "in-stack" and related system groups / logic.
    2. This can be easily added later, or third-party plugins can create their own abstraction.
@@ -646,23 +642,21 @@ fn check_tick(world_tick: u32, saved_tick: &mut u32) {
    2. Users can duplicate critical logic in the while-active and on-enter collections.
    3. Similarly, arbitrarily long chains of state transitions are no longer be processed in the same schedule pass.
    4. However, users can add as many copies of the `flush_state` system as they would like, and loop it within an exclusive system.
-5. It will become harder to reason about exactly when command flushing occurs.
-6. Ambiguity sets are not directly accounted for in the new design.
-   1. They need more thought and are rarely used; we can toss them back on later.
+5. It may become harder to reason about exactly when command flushing occurs.
 
 ## Rationale and alternatives
 
-### Doesn't label-configuration allow you to configure systems added by third-party plugins?
+### Doesn't set-configuration allow you to configure systems added by third-party plugins?
 
-Yes. This is, in fact, a large part of the point.
+Yes. This is a large part of the point.
 
 The complete inability to configure plugins is the source of [significant user pain](https://github.com/bevyengine/bevy/issues/2160).
 Plugin authors cannot know all of the needs of the end user's app, and so some degree of control must be handed back to the end users.
 
-This control is carefully limited though: systems can only be configured if they are given a public label, and all of the systems under a common label are configured as a group.
-In addition, configuration defined by a private label (or directly on systems) cannot be altered, extended or removed by the app: it cannot be named, and so cannot be altered.
+This control is carefully limited though: systems can only be configured if they are part of a public set, and all of the systems under a common set are configured as a group.
+In addition, configuration defined by a private set (or directly on systems) cannot be altered, extended or removed by the app: it cannot be named, and so cannot be altered.
 
-These limitation allows plugin authors to carefully design a public API, ensure critical invariants hold, and make serious internal changes without breaking their dependencies (as long as the public labels and their meanings are relatively stable).
+These limitation allows plugin authors to carefully design a public API, ensure critical invariants hold, and make serious internal changes without breaking their dependencies (as long as the public sets and their meanings are relatively stable).
 
 ### Why can't we just use system piping (previously system chaining) for run criteria?
 
@@ -706,9 +700,9 @@ Below, we examine the the options by example.
                    deal_damage,
                    check_for_death]
                    .chain()
-                   .label(GameLabel::Combat))
+                   .to(GameSet::Combat))
 
-.add_systems([run, jump].after(CoreLabel::Input))
+.add_systems([run, jump].after(InputSet::ReadInput))
 ```
 
 Very pretty. Doesn't work because types are heterogenous though.
@@ -723,10 +717,10 @@ Very pretty. Doesn't work because types are heterogenous though.
               deal_damage,
               check_for_death)
               .chain()
-              .label(GameLabel::Combat)
+              .to(GameSet::Combat)
             )
 
-.add_systems((run, jump).after(CoreLabel::Input))
+.add_systems((run, jump).after(InputSet::ReadInput))
 ```
 
 Also pretty! Mildly cursed and definitely unidiomatic, but we use this flavor of cursed type system magic already for bundles.
@@ -746,10 +740,10 @@ This was the strategy we used for `SystemSet`.
                .with(deal_damage),
                .with(check_for_death)
                .chain()
-               .label(GameLabel::Combat)
+               .to(GameSet::Combat)
             )
 
-.add_systems(SystemGroup::new().with(run).with(jump).after(CoreLabel::Input))
+.add_systems(SystemGroup::new().with(run).with(jump).after(InputSet::ReadInput))
 ```
 
 Oof. Very verbose and cluttered, even with a change from `with_system` to `with`.
@@ -771,10 +765,10 @@ This strategy is used for the `vec![1,2,3]` macro in the standard library.
       check_for_death
    ]
    .chain()
-   .label(GameLabel::Combat)
+   .to(GameSet::Combat)
 )
 
-.add_systems(systems![run, jump].after(CoreLabel::Input))
+.add_systems(systems![run, jump].after(InputSet::ReadInput))
 ```
 
 Reasonably pretty, but still more verbose than the tuple option.
