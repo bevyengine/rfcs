@@ -364,52 +364,6 @@ The number of times these systems should be run varies (it may be 0, 1 or more e
 Simply adding run criteria is inadequate: run criteria can only cause our systems to run a single time, or not run at all.
 By moving this logic into its own schedule within an exclusive system, we can loop until the accumulated time has been spent, running the schedule repeatedly and ensuring that our physics always uses the same delta-time and stays synced with the clock, even in the face of serious stutters.
 
-### Tools to help you work with schedules
-
-Bevy provides some tools to help you keep your schedule properly woven as your game grows in complexity and is refactored.
-
-#### Ambiguous execution order
-
-The first of these is a tool that reports pairs of systems with an **ambiguous execution order**.
-A pair of systems has an **ambiguous execution order** if they are incompatible and do not have any ordering constraints between them, either directly or indirectly.
-This can only happen if one system could read a piece of data that the other could write.
-In some passes of the schedule, you will read fresh, updated state, and in other passes you will read state from the pass before.
-
-Most of the time, this is a logic bug (although it may just result in a one-frame delay).
-By default, whenever schedules are constructed, Bevy will report how many execution order ambiguities it found, allowing you to watch for sudden, unexpected jumps in the number of ambiguities due to a refactoring of your schedule structure.
-You can change this behavior by configuring the `ExecutionOrderAmbiguities` resource.
-
-```rust
-enum ExecutionOrderAmbiguities{
-   /// The schedule will not be checked for ambiguities
-   ///
-   /// This behavior will very slightly reduce startup time and eliminate annoying warnings during prototyping.
-   Allow,
-   /// The number of ambiguities is reported to the console
-   ///
-   /// If this number suddenly jumps, you have likely just removed a foundational part of your schedule structure.
-   WarnCount,
-   /// The details of each ambiguity is reported to the console
-   ///
-   /// This can be very useful for debugging. All stricter levels also produce the same verbose output
-   WarnVerbose,
-   /// The schedule will panic unless amibguities are explicitly allow by a shared label
-   ///
-   /// Some ambiguities are inconsequential, and can be ignored.
-   Deny, 
-   /// The schedule will panic if an ambiguity is found
-   ///
-   /// This level is likely too strict unless perfect determinism is required
-   Forbid,
-}
-```
-
-This resource effectively acts as a lint for your schedule, allowing you to control the level of strictness you desire.
-Execution order ambiguities can be explicitly allowed by giving the conflicting systems a shared label, and then configuring that label to `.allow_ambiguities`.
-This can be helpful to clean up execution order ambiguities that you genuinely do not care about, or when working with operations (such as addition of integers) whose operations are genuinely commutative.
-Note that execution order ambiguities are based on **hypothetical incompatibility**: the scheduler cannot know that entities with both a `Player` and `Tile` component will never exist.
-You can fix these slightly silly execution order ambiguities by adding `Without` filters to your queries.
-
 ## Implementation strategy
 
 Let's take a look at what implementing this would take:
@@ -531,7 +485,6 @@ struct SystemConfig {
 
 struct SystemSetConfig {
    system_config: SystemConfig,
-   allow_ambiguities: bool,
 }
 
 ```
@@ -808,3 +761,4 @@ In addition, there is quite a bit of interesting but less urgent follow-up work:
 7. Run schedules without exclusive world access, inferring access based on the contents of the `Schedule`.
 8. Automatically add and remove systems based on `World` state to reduce schedule clutter and better support one-off logic.
 9. Tooling to force specific schedule execution orders: useful for debugging system order bugs and precomputing strategies.
+10. Better tools to tackle system execution order ambiguities.
