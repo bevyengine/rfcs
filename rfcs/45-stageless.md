@@ -57,14 +57,14 @@ For example, by default, each app stores both a startup and main schedule: the f
 The main and startup schedules can be accessed using the `CoreSchedule::Main` and `CoreSchedule::Startup` labels respectively.
 However, schedules are a surprisingly powerful and flexible tool: they can be used to handle initialization and cleanup logic when working with states or used ad-hoc to run game logic in complex patterns.
 By default, systems are added to the main schedule.
-You can control this by adding the `.to_schedule(ScheduleLabel::Variant)` system descriptor to your system or system set.
+You can control this by adding the `.in_set_schedule(ScheduleLabel::Variant)` system descriptor to your system or system set.
 
 #### Startup systems
 
 Startup systems are stored in their own schedule, with the `CoreSchedule::Startup` label.
 When using the runner added by `MinimalPlugins` and `DefaultPlugins`, this schedule will run exactly once on app startup.
 
-You can add startup systems with the `.add_startup_system(on_startup)` method on `App`, which is simply sugar for `.add_system(on_startup.to_schedule(CoreSchedule::Startup))`.
+You can add startup systems with the `.add_startup_system(on_startup)` method on `App`, which is simply sugar for `.add_system(on_startup.in_set_schedule(CoreSchedule::Startup))`.
 
 ### System configuration
 
@@ -78,7 +78,7 @@ Each system has a few configurable parameters:
   - **states** are a special, more complex pattern that use run criteria to determine whether or not a system should run in a current state
   - e.g. `.add_system(physics.run_if_resource_equals(EnablePhysics(true)))`
 - it may have one or more **labels**, allowing other systems to refer to it and enabling mass-configuration
-  - e.g. `.add_system(physics.to(GameSets::Physics)`
+  - e.g. `.add_system(physics.in_set(GameSets::Physics)`
 
 This configuration is additive: adding another ordering constraint, run criteria or set does not replace the existing configuration.
 
@@ -110,13 +110,13 @@ impl Plugin for PhysicsPlugin{
         .add_set(Physics::CollisionDetection.configure(common_physics_config).before(Physics::CollisionHandling))
         .add_set(Physics::CollisionHandling.configure(common_physics_config))
         // And then apply that config to each of the systems that are part of this set
-        .add_system(gravity.to(Physics::Forces))
+        .add_system(gravity.in_set(Physics::Forces))
         // These systems have a linear chain of ordering dependencies between them
         // Systems earlier in the chain must run before those later in the chain
         // Other systems can run in between these systems
-        .add_systems((broad_pass, narrow_pass).chain().to(Physics::CollisionDetection))
+        .add_systems((broad_pass, narrow_pass).chain().in_set(Physics::CollisionDetection))
         // Add multiple systems as once to reduce boilerplate!
-        .add_systems((compute_forces, collision_damage).to(Physics::CollisionHandling));
+        .add_systems((compute_forces, collision_damage).in_set(Physics::CollisionHandling));
     }
 }
 ```
@@ -148,7 +148,7 @@ fn main(){
                  check_for_death)
                  .chain()
                  // We can configure all systems in the chain at once
-                 .to(GameSet::Combat)
+                 .in_set(GameSet::Combat)
    )
    .run()
 }
@@ -284,17 +284,17 @@ enum StartupSet{
 fn main(){
    App::new()
    // All systems that are not part of this set are implicitly before this set
-   .add_system(flush_commands.to(CoreSet::Last))
+   .add_system(flush_commands.in_set(CoreSet::Last))
    // Recall that this adds systems to the startup schedule, not the main one
-   .add_startup_system(flush_commands.to(CoreSet::Last))
+   .add_startup_system(flush_commands.in_set(CoreSet::Last))
    // Commands will be processed in the basic flush_commands system that occurs at the end of the schedule
    .add_startup_system(spawn_player)
    // We need to customize this after it's spawned
-   .add_startup_system(spawn_ui.before(StartupSet::CommandFlush).to(StartupSet::UiSpawn))
+   .add_startup_system(spawn_ui.before(StartupSet::CommandFlush).in_set(StartupSet::UiSpawn))
    .add_startup_system(customize_ui.after(StartupSet::CommandFlush).after_and_flush(StartupSet::UiSpawn))
-   .add_startup_system(flush_commands.to(StartupSet::CommandFlush);
+   .add_startup_system(flush_commands.in_set(StartupSet::CommandFlush);
    // Less verbosely, we can use the `.chain()` helper method
-   .add_systems((spawn_ui, flush_commands, customize_ui).chain().to_schedule(CoreSchedule::Startup))
+   .add_systems((spawn_ui, flush_commands, customize_ui).chain().in_set_schedule(CoreSchedule::Startup))
    .run();
 }
 ```
@@ -320,7 +320,7 @@ impl Plugin for ProjectilePlugin {
       .after_and_flush(spawn_projectiles).after(CommandFlush::PostUpdate)
     )
     // If we need to add more command flushes to make our logic work, we can manually insert them
-    .add_system(flush_commands.to("DespawningFlush").after(CommandFlush::PostUpdate).before(CommandFlush::EndOfFrame))
+    .add_system(flush_commands.in_set("DespawningFlush").after(CommandFlush::PostUpdate).before(CommandFlush::EndOfFrame))
     .add_system(fork_projectiles.after("DespawningFlush"));
   }
 }
@@ -632,7 +632,7 @@ Below, we examine the the options by example.
                    deal_damage,
                    check_for_death]
                    .chain()
-                   .to(GameSet::Combat))
+                   .in_set(GameSet::Combat))
 
 .add_systems([run, jump].after(InputSet::ReadInput))
 ```
@@ -649,7 +649,7 @@ Very pretty. Doesn't work because types are heterogenous though.
               deal_damage,
               check_for_death)
               .chain()
-              .to(GameSet::Combat)
+              .in_set(GameSet::Combat)
             )
 
 .add_systems((run, jump).after(InputSet::ReadInput))
@@ -672,7 +672,7 @@ This was the strategy we used for `SystemSet`.
                .with(deal_damage),
                .with(check_for_death)
                .chain()
-               .to(GameSet::Combat)
+               .in_set(GameSet::Combat)
             )
 
 .add_systems(SystemGroup::new().with(run).with(jump).after(InputSet::ReadInput))
@@ -697,7 +697,7 @@ This strategy is used for the `vec![1,2,3]` macro in the standard library.
       check_for_death
    ]
    .chain()
-   .to(GameSet::Combat)
+   .in_set(GameSet::Combat)
 )
 
 .add_systems(systems![run, jump].after(InputSet::ReadInput))
