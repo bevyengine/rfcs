@@ -37,9 +37,9 @@ The following elements are substantially reworked:
 - labels (merged with the concept of system sets, can now be directly configured)
 - stages (yoten)
 
-### Scheduling overview and intent-based configuration
+### Scheduling overview
 
-Systems in Bevy are stored in a `Schedule`: a collection of **configured systems**.
+Systems in Bevy are stored in a `Schedule`: a collection of **configured systems**, each of which may belong to any number of **system sets**.
 In each iteration of the schedule (typically corresponding to a single frame), the `App`'s `runner` function will run the schedule,
 causing the **scheduler** to run the systems in parallel using a strategy that respects all of the configured constraints.
 If these constraints cannot be met (for example, a system may want to run both before and after another system), the schedule is said to be **unsatisfiable**, and the scheduler will panic.
@@ -49,27 +49,15 @@ By default, each new `Schedule` is entirely unordered: systems will be selected 
 Just like with standard borrow checking, multiple systems can read from the same data at once, but writing to the data requires an exclusive lock.
 Systems which cannot be run in parallel are said to be **incompatible**.
 
-In Bevy, schedules are ordered via **intent-based configuration**: record the exact, minimal set of constraints needed for a scheduling strategy to be valid, and then let the scheduler figure it out!
-As the number of systems in your app grows, the number of possible scheduling strategies grows exponentially, and the set of *valid* scheduling strategies grows almost as quickly.
-However, each system will continue to work hand-in-hand with a small number of closely-related systems, interlocking in a straightforward and comprehensible way.
-
-By configuring our systems with straightforward, local rules, we can allow the scheduler to pick one of the possible valid paths, optimizing as it sees fit without breaking our logic.
-Just as importantly, we are not over-constraining our ordering. Subtle ordering bugs will surface quickly and then be stamped out with a well-considered rule.
-
 ### The `SystemRegistry` resource stores multiple schedules
 
 Each `World` can store multiple `Schedules` with a `SystemRegistry` resource: each with their own `impl ScheduleLabel` type, allowing you to cleanly execute coherent blocks of logic when the need arises.
 For example, by default, each app stores both a startup and main schedule: the former runs only once on app creation, while the latter loops endlessly.
-This is used for the enter and exit schedules of states, but can also be used to store, mutate and access additional schedules.
 
 The main and startup schedules can be accessed using the `CoreSchedule::Main` and `CoreSchedule::Startup` labels respectively.
 However, schedules are a surprisingly powerful and flexible tool: they can be used to handle initialization and cleanup logic when working with states or used ad-hoc to run game logic in complex patterns.
 By default, systems are added to the main schedule.
 You can control this by adding the `.to_schedule(ScheduleLabel::Variant)` system descriptor to your system or system set.
-To insert a new scedule into the `Schedules` collection, use `app.insert_schedule(label, schedule)`.
-
-To read (but not write) the schedules stored in your app, request `&Schedules` as a system parameter.
-Unsurprisingly, this never conflicts with entities or resources in the `World`, as they are stored one level higher.
 
 #### Startup systems
 
@@ -78,7 +66,7 @@ When using the runner added by `MinimalPlugins` and `DefaultPlugins`, this sched
 
 You can add startup systems with the `.add_startup_system(on_startup)` method on `App`, which is simply sugar for `.add_system(on_startup.to_schedule(CoreSchedule::Startup))`.
 
-### Introduction to system configuration
+### System configuration
 
 Each system has a few configurable parameters:
 
@@ -135,7 +123,7 @@ impl Plugin for PhysicsPlugin{
 
 Just like systems, system sets can be given run criteria and be part of other sets themselves, allowing users to describe properties hierarchically.
 
-### System ordering
+#### System ordering
 
 The most important way we can configure systems is by telling the scheduler *when* they should be run.
 The ordering of systems is always defined relative to other systems: either directly or by checking the systems that belong to a set.
@@ -166,7 +154,108 @@ fn main(){
 }
 ```
 
-#### Ordering with `Commands`
+#### Run criteria
+
+While ordering constraints determine *when* a system will run, **run criteria** will determine *if* it will run at all.
+Each system can have any number of run criteria, which read data from the world to control whether or not that system runs.
+If (and only if) all of its run criteria return `true`, the system will run.
+If any of the run criteria are `false`, the system will be skipped.
+Systems that are skipped are considered completed for the purposes of ordering constraints.
+
+Run criteria are not systems, but can be created from systems which can read (but not write) data from the `World` and returns a boolean value.
+
+You can specify run criteria in several different ways:
+
+```rust
+// This is just an ordinary system: timers need to be ticked!
+fn tick_construction_timer(timer: ResMut<ConstructionTimer>, time: Res<Time>){
+    timer.tick(time.delta());
+}
+
+// This function can be used as a run criterion system,
+// because it does not mutate data and returns `bool`
+fn construction_timer_finished(timer: Res<ConstructionTimer>) -> bool {
+    timer.finished()
+}
+
+// You can use queries, event readers and resources with arbitrarily complex internal logic
+fn too_many_enemies(population_query: Query<(), With<Enemy>>, population_limit: Res<PopulationLimit>) -> bool {
+   population_query.iter().count() > population_limit
+}
+
+fn main(){
+    App::new()
+    .add_plugins(DefaultPlugins)
+    // We can add functions with read-only system parameters as run criteria
+    .add_system((
+       tick_construction_timer, 
+       update_construction_progress)
+       .chain()
+       .run_if(construction_timer_finished)
+    )
+   .add_system(system_meltdown_mitigation.run_if(too_many_enemies))
+    // We can use closures for simple one-off run criteria, 
+    // which automatically fetch the appropriate data from the `World`
+    .add_system(spawn_more_enemies.run_if(|difficulty: Res<Difficulty>| difficulty >= 9000))
+    // The `run_if_resource_equals` method is fast, special-cased syntax that generates a run criterion
+    // for when you want to check the value of a resource (commonly an enum)
+    .add_system(gravity.run_if_resource_equals(Gravity::Enabled))
+    // Run criteria can be attached to system sets
+    .add_set(GameSet::Physics.run_if_resource_equals(Paused(false)))
+    .run();
+}
+```
+
+There are a few important subtleties to bear in mind when working with run criteria:
+
+- when multiple run criteria are attached to the same system, the system will run if and only if all of those run criteria return true
+- run criteria are evaluated "just before" the system that it is attached to is run
+- if a run criterion is attached to a system set, a run-criterion-system will be generated for each contained system
+  - this is essential to ensure that run criteria are checking fresh state without creating very difficult-to-satisfy ordering constraints
+  - if you need to ensure that all systems behave the same way during a single pass of the schedule or avoid expensive recomputation, precompute the value and store the result in a resource, then read from that in your run criteria instead
+
+Run criteria are evaluated by the executor just before the system that they are controlling is run: it is impossible to modify the data that they rely on in an observable way before the system completes.
+This is important to ensure that the state of the world always matches the state expected by the system at the time it is executed.
+
+#### States
+
+**States** allow you to toggle systems on-and-off based on the value of a given resource and smoothly handle transitions between states by running cleanup and initialization systems.
+Typically, these are used for relatively complex, far-reaching facets of the game like pausing, loading assets or entering into menus.
+
+The current value of each state is stored in a resource, which must derive the `State` trait.
+These are typically (but not necessarily) enums, where each distinct state is represented as an enum variant.
+
+Each state is associated with three groups of systems:
+
+1. **While-active:** these systems run each schedule iteration if and only if the value of the state resource matches the provided value.
+   1. `app.add_system(apply_damage.run_in_state(GameState::Playing))`
+2. **On-enter systems:** these systems run once when the specified state is entered.
+   1. `app.add_system(generate_map.run_on_enter(GameState::Playing))`
+3. **On-exit systems:** these systems run once when the specified state is exited.
+   1. `app.add_system(autosave.run_on_exit(GameState::Playing))`
+
+While-active systems are by far the simplest: they're simply powered by run criteria.
+`.run_in_state` is precisely equivalent to `run_if_resource_equals`, except with an additional trait bound that the resource must implement `State`.
+
+On-enter and on-exit systems are stored in dedicated schedules, two per state, within the `App's` `Schedules`.
+These schedules can be configured in all of the ordinary ways, but, as they live in different schedules, ordering cannot be defined relative to systems in the main schedule.
+
+You can change which variant of a state you are in by requesting the state as a mutable resource, then using the `State::transition_to` method within your system.
+Due to their disruptive and far-reaching effects, state transitions do not occur immediately.
+Instead, they are deferred (like commands), until the next `flush_state<S: State>` exclusive system runs.
+This system first runs the `on_exit` schedule of the previous state on the world, then runs the `on_enter` schedule of the new state on the world.
+Once that is complete, the exclusive system ends and control flow resumes as normal.
+Note that commands are not automatically flushed between state transitions: if this is required, add a copy of `flush_commands` to your schedule.
+
+When states are added using `App::add_state::<S: State>(initial_state)`, one `flush_state<S>` system is added to the app, as part of the `GeneratedSet::StateTransition<S>` set.
+You can configure when and if this system is scheduled by configuring this set, and you can add additional copies of this system to your schedule where you see fit.
+Just like with commands, **state-flushed ordering constraints** can be used to verify that state transitions have run at the appropriate time.
+If system `A` is `before_and_flush_state::<S>` system `B`, the schedule will be unsatisfiable unless there is an intervening `flush_state<S>` system.
+
+Apps can have multiple orthogonal states representing independent facets of your game: these operate fully independently.
+States can also be defined as a nested enum: these work as you may expect, with each leaf node representing a distinct group of systems.
+
+### Flushing `Commands`
 
 Commands (commonly used to spawn and despawn entities or add and remove components) do not take effect immediately.
 Instead, they are applied whenever the `flush_commands` system runs.
@@ -236,107 +325,6 @@ impl Plugin for ProjectilePlugin {
   }
 }
 ```
-
-### Run criteria
-
-While ordering constraints determine *when* a system will run, **run criteria** will determine *if* it will run at all.
-Each system can have any number of run criteria, which read data from the world to control whether or not that system runs.
-If (and only if) all of its run criteria return `true`, the system will run.
-If any of the run criteria are `false`, the system will be skipped.
-Systems that are skipped are considered completed for the purposes of ordering constraints.
-
-Run criteria are not systems, but can be created from systems which can read (but not write) data from the `World` and returns a boolean value.
-
-You can specify run criteria in several different ways:
-
-```rust
-// This is just an ordinary system: timers need to be ticked!
-fn tick_construction_timer(timer: ResMut<ConstructionTimer>, time: Res<Time>){
-    timer.tick(time.delta());
-}
-
-// This function can be used as a run criterion system,
-// because it does not mutate data and returns `bool`
-fn construction_timer_finished(timer: Res<ConstructionTimer>) -> bool {
-    timer.finished()
-}
-
-// You can use queries, event readers and resources with arbitrarily complex internal logic
-fn too_many_enemies(population_query: Query<(), With<Enemy>>, population_limit: Res<PopulationLimit>) -> bool {
-   population_query.iter().count() > population_limit
-}
-
-fn main(){
-    App::new()
-    .add_plugins(DefaultPlugins)
-    // We can add functions with read-only system parameters as run criteria
-    .add_system((
-       tick_construction_timer, 
-       update_construction_progress)
-       .chain()
-       .run_if(construction_timer_finished)
-    )
-   .add_system(system_meltdown_mitigation.run_if(too_many_enemies))
-    // We can use closures for simple one-off run criteria, 
-    // which automatically fetch the appropriate data from the `World`
-    .add_system(spawn_more_enemies.run_if(|difficulty: Res<Difficulty>| difficulty >= 9000))
-    // The `run_if_resource_equals` method is fast, special-cased syntax that generates a run criterion
-    // for when you want to check the value of a resource (commonly an enum)
-    .add_system(gravity.run_if_resource_equals(Gravity::Enabled))
-    // Run criteria can be attached to system sets
-    .add_set(GameSet::Physics.run_if_resource_equals(Paused(false)))
-    .run();
-}
-```
-
-There are a few important subtleties to bear in mind when working with run criteria:
-
-- when multiple run criteria are attached to the same system, the system will run if and only if all of those run criteria return true
-- run criteria are evaluated "just before" the system that it is attached to is run
-- if a run criterion is attached to a system set, a run-criterion-system will be generated for each contained system
-  - this is essential to ensure that run criteria are checking fresh state without creating very difficult-to-satisfy ordering constraints
-  - if you need to ensure that all systems behave the same way during a single pass of the schedule or avoid expensive recomputation, precompute the value and store the result in a resource, then read from that in your run criteria instead
-
-Run criteria are evaluated by the executor just before the system that they are controlling is run: it is impossible to modify the data that they rely on in an observable way before the system completes.
-This is important to ensure that the state of the world always matches the state expected by the system at the time it is executed.
-
-### States
-
-**States** are one particularly common and powerful form of run criteria, allowing you to toggle systems on-and-off based on the value of a given resource and smoothly handle transitions between states by running cleanup and initialization systems.
-Typically, these are used for relatively complex, far-reaching facets of the game like pausing, loading assets or entering into menus.
-
-The current value of each state is stored in a resource, which must derive the `State` trait.
-These are typically (but not necessarily) enums, where each distinct state is represented as an enum variant.
-
-Each state is associated with three groups of systems:
-
-1. **While-active:** these systems run each schedule iteration if and only if the value of the state resource matches the provided value.
-   1. `app.add_system(apply_damage.run_in_state(GameState::Playing))`
-2. **On-enter systems:** these systems run once when the specified state is entered.
-   1. `app.add_system(generate_map.run_on_enter(GameState::Playing))`
-3. **On-exit systems:** these systems run once when the specified state is exited.
-   1. `app.add_system(autosave.run_on_exit(GameState::Playing))`
-
-While-active systems are by far the simplest: they're simply powered by run criteria.
-`.run_in_state` is precisely equivalent to `run_if_resource_equals`, except with an additional trait bound that the resource must implement `State`.
-
-On-enter and on-exit systems are stored in dedicated schedules, two per state, within the `App's` `Schedules`.
-These schedules can be configured in all of the ordinary ways, but, as they live in different schedules, ordering cannot be defined relative to systems in the main schedule.
-
-You can change which variant of a state you are in by requesting the state as a mutable resource, then using the `State::transition_to` method within your system.
-Due to their disruptive and far-reaching effects, state transitions do not occur immediately.
-Instead, they are deferred (like commands), until the next `flush_state<S: State>` exclusive system runs.
-This system first runs the `on_exit` schedule of the previous state on the world, then runs the `on_enter` schedule of the new state on the world.
-Once that is complete, the exclusive system ends and control flow resumes as normal.
-Note that commands are not automatically flushed between state transitions: if this is required, add a copy of `flush_commands` to your schedule.
-
-When states are added using `App::add_state::<S: State>(initial_state)`, one `flush_state<S>` system is added to the app, as part of the `GeneratedSet::StateTransition<S>` set.
-You can configure when and if this system is scheduled by configuring this set, and you can add additional copies of this system to your schedule where you see fit.
-Just like with commands, **state-flushed ordering constraints** can be used to verify that state transitions have run at the appropriate time.
-If system `A` is `before_and_flush_state::<S>` system `B`, the schedule will be unsatisfiable unless there is an intervening `flush_state<S>` system.
-
-Apps can have multiple orthogonal states representing independent facets of your game: these operate fully independently.
-States can also be defined as a nested enum: these work as you may expect, with each leaf node representing a distinct group of systems.
 
 ### Complex control flow
 
