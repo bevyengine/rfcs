@@ -28,7 +28,7 @@ This explanation is, in effect, user-facing documentation for the new design.
 In addition to a few new concepts, it throws out much of the current system scheduling design that you may be familiar with.
 The following elements are substantially reworked:
 
-- schedules (simplified, each `App` can store multiple dynamically modifiable schedules)
+- schedules (simplified, each `World` can store multiple dynamically modifiable schedules in a `SystemRegistry` resource)
 - run criteria (can no longer loop, are now systems)
 - states (simplified, no longer purely run-criteria powered)
 - fixed time steps (no longer a run criterion)
@@ -57,12 +57,11 @@ However, each system will continue to work hand-in-hand with a small number of c
 By configuring our systems with straightforward, local rules, we can allow the scheduler to pick one of the possible valid paths, optimizing as it sees fit without breaking our logic.
 Just as importantly, we are not over-constraining our ordering. Subtle ordering bugs will surface quickly and then be stamped out with a well-considered rule.
 
-### The `App` stores multiple schedules
+### The `SystemRegistry` resource stores multiple schedules
 
-The `App` can store multiple `Schedules`: each with their own `impl ScheduleLabel` type, allowing you to cleanly execute coherent blocks of logic when the need arises.
+Each `World` can store multiple `Schedules` with a `SystemRegistry` resource: each with their own `impl ScheduleLabel` type, allowing you to cleanly execute coherent blocks of logic when the need arises.
 For example, by default, each app stores both a startup and main schedule: the former runs only once on app creation, while the latter loops endlessly.
 This is used for the enter and exit schedules of states, but can also be used to store, mutate and access additional schedules.
-For safety reasons, you cannot mutate schedules that are currently being run: instead, you can defer their modification until the end of the main loop using `ScheduleCommands`.
 
 The main and startup schedules can be accessed using the `DefaultSchedule::Main` and `DefaultSchedule::Startup` labels respectively.
 By default, systems are added to the main schedule.
@@ -417,11 +416,10 @@ Let's take a look at what implementing this would take:
    4. `IntoExclusiveSystem`
 2. Build out a basic schedule abstraction:
    1. Create a `ScheduleLabel` trait
-   2. Store multiple schedules in an `App` using a dictionary approach
+   2. Store multiple schedules in a keyed `SystemRegistry` resource
    3. Support adding systems to the schedule
       1. These should be initialized by definition: see [PR #2777](https://github.com/bevyengine/bevy/pull/2777)
    4. Support adding systems to specific schedules and create startup system API
-   5. Special-cased data access control for "the entire world" and `Schedules` to support exclusive systems
 3. Rebuild core command processing machinery
    1. Begin with trivial event-style commands
    2. Explore how to regain parallelism
@@ -449,9 +447,9 @@ Let's take a look at what implementing this would take:
    3. Create on-enter and on-exit schedules
    4. Create sugar for adding systems to these schedules
 9. Rename "system chaining" to "system handling"
-   5. Usage was very confusing for new users
-   6. Almost exclusively used for error handling
-   7. New concept of "systems with a linear graph of ordering constraints between them" is naturally described as a chain
+   1. Usage was very confusing for new users
+   2. Almost exclusively used for error handling
+   3. New concept of "systems with a linear graph of ordering constraints between them" is naturally described as a chain
 10. Add new examples
     1. Complex control flow with supplementary schedules
     2. Fixed time-step pattern
@@ -708,13 +706,6 @@ In practice, almost all run criteria are extremely simple, and fast to check.
 Verifying that the cache is still valid will require access to the data anyways, and involve more overhead than simple computations on one or two resources.
 
 In addition, adding multiple atomic ordering constraints originating from a single system is extremely prone to dead-locks; we should not hand users this foot-gun.
-
-### Why do we want to store multiple schedules in the `App`?
-
-We could store these in a resource in the `World`.
-Unfortunately, this seriously impacts the ergonomics of running schedules in exclusive systems due to borrow checker woes.
-
-Storing the schedules in the `App` alleviates this, as exclusive systems are now just ordinary systems: `&mut World` is compatible with `&mut Schedules`!
 
 ## Should if=needed ordering constraints be transitive?
 
