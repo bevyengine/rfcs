@@ -168,9 +168,13 @@ You can specify run criteria in several different ways:
 ```rust
 // This function can be used as a run criterion,
 // because it does not mutate data and returns `bool`
-fn construction_timer_finished(mut timer: ResMut<ConstructionTimer>) -> bool {
-   timer.tick(time.delta());
+fn construction_timer_finished(timer: Res<ConstructionTimer>) -> bool {
    timer.finished()
+}
+
+// Timers need to be ticked
+fn tick_construction_timer(mut timer: ResMut<ConstructionTimer>){
+   timer.tick();
 }
 
 // You can use queries, event readers and resources with arbitrarily complex internal logic
@@ -179,21 +183,24 @@ fn too_many_enemies(population_query: Query<(), With<Enemy>>, population_limit: 
 }
 
 fn main(){
-    App::new()
-    .add_plugins(DefaultPlugins)
-    // We can add functions with read-only system parameters as run criteria
-    .add_system(
-       update_construction_progress.run_if(construction_timer_finished)
-    )
+   App::new()
+   .add_plugins(DefaultPlugins)
+   .add_system(tick_construction_timer)
+   .add_system(
+      update_construction_progress
+        .after(tick_construction_timer)
+         // We can add systems with read-only system parameters as run criteria
+        .run_if(construction_timer_finished)
+   )
    .add_system(system_meltdown_mitigation.run_if(too_many_enemies))
-    // We can use closures for simple one-off run criteria, 
-    // which automatically fetch the appropriate data from the `World`
-    .add_system(spawn_more_enemies.run_if(|difficulty: Res<Difficulty>| difficulty >= 9000))
-    // The `resource_exists` and `resource_equals` functions generate a closure that you can stick in a run criteria
-    .add_system(gravity.run_if(resource_exists(Gravity)))
-    // Run criteria can be attached to system sets, allowing them to control all systems in that set
-    .configure_set(GameSet::Physics.run_if(resource_equals(Paused(false))))
-    .run();
+   // We can use closures for simple one-off run criteria, 
+   // which automatically fetch the appropriate data from the `World`
+   .add_system(spawn_more_enemies.run_if(|difficulty: Res<Difficulty>| difficulty >= 9000))
+   // The `resource_exists` and `resource_equals` functions generate a closure that you can stick in a run criteria
+   .add_system(gravity.run_if(resource_exists(Gravity)))
+   // Run criteria can be attached to system sets, allowing them to control all systems in that set
+   .configure_set(GameSet::Physics.run_if(resource_equals(Paused(false))))
+   .run();
 }
 ```
 
