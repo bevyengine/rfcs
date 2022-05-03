@@ -166,15 +166,11 @@ Run criteria are not systems, but can be created from systems which can read (bu
 You can specify run criteria in several different ways:
 
 ```rust
-// This is just an ordinary system: timers need to be ticked!
-fn tick_construction_timer(timer: ResMut<ConstructionTimer>, time: Res<Time>){
-    timer.tick(time.delta());
-}
-
-// This function can be used as a run criterion system,
+// This function can be used as a run criterion,
 // because it does not mutate data and returns `bool`
-fn construction_timer_finished(timer: Res<ConstructionTimer>) -> bool {
-    timer.finished()
+fn construction_timer_finished(mut timer: ResMut<ConstructionTimer>) -> bool {
+   timer.tick(time.delta());
+   timer.finished()
 }
 
 // You can use queries, event readers and resources with arbitrarily complex internal logic
@@ -186,12 +182,8 @@ fn main(){
     App::new()
     .add_plugins(DefaultPlugins)
     // We can add functions with read-only system parameters as run criteria
-    .add_systems((
-
-       tick_construction_timer, 
-       update_construction_progress)
-       .chain()
-       .run_if(construction_timer_finished)
+    .add_system(
+       update_construction_progress.run_if(construction_timer_finished)
     )
    .add_system(system_meltdown_mitigation.run_if(too_many_enemies))
     // We can use closures for simple one-off run criteria, 
