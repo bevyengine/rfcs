@@ -4,7 +4,7 @@
 
 The existing stage boundaries result in a large number of complications as they prevent us from operating across stages.
 Moreover, several related features (run criteria, states and fixed timesteps) are rather fragile and overly complex.
-This tangled mess needs to be holistically refactored: simplifying the scheduling model down into a single `Schedule`, moving towards an intent-based configuration style, taking full advantage of system labels as sets and leveraging exclusive systems to handle complex logic.
+This tangled mess needs to be holistically refactored: transferring the ownership of systems to an undivided `Schedule`, simplifying run criteria, taking full advantage of system labels as sets and leveraging exclusive systems to handle complex logic.
 
 ## Motivation
 
@@ -34,7 +34,7 @@ The following elements are substantially reworked:
 - fixed time steps (no longer a run criterion)
 - exclusive systems (no longer special-cased)
 - command processing (now performed in a `flush_commands` exclusive system)
-- labels (merged with the concept of system sets, can now be directly configured)
+- system labels and system sets (merged, can now be directly configured)
 - stages (yoten)
 
 ### Scheduling overview
@@ -230,7 +230,6 @@ Each state is associated with three groups of systems:
    1. `app.add_system(generate_map.in_set(OnEnter(GameState::Playing))`
 3. **On-exit systems:** these systems run once when the specified state is exited.
    1. `app.add_system(autosave.in_set(OnExit(GameState::Playing)))`
-
 
 While-active systems are by far the simplest: they're simply powered by run criteria.
 
