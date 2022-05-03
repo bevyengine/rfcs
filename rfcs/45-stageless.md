@@ -212,7 +212,6 @@ There are a few important subtleties to bear in mind when working with run crite
   - this occurs just before the first system controlled by that criteria would be run
   - the value is then shared for all other systems with that run criteria, ensuring all systems in the set stay synchronized
 
-Run criteria are evaluated by the executor just before the system that they are controlling is run: it is impossible to modify the data that they rely on in an observable way before the system completes.
 This is important to ensure that the state of the world always matches the state expected by the system at the time it is executed.
 
 #### States
