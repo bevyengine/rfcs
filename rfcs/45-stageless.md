@@ -186,7 +186,8 @@ fn main(){
     App::new()
     .add_plugins(DefaultPlugins)
     // We can add functions with read-only system parameters as run criteria
-    .add_system((
+    .add_systems((
+
        tick_construction_timer, 
        update_construction_progress)
        .chain()
