@@ -229,7 +229,8 @@ Each state is associated with three groups of systems:
 2. **On-enter systems:** these systems run once when the specified state is entered.
    1. `app.add_system(generate_map.in_set(OnEnter(GameState::Playing))`
 3. **On-exit systems:** these systems run once when the specified state is exited.
-   1. `app.add_system(autosave.in_set(OnEnter(GameState::Playing)))`
+   1. `app.add_system(autosave.in_set(OnExit(GameState::Playing)))`
+
 
 While-active systems are by far the simplest: they're simply powered by run criteria.
 
