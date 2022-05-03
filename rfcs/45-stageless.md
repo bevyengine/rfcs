@@ -106,9 +106,9 @@ impl Plugin for PhysicsPlugin{
 
         app
         // We can reuse this shared configuration on each of our sets
-        .add_set(Physics::Forces.configure(common_physics_config).before(Physics::CollisionDetection))
-        .add_set(Physics::CollisionDetection.configure(common_physics_config).before(Physics::CollisionHandling))
-        .add_set(Physics::CollisionHandling.configure(common_physics_config))
+        .configure_set(Physics::Forces.configure(common_physics_config).before(Physics::CollisionDetection))
+        .configure_set(Physics::CollisionDetection.configure(common_physics_config).before(Physics::CollisionHandling))
+        .configure_set(Physics::CollisionHandling.configure(common_physics_config))
         // And then apply that config to each of the systems that are part of this set
         .add_system(gravity.in_set(Physics::Forces))
         // These systems have a linear chain of ordering dependencies between them
@@ -192,7 +192,7 @@ fn main(){
     // The `resource_exists` and `resource_equals` functions generate a closure that you can stick in a run criteria
     .add_system(gravity.run_if(resource_exists(Gravity)))
     // Run criteria can be attached to system sets, allowing them to control all systems in that set
-    .add_set(GameSet::Physics.run_if(resource_equals(Paused(false))))
+    .configure_set(GameSet::Physics.run_if(resource_equals(Paused(false))))
     .run();
 }
 ```
