@@ -393,23 +393,24 @@ Schedules store systems in a configured, initialized form.
 
 ```rust
 struct Schedule{
-   // Each schedule is associated with exactly one `World`, as systems must be initiliazed on it
+   // Each schedule is associated with exactly one `World`, as systems must be initiliazed on it.
+
    world_id: WorldId
-   // We need to be able to quickly look up specific systems and iterate over them
-   // `SystemId` should be a unique opaque identifier, generated on system insertion
+   // We need to be able to quickly look up specific systems and iterate over them.
+   // `SystemId` should be a unique opaque identifier, generated on system insertion.
    // We cannot use a Vec + a `usize` index as the identifier,
-   // as the identifier would not be stable when systems were removed, risking serious bugs
+   // as it would not be stable when systems were removed, risking serious bugs.
    systems: HashMap<SystemId, ConfiguredSystem>,
    // Stores the fully initialized, efficient graph of ordering constraints
    // for all systems in the schedule.
    // The properties of each set are passed down to specific systems to cache computation results.
    // `Graph` is a bikeshed-avoidance graph storage structure,
-   // the exact strategy should be benchmarked
+   // the exact strategy should be benchmarked.
    ordering_constraints: Graph<SystemId>,
    // Set configuration must be stored at the schedule level,
-   // rather than attached to specific set instances
+   // rather than attached to specific set instances.
    sets: HashMap<Box<dyn SystemLabel>, SystemSetConfig>,
-   // Used to check if mutation is allowed
+   // Used to check if mutation is allowed.
    currently_running: bool,
 }
 ```
@@ -452,7 +453,7 @@ struct SystemConfig {
    run_criteria: Vec<SystemId>,
    // The combined access requirements of the system and its run criteria
    joint_access: FilteredAccessSet<ComponentId>,
-   sets: Vec<Box dyn SystemLabel>,
+   sets: Vec<Box<dyn SystemLabel>>,
 }
 
 struct SystemSetConfig {
