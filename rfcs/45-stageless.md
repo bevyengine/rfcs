@@ -511,7 +511,8 @@ We need to:
 For this RFC, let's begin with the very simplest strategy: for each pair of systems with a flushed ordering constraint, ensure that a flushing system of the appropriate type is strictly after the first system, and strictly before the second.
 
 We can check if the flushing system is of the appropriate type by checking the type id of the function pointer stored in the `System`.
-This is cached in the `system_function_type_map` field of the `Schedule` for efficient lookup, yielding the relevant `SystemIds`.
+This is cached in the `system_function_type_map` field of the `Schedule` for efficient lookup, yielding the relevant `SystemId`s.
+
 
 With the ids of the relevant systems in hand, we can check each constraint: for each pair of systems, we must check that at least one of the relevant flushing systems is between them.
 To do so, we need to check both direct *and* transitive strict ordering dependencies, using a depth-first search to walk backwards from the later system using the `CachedOrdering` until a flushing system is reached, and then walking back further from that flushing system until the originating system is reached.
