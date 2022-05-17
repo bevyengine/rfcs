@@ -50,7 +50,7 @@ Pseudorandom number generators require a source of [entropy](https://en.wikipedi
 
 For example, let's say you seed a pseudorandom number generator with `1234`. You then ask for a random number between `10` and `99` and the pseudorandom number generator returns `12`. If you run the program again with the same seed (`1234`) and ask for another random number between `1` and `99`, you will again get `12`. If you then change the seed to `4567` and run the program, more than likely the result will not be `12` and will instead be a different number. If you run the program again with the `4567` seed, you should see the same number from the previous `4567`-seeded run. 
 
-There are many types of pseudorandom number generators each with their own strengths and weakenesses. Because of this, Bevy does not include a pseudorandom number generator. Instead, the `bevy_entropy` plugin includes a source of entropy to use as a random seed for your pseudorandom number generator.  The plugin can be completely disabled if no source of entropy is required, the default entropy from the OS can be used if randomness is needed but deterministic execution is not, or a world seed can be specified for deterministic random number generation.
+There are many types of pseudorandom number generators each with their own strengths and weaknesses. Because of this, Bevy does not include a pseudorandom number generator. Instead, the `bevy_entropy` plugin includes a source of entropy to use as a random seed for your pseudorandom number generator.  The plugin can be completely disabled if no source of entropy is required, the default entropy from the OS can be used if randomness is needed but deterministic execution is not, or a world seed can be specified for deterministic random number generation.
 
 Note that Bevy currently has [other sources of non-determinism](https://github.com/bevyengine/bevy/discussions/2480) unrealted to pseudorandom number generators.
 
@@ -84,7 +84,7 @@ https://github.com/bevyengine/bevy/pull/2504
 - This may not be general enough to include in Bevy.
 - This may not be general enough to be on by default.
 - Includes `rand` as a dependency
-  - But not in public API
+  - But not in public API.
 
 ## Rationale and alternatives
 
@@ -93,7 +93,7 @@ https://github.com/bevyengine/bevy/pull/2504
   - It defaults to what someone would resonably expect if they wrote it themselves.
   - It defaults to something safe (suitable for cryptographic functions), removing a possible footgun.
 - What other designs have been considered and what is the rationale for not choosing them?
-  - We could go higher and expose an API closer to `rand`. This is what [Godot](https://docs.godotengine.org/en/stable/tutorials/math/random_number_generation.html), [Unity](https://docs.unity3d.com/ScriptReference/Random.html), and [Unreal](https://docs.unrealengine.com/4.27/en-US/BlueprintAPI/Math/Random/) do. We are not experts in PRNG api design, and while `rand` is clearly the most popular random crate in the Rust ecosystem we don't currently want to tie bevy to any particluar API in case something better emerges.
+  - We could go higher and expose an API closer to `rand`. This is what [Godot](https://docs.godotengine.org/en/stable/tutorials/math/random_number_generation.html), [Unity](https://docs.unity3d.com/ScriptReference/Random.html), and [Unreal](https://docs.unrealengine.com/4.27/en-US/BlueprintAPI/Math/Random/) do. We are not experts in PRNG API design, and while `rand` is clearly the most popular random crate in the Rust ecosystem we don't currently want to tie bevy to any particluar API in case something better emerges.
   - We could go lower and merely expose a static `WorldSeed`. I'm worried about what the default would be and forcing a seed at world creation feels heavyweight.
   - We could default to a faster PRNG rather than a safer one. I wanted folks to fall into the pit of success.
 - What objections immediately spring to mind? How have you addressed them?
