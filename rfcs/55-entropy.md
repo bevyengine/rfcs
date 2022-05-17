@@ -52,7 +52,7 @@ For example, let's say you seed a pseudorandom number generator with `1234`. You
 
 There are many types of pseudorandom number generators each with their own strengths and weaknesses. Because of this, Bevy does not include a pseudorandom number generator. Instead, the `bevy_entropy` plugin includes a source of entropy to use as a random seed for your chosen pseudorandom number generator.  The plugin can be completely disabled if no source of entropy is required, the default entropy from the OS can be used if randomness is needed but deterministic execution is not, or a world seed can be specified for deterministic random number generation.
 
-Note that Bevy currently has [other sources of non-determinism](https://github.com/bevyengine/bevy/discussions/2480) unrealted to pseudorandom number generators.
+Note that Bevy currently has [other sources of non-determinism](https://github.com/bevyengine/bevy/discussions/2480) unrelated to pseudorandom number generators.
 
 ### Usage
 
