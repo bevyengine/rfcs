@@ -93,7 +93,7 @@ https://github.com/bevyengine/bevy/pull/2504
   - It defaults to what someone would resonably expect if they wrote it themselves.
   - It defaults to something safe (suitable for cryptographic functions), removing a possible footgun.
 - What other designs have been considered and what is the rationale for not choosing them?
-  - We could go higher and expose an API closer to `rand`. This is what [Godot](https://docs.godotengine.org/en/stable/tutorials/math/random_number_generation.html), [Unity](https://docs.unity3d.com/ScriptReference/Random.html), and [Unreal](https://docs.unrealengine.com/4.27/en-US/BlueprintAPI/Math/Random/) do. We are not experts in PRNG API design, and while `rand` is clearly the most popular random crate in the Rust ecosystem we don't currently want to tie bevy to any particluar API in case something better emerges.
+  - We could go higher and expose an API closer to `rand`. This is what [Godot](https://docs.godotengine.org/en/stable/tutorials/math/random_number_generation.html), [Unity](https://docs.unity3d.com/ScriptReference/Random.html), and [Unreal](https://docs.unrealengine.com/4.27/en-US/BlueprintAPI/Math/Random/) do. We are not experts in PRNG API design, and while `rand` is clearly the most popular random crate in the Rust ecosystem we don't currently want to tie bevy to any particular API in case something better emerges.
   - We could go lower and merely expose a static `WorldSeed`. I'm worried about what the default would be and forcing a seed at world creation feels heavyweight.
   - We could default to a faster PRNG rather than a safer one. I wanted folks to fall into the pit of success.
 - What objections immediately spring to mind? How have you addressed them?
