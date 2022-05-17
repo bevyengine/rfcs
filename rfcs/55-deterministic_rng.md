@@ -42,7 +42,7 @@ Games often use randomness as a core mechanic. For example, card games generate 
 
 Let's pretend you are creating a poker game where a human player can play against the computer. The computer's poker logic is very simple--when the computer has a good hand, it bets all of its money. To make sure the behavior works, you write a test to first check the computer's hand and if it is good confirm that all its money is bet. If the test passes does it ensure the computer behaves as intended? Sadly, no.
 
-Because the deck is randomly shuffled for each game--without doing so the player would already know the card order from the previous game--it is not guaranteed that the computer player gets a good hand and thus the betting logic goes unchecked. While there are ways around this--a fake deck that is not shuffled, running the test many times to increase confidence, breaking the logic into units and testing those--it would be very helpful to have randomness as well as way to make it _less_ random.
+Because the deck is randomly shuffled for each game--without doing so the player would already know the card order from the previous game--it is not guaranteed that the computer player gets a good hand and thus the betting logic goes unchecked. While there are ways around this--a fake deck that is not shuffled, running the test many times to increase confidence, breaking the logic into units and testing those--it would be very helpful to have randomness as well as a way to make it _less_ random.
 
 Luckily, when a computer needs a random number it doesn't use real randomness and instead uses a [pseudorandom number generator](https://en.wikipedia.org/wiki/Pseudorandom_number_generator). Popular Rust libraries containing pseudorandom number generators are [`rand`](https://crates.io/crates/rand) and [`fastrand`](https://crates.io/crates/fastrand).
 
@@ -50,9 +50,9 @@ Pseudorandom number generators require a source of [entropy](https://en.wikipedi
 
 For example, let's say you seed a pseudorandom number generator with `1234`. You then ask for a random number between `10` and `99` and the pseudorandom number generator returns `12`. If you run the program again with the same seed (`1234`) and ask for another random number between `1` and `99`, you will again get `12`. If you then change the seed to `4567` and run the program, more than likely the result will not be `12` and will instead be a different number. If you run the program again with the `4567` seed, you should see the same number from the previous `4567`-seeded run. 
 
-There are many types of pseudorandom number generators each with their own strengths and weaknesses. Because of this, Bevy does not include a pseudorandom number generator. Instead, the `bevy_entropy` plugin includes a source of entropy to use as a random seed for your pseudorandom number generator.  The plugin can be completely disabled if no source of entropy is required, the default entropy from the OS can be used if randomness is needed but deterministic execution is not, or a world seed can be specified for deterministic random number generation.
+There are many types of pseudorandom number generators each with their own strengths and weaknesses. Because of this, Bevy does not include a pseudorandom number generator. Instead, the `bevy_entropy` plugin includes a source of entropy to use as a random seed for your chosen pseudorandom number generator.  The plugin can be completely disabled if no source of entropy is required, the default entropy from the OS can be used if randomness is needed but deterministic execution is not, or a world seed can be specified for deterministic random number generation.
 
-Note that Bevy currently has [other sources of non-determinism](https://github.com/bevyengine/bevy/discussions/2480) unrealted to pseudorandom number generators.
+Note that Bevy currently has [other sources of non-determinism](https://github.com/bevyengine/bevy/discussions/2480) unrelated to pseudorandom number generators.
 
 ### Usage
 
@@ -64,7 +64,7 @@ The default source of world entropy [`Entropy::default()`] is non-deterministic 
 
 You may choose to determinstically seed your own world entropy via [`Entropy::from`]. The  seed you choose may have security implications or influence the distribution of the resulting random numbers. See https://rust-random.github.io/book/guide-seeding.html for more details about how to pick a "good" random seed for your needs.
 
-Depending on your game and the type of randomness you require, when specifying a seed you would normally do one of the following:
+Depending on your game and the type of randomness you require, when specifying a seed you will normally do one of the following:
 
 1. Get a good random seed out-of-band and hardcode it in the source.
 2. Dynamically call to the OS and print the seed so the user can rerun deterministically. In games like [Factorio](https://www.factorio.com/) sharing random seeds is encouraged and supported.
