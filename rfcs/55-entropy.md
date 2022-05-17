@@ -64,7 +64,7 @@ The default source of world entropy [`Entropy::default()`] is non-deterministic 
 
 You may choose to determinstically seed your own world entropy via [`Entropy::from`]. The  seed you choose may have security implications or influence the distribution of the resulting random numbers. See https://rust-random.github.io/book/guide-seeding.html for more details about how to pick a "good" random seed for your needs.
 
-Depending on your game and the type of randomness you require, when specifying a seed you would normally do one of the following:
+Depending on your game and the type of randomness you require, when specifying a seed you will normally do one of the following:
 
 1. Get a good random seed out-of-band and hardcode it in the source.
 2. Dynamically call to the OS and print the seed so the user can rerun deterministically. In games like [Factorio](https://www.factorio.com/) sharing random seeds is encouraged and supported.
