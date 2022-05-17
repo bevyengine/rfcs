@@ -1,4 +1,4 @@
-# Feature Name: `Entropy`
+# Feature Name: `Deterministic RNG`
 
 ## Summary
 
