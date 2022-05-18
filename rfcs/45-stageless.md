@@ -35,7 +35,7 @@ The following elements are substantially reworked:
 - exclusive systems (no longer special-cased)
 - command processing (now performed in a `flush_commands` exclusive system)
 - system labels and system sets (merged, can now be directly configured)
-- stages (yoten)
+- stages (removed)
 
 ### Scheduling overview
 
