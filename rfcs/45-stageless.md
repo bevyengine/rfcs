@@ -710,6 +710,7 @@ This was the strategy we used for `SystemSet`.
 
 - looks pretty
 - limited to 12 elements
+- increases compile times
 - relies on type system magic
   - requires invocation of the `all_tuples` macro to generate blanket impls
   - (kinda cursed, but already used for system params, systems, and bundles)
