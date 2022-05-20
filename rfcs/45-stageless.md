@@ -23,7 +23,6 @@ Of particular note:
 - Our state machine model (a stack) doesn't enable enough use cases to warrant its complexity.
 - There are just too many types and methods. (looking at you, "`.add_system_set_to_startup_stage`")
 
-
 Unfortunately, all of these problems are deeply interwoven. Despite our best efforts, fixing them incrementally at either the design or implementation stage is impossible, as it results in myopic architecture choices and terrible technical debt.
 
 ## User-facing explanation
@@ -36,8 +35,8 @@ Let's define some terms so that hopefully we're all on the same page.
 - **system set**: a system label that represents a group of systems and other sub-sets
 - **condition**: a special kind of system that guards the execution of a system (set)
 - **dependency**: a system (set) that must complete before the system (set) of interest can run
-- **scheduler**: the programmer, who is attempting to control when and if systems run
-- **schedule** (verb): specify when and if a system runs
+- **scheduler**: the programmer, who is attempting to control when and under what conditions systems run
+- **schedule** (verb): specify when and under what conditions systems run
 - **schedule** (noun): the executable form of a system set
 - **executor**: executes a schedule on a world
 - **"ready"**: when a system is no longer waiting for dependencies to complete
@@ -114,7 +113,7 @@ fn main() {
 
 The simplest way users can configure systems is by saying *when* they should run using the `.before`, `.after`, and `.in_set` methods. These constraints are relative to another system or set. Run order constraints involving sets are eventually flattened into constraints between the individual systems. Any constraints the user specifies are used to derive dependency graphs, which (along with the data access) tells the engine where systems can run in parallel. The only limit is that every graph must be **solvable**. If any relationship constraint cannot be met (e.g. A was configured to run both before and after system B), it will result in an error.
 
-Bevy provides the `App::add_many` method for configuring multiple systems and sets at once. Using `nodes![a, b, c, ...].chain()` (or the `chain![a, b, c, ...]` shortcut) will create dependencies between the successive elements.
+Bevy provides the `App::add_many` method for configuring multiple systems and sets at once. Using `systems![a, b, c, ...].chain()` (or the `chain![a, b, c, ...]` shortcut) will create dependencies between the successive elements.
 (Note: This is different from "system chaining" in Bevy 0.7 and earlier. That concept has been renamed to "system piping" to avoid overlap.)
 
 ```rust
@@ -155,7 +154,7 @@ impl Plugin for PhysicsPlugin {
 }
 ```
 
-### Configuring run conditions (run criteria)
+### Configuring run conditions (previously run criteria)
 
 While ordering constraints determine *when* a system runs, **run conditions** determine *if* it runs at all. Run conditions consist of systems that have read-only data access and return `bool`.
 A system or set can have any number of conditions, and it will only run if all of them return `true`. 
@@ -189,7 +188,7 @@ fn main() {
         .add_plugins(DefaultPlugins)
         // You can add functions with read-only system parameters as conditions.
         .add_set(GameSet::Construction.run_if(construction_timer_not_finished))
-        .add_many(nodes![tick_construction_timer, update_construction_progress].in_set(GameSet::Construction))
+        .add_many(systems![tick_construction_timer, update_construction_progress].in_set(GameSet::Construction))
         .add_system(system_meltdown_mitigation.run_if(too_many_enemies))
         // We can use closures for simple one-off conditions, 
         // which automatically fetch the appropriate data from the `World`.
@@ -720,7 +719,7 @@ This was the strategy we used for `SystemSet`.
 This strategy is used for the `vec![1,2,3]` macro in the standard library.
 
 ```rust
-.add_many(nodes![
+.add_many(systems![
       compute_attack, 
       compute_defense,
       check_for_crits,
@@ -733,7 +732,7 @@ This strategy is used for the `vec![1,2,3]` macro in the standard library.
    .in_set(GameSet::Combat)
 )
 
-.add_many(nodes![run, jump].after(InputSet::ReadInput))
+.add_many(systems![run, jump].after(InputSet::ReadInput))
 ```
 
 - looks OK (some boilerplate)
@@ -747,6 +746,7 @@ There are a few proposals that should be considered immediately, hand-in-hand wi
 1. If-needed ordering constraints ([RFC #47](https://github.com/bevyengine/rfcs/pull/47)).
 2. Atomic groups (sets) ([RFC #46](https://github.com/bevyengine/rfcs/pull/46)), to ensure that systems are executed as a single block.
 3. Opt-in automatic insertion of command and state flushing systems (see discussion in [RFC #34](https://github.com/bevyengine/rfcs/pull/34)).
+4. Command-flushed ordering constraints.
 
 In addition, there is quite a bit of interesting but less urgent follow-up work:
 
@@ -759,4 +759,3 @@ In addition, there is quite a bit of interesting but less urgent follow-up work:
 7. Automatic insertion and removal of systems based on `World` state to reduce schedule clutter and better support one-off logic.
 8. Tools to force a specific schedule execution order: useful for debugging system order bugs and precomputing strategies.
 9. Better tools to tackle system execution order ambiguities.
-10. Command-flushed ordering constraints.
