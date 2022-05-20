@@ -310,7 +310,7 @@ Let's take a look at what implementing this would take:
     - Add method to change which set is default (i.e. `CoreSet::Update`) if none are specified.
       - Need special-casing for sets which that not have a parent, like state transitions.
     - Add `.add_many` method and some macros for convenient bulk scheduling.
-- Run conditions (Run criteria)
+- Run conditions (previously run criteria)
   - Define `IntoRunCondition` trait that can only be impl by compatible functions.
   - Update graph checker to include the access of run conditions when checking for ambiguous order between systems.
   - Update executor to include the access of run conditions when checking if systems can run.
