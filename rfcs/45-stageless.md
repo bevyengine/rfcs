@@ -2,7 +2,9 @@
 
 ## Summary
 
-Bevy's current scheduling architecture (as of 0.7) has a large number of issues due to internal complexity. Certain concepts and behaviors are unnecessarily fused together and certain building blocks—stages, run criteria, states—are presented as independent but actually have significant internal coupling. These properties frequently lead users into encounters with unexpected side effects and indecipherable errors.
+Bevy's current scheduling architecture (as of 0.7) has a large number of issues due to internal complexity.
+Certain concepts and behaviors are unnecessarily fused together and certain building blocks—stages, run criteria, states—are presented as independent but actually have significant internal coupling.
+These properties frequently lead users into encounters with unexpected side effects and indecipherable errors.
 
 It's become a tangled mess.
 
@@ -14,12 +16,13 @@ The fundamental challenges with the current stage-centered scheduling model are 
 Of particular note:
 
 - Stages entangle ordering and command processing.
-- Plugin authors have no nicer way to export their systems than wrapping them in stages, but imported stages can't be scheduled by the user.
-- Nothing can have multiple run criteria.
+- Plugin authors have no tools to export their systems other than wrapping them in stages, but the scheduling of imported stages can't be controlled by the user.
+- Systems and system sets cannot have multiple run criteria.
 - There's no clear pattern for users to architect turn-based games.
 - There's no clear pattern for users to make a state "span across" multiple stages with our state machine model.
 - Our state machine model (a stack) doesn't enable enough use cases to warrant its complexity.
-- There are just too many types and methods. (looking at you, "`.add_system_to_startup_stage`")
+- There are just too many types and methods. (looking at you, "`.add_system_set_to_startup_stage`")
+
 
 Unfortunately, all of these problems are deeply interwoven. Despite our best efforts, fixing them incrementally at either the design or implementation stage is impossible, as it results in myopic architecture choices and terrible technical debt.
 
@@ -33,8 +36,8 @@ Let's define some terms so that hopefully we're all on the same page.
 - **system set**: a system label that represents a group of systems and other sub-sets
 - **condition**: a special kind of system that guards the execution of a system (set)
 - **dependency**: a system (set) that must complete before the system (set) of interest can run
-- **scheduler**: you
-- **schedule** (verb): specify conditions and dependencies
+- **scheduler**: the programmer, who is attempting to control when and if systems run
+- **schedule** (verb): specify when and if a system runs
 - **schedule** (noun): the executable form of a system set
 - **executor**: executes a schedule on a world
 - **"ready"**: when a system is no longer waiting for dependencies to complete
@@ -47,9 +50,10 @@ In short, for any system or system set, users can:
 
 - add execution order constraints relative to other systems or sets (i.e. "this system runs before A")
 - add conditions that must be true for it to run (i.e. "this system only runs if a player has full health")
-- add it to sets
+- add it to sets (which define common behavior for all systems within that set)
 
-These properties are all additive. Adding another does not replace an existing one.
+These properties are all additive.
+Adding another does not replace an existing one, and they cannot be removed.
 
 Example:
 
@@ -110,7 +114,8 @@ fn main() {
 
 The simplest way users can configure systems is by saying *when* they should run using the `.before`, `.after`, and `.in_set` methods. These constraints are relative to another system or set. Run order constraints involving sets are eventually flattened into constraints between the individual systems. Any constraints the user specifies are used to derive dependency graphs, which (along with the data access) tells the engine where systems can run in parallel. The only limit is that every graph must be **solvable**. If any relationship constraint cannot be met (e.g. A was configured to run both before and after system B), it will result in an error.
 
-Bevy provides the `App::add_many` method for configuring multiple systems and sets at once. Using `nodes![a, b, c, ...].chain()` (or the `chain![a, b, c, ...]` shortcut) will create dependencies between the successive elements. (Note: This is different from "system chaining" in Bevy 0.7 and earlier. That concept has been renamed to "system piping" to avoid overlap.)
+Bevy provides the `App::add_many` method for configuring multiple systems and sets at once. Using `nodes![a, b, c, ...].chain()` (or the `chain![a, b, c, ...]` shortcut) will create dependencies between the successive elements.
+(Note: This is different from "system chaining" in Bevy 0.7 and earlier. That concept has been renamed to "system piping" to avoid overlap.)
 
 ```rust
 fn main() {
@@ -120,7 +125,8 @@ fn main() {
 }
 ```
 
-A standard Bevy app will have built-in system sets, provided by either the `MinimalPlugins` or the `DefaultPlugins`. In those apps, if no set is specified, then by default systems and sets are added to `CoreSet::Update`.
+A standard Bevy app will have built-in system sets, provided by either `MinimalPlugins` or `DefaultPlugins`.
+In those apps, if no set is specified, then by default systems and sets are added to `CoreSet::Update`.
 
 ```rust
 #[derive(SystemLabel)]
@@ -151,9 +157,13 @@ impl Plugin for PhysicsPlugin {
 
 ### Configuring run conditions (run criteria)
 
-While ordering constraints determine *when* a system runs, **run conditions** determine *if* it runs at all. Run conditions consist of systems that have read-only data access and return `bool`. A system or set can have any number of conditions, and it will only run if all of them return `true`. If any condition returns `false`, the system (or systems under the set) will be skipped.
+While ordering constraints determine *when* a system runs, **run conditions** determine *if* it runs at all. Run conditions consist of systems that have read-only data access and return `bool`.
+A system or set can have any number of conditions, and it will only run if all of them return `true`. 
+If any condition returns `false`, the system (or systems under the set) will be skipped.
 
-Conditions are each evaluated *at most once* during a single pass of a schedule. The evaluation occurs literally just before the system (or the first system encountered that is part of the set of interest) would be run. Because of this, results are guaranteed to be up-to-date. The state read by the conditions cannot be modified in an observable way before the guarded system starts.
+Conditions are each evaluated *at most once* during a single pass of a schedule.
+The evaluation occurs just before the system (or the first system encountered that is part of the set of interest) would be run.
+Because of this, results are guaranteed to be up-to-date. The state read by the conditions cannot be modified in an observable way before the guarded system starts.
 
 ```rust
 // This is just an ordinary system: timers need to be ticked!
@@ -199,11 +209,15 @@ The systems, sets, and scheduling data added to an `App` is stored on the `World
 
 In order to run a system or system set on the `World`, the system(s) must be extracted from the `SystemRegistry`. (This lets the `SystemRegistry` remain accessible by the running systems).
 
-To do that, the `SystemRegistry` has methods to export a system or schedule given a label. A **schedule** is an executable version of a system set, containing all the systems and conditions, as well as some metadata for an **executor** to run those in the correct order (efficiently). After the schedule has been run, it can be returned to the `SystemRegistry` using another method. This is the same process the default `App` runner uses to execute the startup sequence and main update loop.
+To do that, the `SystemRegistry` has methods to export a system or schedule given a label.
+A **schedule** is an executable version of a system set, containing all the systems and conditions, as well as some metadata for an **executor** to run those in the correct order (efficiently).
+After the schedule has been run, it can be returned to the `SystemRegistry` using another method.
+This is the same process the default `App` runner uses to execute the startup sequence and main update loop.
 
 ### Command processing
 
-Commands are arbitrary world modifications that are most commonly used to spawn or despawn entities and add or remove components. Since those types of changes have unpredictable side effects on stored component data, commands are deferred until the next scheduled `apply_buffers` exclusive system runs.
+Commands are arbitrary world modifications that are most commonly used to spawn or despawn entities and add or remove components.
+Since those types of changes have unpredictable side effects on stored component data, commands are deferred until the next scheduled `apply_buffers` exclusive system runs.
 
 ```rust
 use bevy::prelude::*;
@@ -232,7 +246,8 @@ impl Plugin for ProjectilePlugin {
 ### Exclusive systems and control flow
 
 Exclusive systems come in handy when users find themselves in need of something more complex than "each system runs once per schedule pass".
-In those cases, you can **create an `&mut World` context like an exclusive system or command and run a schedule inside it.** You're free to extract any schedule available in the `SystemRegistry` resource and run it on the world.
+In those cases, you can **create an `&mut World` context like an exclusive system or command and run a schedule inside it.**
+You're free to extract any schedule available in the `SystemRegistry` resource and run it on the world.
 
 This is useful when you want to:
 
@@ -270,9 +285,11 @@ fn main() {
 
 You can queue a state transition by getting a mutable reference to the state machine resource (`ResMut<Fsm<S>>`) and then using the `Fsm::queue_transition` method within your system.
 
-Since state transitions can be as open-ended as commands, they're deferred (just like commands) until the next execution of an `apply_state_transition<S: State>` exclusive system. This system first extracts the FSM using `World::resource_scope`, next runs the "on-exit" schedule of the current state, then runs the "on-enter" schedule of the queued state, and finally updates the FSM's state.
+Since state transitions can be as open-ended as commands, they're deferred in a similar fashion until the next execution of an `apply_state_transition<S: State>` exclusive system.
+This system first extracts the FSM using `World::resource_scope`, next runs the "on-exit" schedule of the current state, then runs the "on-enter" schedule of the queued state, and finally updates the FSM's state.
 
-Note that commands are not automatically processed in or between those steps. Add instances of the `apply_buffers` system to one or both sets if that is required.
+Note that commands are not automatically processed in or between those steps.
+Add instances of the `apply_buffers` system to one or both sets if that is required.
 
 ## Implementation strategy
 
@@ -323,7 +340,8 @@ Let's explore some implementation details.
 
 ### Scheduling
 
-Systems and their scheduling information are bundled and stored. The actual dependency graph construction is deferred (which means scheduling methods are order-independent).
+Systems and their scheduling information are bundled and stored.
+The actual dependency graph construction is deferred (which means scheduling methods are order-independent).
 
 ```rust
 enum Order {
@@ -566,19 +584,28 @@ Change detection requires a periodic (but very, *very* infrequent) cleanup proce
 
 ### Why did you call them "sets" instead of "labels" or "categories"?
 
-The word "set" better describes what labeling actually means for scheduling. Sets aren't just an abstract tag, they have a "physical" location in the overall graph (a set is a "supernode" that encapsulates all the nodes inside it). Likewise, sets that intersect (share nodes) can't be made to depend on each other.
+The word "set" better describes what labeling actually means for scheduling.
+Sets aren't just an abstract tag, they have a "physical" location in the overall graph (a set is a "supernode" that encapsulates all the nodes inside it).
+Likewise, sets that intersect (share nodes) can't be made to depend on each other.
 
 ### If users can configure system sets, can they mess with systems added by third-party plugins?
 
 Yes, somewhat, and it's intentional.
 
-Not being able to schedule plugin systems is a source of [significant user pain](https://github.com/bevyengine/bevy/issues/2160). Instead of the current status quo, we thought a better pattern would be a plugin exporting its top-level set label (at the very least) and the user being responsible for deciding where to put it.
+Not being able to schedule plugin systems is a source of [significant user pain](https://github.com/bevyengine/bevy/issues/2160).
+Instead of the current status quo, we thought a better pattern would be a plugin exporting its top-level set label (at the very least) and the user being responsible for deciding where to put it.
 
-As it's now possible to define set hierarchies, plugin authors can decide exactly what they want to expose to users in their "public API" *and* still ensure any key logical invariants hold. Users will only be able schedule what the plugin author chooses to make public. Plugin authors could even make massive internal changes without breaking user apps (as long as the "public API" is relatively stable).
+As it's now possible to define set hierarchies, plugin authors can decide exactly what they want to expose to users in their "public API" *and* still ensure any key logical invariants hold.
+Users will only be able schedule what the plugin author chooses to make public.
+Plugin authors could even make massive internal changes without breaking user apps (as long as the "public API" is relatively stable).
 
 ### Why is there no "on-update" system set for states?
 
-Conceptually, a set occupies some position in a schedule. However, simply being in a state does not. Any system anywhere can be conditioned to only run if a certain state is active. If there was a builtin "on-update" set, it could only exist in one place. That, along with it being trivial to create a set with the condition that a state must be active, gave little reason to do it.
+Conceptually, a set occupies some position in a schedule.
+However, simply being in a state does not.
+Any system anywhere can be conditioned to only run if a certain state is active.
+If there was a builtin "on-update" set, it could only exist in one place.
+That, along with it being trivial to create a set with the condition that a state must be active, gave little reason to do it.
 
 ```rust
 fn main() {
@@ -606,7 +633,8 @@ Convenience methods like `add_many` are important for reducing boilerplate. For 
 
 **In summary:**
 
-- builder syntax: marginal improvement every adding individual systems
+- builder syntax: marginal improvement over adding individual systems
+
 - array syntax: looks pretty but is literally impossible
 - tuple syntax: looks pretty but is limited to 12 elements
 - `vec!`-like macro syntax: looks OK but, uh, uses macros
