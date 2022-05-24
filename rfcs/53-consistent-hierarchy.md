@@ -131,30 +131,46 @@ any system that needs some form of hierachy traversal. These queries can be quit
 expensive to run, so the documentation for them should reflect this and
 discourage misuing it.
 
-### HierarchyEvents
-Three new events should be added here, each corresponding to a specific change
-in the hierarchy.
+### HierarchyEvent
+One new event should be added here, with enum variants corresponding to a
+specific change in the hierarchy:
+
+ - `ChildAdded` - Fired when a previous root entity has been added as a child to
+   a entity in the hierarchy.
+ - `ChildRemoved` - Fired when an entity is removed from the hierarchy and is now
+   a root entity.
+ - `ChildMoved` - Fired when an child is moved from one parent in the hierarchy
+   to another.
+
+These can be used to detect changes where `PreviousParent` is currently used.
+Each event is exclusive, meaning that any change only generates one event. A move
+will not fire additional separate `ChildAdded` and `ChildRemoved` events.
+
+Only one event type is used here to ensure that hierarchy alterations are
+properly sequenced.
+
+As hierarchy edits typically happen in bursts (i.e. scene loads). There may be
+large number of these events generated at once. To reclaim this memory, it may be
+necessary to add support for automatic garbage collection to events.
 
 ```rust
-pub enum ChildAdded {
-  pub parent: Entity,
-  pub child: Entity,
-}
-
-pub enum ChildRemoved {
-  pub parent: Entity,
-  pub child: Entity,
-}
-
-pub enum ChildMoved {
-  pub parent: Entity,
-  pub previous_parent: Entity,
-  pub new_parent: Entity,
+#[derive(Clone)]
+pub enum HierarchyEvent {
+  ChildAdded {
+    parent: Entity,
+    child: Entity,
+  },
+  ChildRemoved {
+    parent: Entity,
+    child: Entity,
+  },
+  ChildMoved {
+    parent: Entity,
+    previous_parent: Entity,
+    new_parent: Entity,
+  }
 }
 ```
-
-Both `ChildAdded` and `ChildRemoved` will be fired when a child moved occurs.
-These can be used to detect changes where `PreviousParent` is currently used.
 
 ### `bevy_hierarchy`-`bevy_transform` split.
 These hierarchy types should be moved to a new `bevy_hierarchy` crate to avoid
@@ -229,9 +245,10 @@ pub struct Hierarchy {
 ```
 
 This would be strikingly similar to the `SparseSet` used in `bevy_ecs`. The main
-difference here is that the parallel `Vec`s are kept in topological order. When
-iterating over the hierarchy, children that are found before their parent will
-swapped with their parents.
+difference here is that the parallel `Vec`s are roughly kept in topological order.
+Inserting should be `O(1)` as it just updates the new parent. Removing should be
+`O(n)` with the number of children of that `Entity`. At least once per frame, a
+system should run a topological sort over the resource if it's dirty.
 
 An alternative version of this hierarchy resource only stores parents. This may
 speed up iteration as individual relations are smaller during swaps, but finding
@@ -243,15 +260,29 @@ can be kept to O(n) in the next depth.
 
  - Iteration in hierarchy order (parents first) is entirely linear. This may make
    transform and other parent-reliant propagation signfigantly faster.
- - Can be used with the command-driven interface proposed in this design.
+ - Finding roots in the sorted hierarchy is both linear and compacted tightly in
+   memory.
+ - Removes `Parent` and `Children` ECS components entirely. Could further reduce
+   archetype fragmentation. The hierarchy is stored densely in a single location
+   and is not spread between multiple archetypes/tables.
+ - Can still be used with the command-driven interface proposed in this design
+   instead of using ECS storage.
 
 #### Drawbacks
 
  - Merging and splitting hierarchies loaded from scenes can be quite difficult to
    maintain.
- - Iteration requires mutative access to the resource, which can limit
-   parallelism of systems traversing the hierarchy. The alternative requires a
-   dedicated O(n) sweep over the hierarchy whenever it's mutated.
+ - The non-hierarchy components are still stored in an unordered way in ECS data.
+   Iterating over the hierarchy will still incur random access costs for anything
+   non-trivial.
+ - Requires a dedicated topological sort system. Mitigated by only sorting when
+   the hierarchy is dirty, or simply tracking which entities in the hierarchy are
+   dirty.
+ - Editing the hierarchy requires exclusive access to the resource, which can
+   will serialize all systems editing the hierarchy. This also prevents internal
+   parallelism (i.e. via `Query::par_for_each`) as `ResMut` cannot be cloned.
+   This can be partially mitigated by deferring edits via commands, as proposed
+   in this RFC.
 
 ### Alternative: Linked List Hierarchy
 Instead of using two separate components to manage the hierarchy, this
