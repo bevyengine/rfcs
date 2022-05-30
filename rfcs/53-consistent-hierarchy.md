@@ -213,8 +213,9 @@ transforms for 2D and UI.
  - Updates are still not immediately visible within a stage and deferred until
    the next command buffer flush.
  - Hierarchy updates are now single threaded. Commands can be generated from
-   multiple systems at the same time, but they now require exclusive access to
-   apply.
+   multiple systems, [or from multiple threads in the same
+   system](https://github.com/bevyengine/bevy/pull/4749) at the same time, but
+   they now require exclusive access to apply.
  - Each of the changed commands do a lot more work before and are signifgantly
    more branch heavy. This could negatively impact the performance of
    command-heavy workloads (i.e.  scene loading)
