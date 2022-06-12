@@ -1,9 +1,9 @@
 # Feature Name:
-Deffered Mutation Queries
+Deferred Mutation Queries
 
 ## Summary
 
-Defering mutation of specific query components to increase parallelity.
+Deferring mutation of specific query components to increase parallelity.
 
 ## Motivation
 
