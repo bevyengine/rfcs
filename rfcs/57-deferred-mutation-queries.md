@@ -3,7 +3,7 @@ Deferred Mutation Queries
 
 ## Summary
 
-Easy and predictable way of defering component mutations to increase parallelity.
+Easy and predictable way of deferring component mutations to increase parallelity.
 
 ## Motivation
 
