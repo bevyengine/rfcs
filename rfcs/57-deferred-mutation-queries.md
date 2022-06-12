@@ -36,7 +36,7 @@ You **will** use this wherever there is little
 (usualy optional) mutation over a component,
 which also happens to be wanted by other systems,
 and the mutation is not based on the previous value
-of the `DerefMut` component.
+of the `DeferMut` component.
 
 This **will not** use this when explicit ordering matters,
 because the actual mutation (hidden from user)
@@ -67,7 +67,7 @@ to the queries even despite not being used.
 
 ## Rationale and alternatives
 
-Defering the mutation until the end of frame could be more benefitial,
+Deferring the mutation until the end of frame could be more benefitial,
 depends heavily on the use case.
 
 mostly todo
