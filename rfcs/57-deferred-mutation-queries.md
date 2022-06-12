@@ -3,92 +3,124 @@ Deferred Mutation Queries
 
 ## Summary
 
-Deferring mutation of specific query components to increase parallelity.
+Easy and predictable way of defering component mutations to increase parallelity.
 
 ## Motivation
 
-This is another iteration of my idea few months back
-for parallelizing mutable queries.
+Accessing components mutably is costly, because we can only run one mutable query at a time.
+On the other hand, references are extremely cheap and we should abuse using them when possible.
 
-I think it'd be nice for
-run-time selective entity mutation in small counts
-and maybe GUI elements.
+The problem is that we cannot simply get rid of mutation, it has to happen at some point.
+That's why simply putting off the mutation does not fix anything.
+
+This RFC targets the use cases, where we borrow components mutably, despite not mutating many of them or often.
+Those cases are often external events, such as user input or networking.
 
 ## User-facing explanation
 
-From user-sided perspective,
-this can be seen as a way of doing
-efficient sparse mutable access
-to query components.
+### When to use
 
-`DeferMut<T: Component>` a generic type,
-will fit into queries much like `Option<T>` does.
+It's important to know, that this feature is not a magical optimizer.
+It's meant to be used in very specific use cases and will require benchmarking to determine whether it should be used.
 
-From the system perspective,
-it will act exactly like a `&mut Component`,
-systems can freely mutate it.
+The specific set of rules where this would be applicable is:
+- The mutated component has to implement `Clone`.
+- No system before next sync point depends (changes it's behavior) on the values of mutated component.
+- There are other systems that also want to query this component in parallel (otherwise we gain no benefits).
 
-The difference will be in scheduling,
-where it would be treated as `&Component`,
-multiple systems can use it in parallel.
+Most fit for this are external inputs, such as user input and networking, but also arbitrary mutations from randomness.
+Physic simulation could also benefit from this, after all, many components are static or frozen and their counts are low.
 
-You **will** use this wherever there is little
-(usualy optional) mutation over a component,
-which also happens to be wanted by other systems,
-and the mutation is not based on the previous value
-of the `DeferMut` component.
+### How to use
 
-This **will not** use this when explicit ordering matters,
-because the actual mutation (hidden from user)
-will happen somewhere between the 2 systems,
-which means they cannot be parallelized.
+The API shouldn't be much different to a normal query with mutability.
+Ideally this would be a change from `Query<&mut Foo>` to `Query<DelayMut<Foo>>`.
+The body of the system shouldn't see any changes.
+
+It may be that implementation requirements bleed into `Query` itself, transforming it into some special `DelayMutQuery`.
+
+It would look something like this:
+```rs
+fn foo(
+    mut bars: DelayMutQuery<DelayMut<Bar>>,
+) {
+    for bar in bars.iter() {
+        if arbitrary == condition {
+            bar = new_bar;
+        }
+    }
+}
+```
+or with a different approach:
+```rs
+fn foo(
+    mut bars: DelayMutQuery<DelayMut<Bar>>,
+    targets: Res<SomeEntityList>,
+) {
+    for entity in targets {
+        bars.get_mut(entity) = new_bar;
+    }
+}
+```
 
 ## Implementation strategy
 
-The idea is to use copy-on-write together with deferred mutation.
-When a `DeferMut` component is about to be modified,
-we create a copy of it and store it in the query.
+A naive implementation can be done with the following code:
+```rs
+fn foo(
+    // We need to `Entity` to apply mutation to the right entity
+    query: Query<(Entity, &Bar)>,
+    // We need `Commands` to buffer the mutation for future application
+    mut commands: Commands,
+) {
+    for (entity, bar) in bars.iter() {
+        if arbitrary == condition {
+            let mut mutated_bar = bar.clone(); // Component has to implement `Clone`
+            mutated_bar.0 = value; // To show the need for `Clone`, in this example I only mutate a field
+            commands.entity(entity).insert(mutated_bar);
+        }
+    }
+}
+```
+As you can see it's a lot of additional work that's mostly boilerplate,
+but it outlines the necessary components.
 
-After the system is over, we recover the mutated copies
-and create a system that will be only responsible for updating them.
+The smart copy-on-write-like pointer has to store the `Entity` as well as a mutable reference to the `Commands`.
+The component itself has to implement `Clone`.
 
-This system should respect all the same ordering restricitons as the original,
-but it doesn't have to happen directly after it.
-
-Because the system is small, we'll be mutably locking the entities for much shorter.
+With this approach the order of mutation will be determined by the order of command applications in the sync points.
 
 ## Drawbacks
 
-It's mostly optional,
-the only draw back I can think of right now
-is that it can add more overhead,
-memory or/and calculation,
-to the queries even despite not being used.
+The use-cases are little to the point it may not be worth implementing.
+
+Speed benefits are also to be tested and can, potentially, spectacularly kill this idea.
 
 ## Rationale and alternatives
 
-Deferring the mutation until the end of frame could be more benefitial,
-depends heavily on the use case.
+Staying with `&mut` is always an option.
 
-mostly todo
+Resolving mutable access at runtime within systems is a massive **no**.
 
 ## Prior art
 
-Unaware
+The topic as far as I'm aware is unexplored to the point it's hard to predict the benefits.
+It may be, that the parallelizm of those few use cases simply does not outweight the algorithm behind it.
+
+I've not aware of anyone using the naive implementation. My assumed reason for that is that it's non-intuitive, since it uses `insert` for upsert.
 
 ## Unresolved questions
 
-None for now
+- Because `Commands` are parameter-level and component wrappers aren't, the query signature may require changes like `Query` -> `DelayMutQuery`.
+
+- Order of mutations
 
 ## Future possibilities
 
-Batching defered mutations of components of the same type.
-This will clash with the ordering, not sure if it's reasonable.
+- Separation from `Commands` would allow for
+    - Different sync points from entity spawning and despawning
+    - Resolving ordering early as opposed to during application
+    - Batching mutations AA
 
-## Additional context
-
-It's 6 am and I'm tired,
-I'm just hoping to see some responses.
-
-There may be some very big logic holes in this,
-which could turn this into a complete flop.
+- Lensing would allow to targeting more components. Instead of copying the whole thing, we can just remember the one value we want to modify.
+  This would allow for targeting large components memory-wise and components which do not implement `Clone` as a whole, but specific fileds do.
