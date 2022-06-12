@@ -75,8 +75,11 @@ fn foo(
 ) {
     for (entity, bar) in bars.iter() {
         if arbitrary == condition {
-            let mut mutated_bar = bar.clone(); // Component has to implement `Clone`
-            mutated_bar.0 = value; // To show the need for `Clone`, in this example I only mutate a field
+            // Component has to implement `Clone`
+            let mut mutated_bar = bar.clone();
+            // To show the need for `Clone` in this example I only mutate a field
+            mutated_bar.0 = value;
+            // Use `insert` like an `upsert`, not too obvious
             commands.entity(entity).insert(mutated_bar);
         }
     }
@@ -122,5 +125,7 @@ I've not aware of anyone using the naive implementation. My assumed reason for t
     - Resolving ordering early as opposed to during application
     - Batching mutations AA
 
-- Lensing would allow to targeting more components. Instead of copying the whole thing, we can just remember the one value we want to modify.
-  This would allow for targeting large components memory-wise and components which do not implement `Clone` as a whole, but specific fileds do.
+- Lensing would allow to targeting more components.
+  Instead of copying everything, only the modified fields can be memorized.
+  This means that non-`Copy` components are also usable.
+  This also means that large components (memory-wise) can be updated with less memory usage.
