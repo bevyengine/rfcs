@@ -5,7 +5,7 @@
 - Add a `CanonReflect: Reflect` trait that replaces `Reflect`
 - Remove from `Reflect` all methods that assume uniqueness of underlying type.
 - Add a `from_reflect` method to `Typed` that takes a `Box<dyn Reflect>` and
-  returns a `Self` 
+  returns a `Self` to convert a `Reflect` into a `CanonReflect`.
 
 ## Lexicon/Terminology/Nomenclature/Jargon
 
@@ -115,7 +115,7 @@ but to keep to scope of this RFC short, we will keep them in `Reflect`.
 
 ### `CanonReflect` trait
 
-We remove all methods methods assuming uniqueness and `Any` trait bound from
+We remove all methods assuming uniqueness and `Any` trait bound from
 `Reflect` and only implement them on "canonical" types: ie: the ones implemented
 by the `#[derive(Reflect)]` macros.
 
@@ -146,10 +146,11 @@ checking if the underlying type is the one we expect OR converting into the
 underlying type described by the `Reflect::type_name()` method.
 
 To do so, it's necessary to either provide an expected type or access the type
-registry to invoke the constructor associated with teh `Reflect::type_name()`.
+registry to invoke the constructor associated with the `Reflect::type_name()`.
 
-To define a constructor We move the `from_reflect` method from `FromReflect` to `Typed`. For no
-particular reasons but to reduce how many traits we export from `bevy_reflect`.
+To define a constructor We move the `from_reflect` method from `FromReflect` to
+`Typed`. For no particular reasons but to reduce how many traits we export from
+`bevy_reflect`.
 
 **Danger**: Using `type_name` from `Reflect` is error-prone. For the conversion
 to pick up the right type, we need `type_name()` to match exactly the one
@@ -167,11 +168,11 @@ trait Typed {
 }
 pub struct TypeRegistration {
     short_name: String,
+    data: HashMap<TypeId, Box<dyn TypeData>>,
+    type_info: TypeInfo,
     // new: constructor
     constructor: fn(Box<dyn Reflect>)
         -> Result<Box<dyn CanonReflect>, Box<dyn Reflect>>,
-    data: HashMap<TypeId, Box<dyn TypeData>>,
-    type_info: TypeInfo,
 }
 ```
 
@@ -189,7 +190,7 @@ impl TypeRegistration {
     pub fn make_canon(&self, reflect: Box<dyn Reflect>)
         -> Result<Box<dyn CanonReflect>, Box<dyn Reflect>>
     {
-        (self.constructor)(proxy)
+        (self.constructor)(reflect)
     }
     // ...
 }
@@ -232,7 +233,7 @@ impl dyn Reflect {
     pub fn make_canon<T: Typed>(self: Box<Self>)
         -> Result<Box<dyn CanonReflect>, Box<dyn Reflect>>
     {
-        T::from_reflect(from).map(|t| Box::new(t))
+        T::from_reflect(self).map(|t| Box::new(t))
     }
 }
 ```
@@ -245,24 +246,16 @@ only `Reflect`.
 
 ## User-facing explanation
 
-- `CanonReflect` maps 1-to-1 with an underlying type meaning that if a
-  `Box<dyn Reflect>` cannot be downcasted to `T`, you cannot build a `T` from
-  it.
-- `FromReflect` doesn't exist anymore. Instead, `Reflect::downcast` provides
-  now the same guarantees that `FromReflect::from_reflect` had. If you need to
-  get a `T` from a `ReflectProxy`, use a combination of
-  `ReflectProxy::sidecast_type<T>` and `downcast`.
+`Reflect` let you navigate any type regardless independently of their shape
+with the `reflect_ref` and `reflect_mut` methods. `CanonReflect` is a special
+case of `Reflect` that also let you convert into a concrete type using the
+`Any` methods. To get a `CanonReflect` from a `Reflect`, you should use any
+of the `make_canon` methods on `dyn Reflect`, `TypeRegistry` or
+`TypeRegistration`.
 
-
-`sidecast` requires introducing a new field to `TypeRegistration`:
-
-`constructor` would simply construct the `T` and wrap it into a `Box` before
-returning it.
-
-`constructor` can be derived similarly to `TypeInfo`. It will however
-require additional consuming methods on `Dynamic***` structs in order to be
-able to move their `Box<dyn Reflect>` fields into the constructed data
-structure.
+Any type derived with `#[derive(Reflect)]` implements `CanonReflect`. The only
+types that implements `Reflect` but not `CanonReflect` are "proxy" types such
+as `DynamicStruct`, or any third party equivalent.
 
 ## Drawbacks
 
@@ -275,7 +268,7 @@ structure.
 - The addition of `constructor` to `Typed` will increase the size of generated
   code.
 - `constructor` makes `Typed` not object safe. But it should be fine
-  since `Typed` is not intended to be used with dynamic trait objects.
+  since `Typed` is not intended to be used as a dynamic trait objects.
 
 ## Unresolved questions
 
@@ -286,12 +279,18 @@ structure.
   Technically, `Canon` doesn't mean "normal representation", as "canonical"
   does, but it's short and close enough to be understood. I thought about
   using `canonize` instead of `make_canon`, but it felt too religious.
+- An earlier version of this RFC had the exact opposite approach to fix the
+  uniqueness issue: Instead of removing all underlying-dependent methods from
+  `Reflect` and adding them to a new trait, we kept the underlying-dependent
+  methods but moved all the non-dependent methods to a new trait. Which one to
+  go with?
 
 ## Future possibilities
 
 - Add a `target_type(&self) -> TypeId` or `full_type_name` method to `Reflect`
   such that it's easier to check if we are converting into the proper canonical
-  type.
+  type. We might also benefit from a method that is capable of taking two
+  type paths and comparing them accounting for shortcuts.
 - Performance: currently we force-convert from `CanonReflect` to `Reflect`,
   then deeply traverse the data structure for all our reflect methods. It could
   be greatly optimized if we add a way to tell if the underlying type is
