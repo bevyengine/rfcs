@@ -4,8 +4,8 @@
 
 - Add a `CanonReflect: Reflect` trait that replaces `Reflect`
 - Remove from `Reflect` all methods that assume uniqueness of underlying type.
-- Add a `from_reflect` method to `Typed` that takes a `Box<dyn Reflect>` and
-  returns a `Self` to convert a `Reflect` into a `CanonReflect`.
+- Add a `into_full` method to `Reflect` to be able to convert a
+  `Box<dyn Reflect>` into a `Box<dyn CanonReflect>` when possible.
 
 ## Lexicon/Terminology/Nomenclature/Jargon
 
@@ -105,13 +105,10 @@ but to keep to scope of this RFC short, we will keep them in `Reflect`.
 - Create a `CanonReflect` trait
 - Remove all methods assuming uniqueness and `Any` trait bound from `Reflect`,
   add them to `CanonReflect`.
-- Remove `set` method from `Reflect`
 - Implement a way to convert from `Reflect` to `CanonReflect`:
-  - New method to `Typed` trait: `from_reflect`
-  - Remove `FromReflect` trait
-  - New `constructor` field to `TypeRegistration` to convert a `Box<dyn Reflect>`
-    into a `Box<dyn CanonReflect>` dynamically.
-  - New `make_canon` method to `TypeRegistry`
+  - Add a new method to `Reflect`: `into_full` that returns a `CanonReflect`
+    when the underlying type is canonical.
+
 
 ### `CanonReflect` trait
 
@@ -145,71 +142,23 @@ a way to get a `CanonReflect` from a `Reflect`. This is only possible by
 checking if the underlying type is the one we expect OR converting into the
 underlying type described by the `Reflect::type_name()` method.
 
-To do so, it's necessary to either provide an expected type or access the type
-registry to invoke the constructor associated with the `Reflect::type_name()`.
+To do so, we have two options:
+1. Provide an expected type or access a constructor stored in type registry
+   and convert with `FromReflect` from any `Reflect` to the canonical
+   representation of a `Reflect`.
+2. Add a `into_full(self: Box<Self>) -> Option<Box<dyn CanonReflect>>` method to
+   `Reflect` that returns `Some` only for canonical types.
 
-To define a constructor We move the `from_reflect` method from `FromReflect` to
-`Typed`. For no particular reasons but to reduce how many traits we export from
-`bevy_reflect`.
+(1) Is complex and requires a lot more design, so we'll stick with (2) for this
+RFC.
 
-**Danger**: Using `type_name` from `Reflect` is error-prone. For the conversion
-to pick up the right type, we need `type_name()` to match exactly the one
-returned by `std::any::type_name`. Ideally we have an alternative that defines
-the underlying type without ambiguity, such as `target_type_id` or
-`full_type_name`.
-
-We introduce a new field to `TypeRegistration`: `constructor`. It allows
-converting from a `Reflect` to a `CanonReflect`, so that it's possible to
-use its underlying-sensible methods.
-
-```rust
-trait Typed {
-    fn from_reflect(reflect: Box<dyn Reflect>) -> Result<Self, Box<dyn Reflect>>;
-}
-pub struct TypeRegistration {
-    short_name: String,
-    data: HashMap<TypeId, Box<dyn TypeData>>,
-    type_info: TypeInfo,
-    // new: constructor
-    constructor: fn(Box<dyn Reflect>)
-        -> Result<Box<dyn CanonReflect>, Box<dyn Reflect>>,
-}
-```
-
-We add a `make_canon` method to `TypeRegistry` and `TypeRegistration` to use
-that new field.
-
-```rust
-impl TypeRegistration {
-    pub fn new<T: Typed>() -> Self {
-        Self {
-            //...
-            constructor: T::from_reflect(from).map(|t| Box::new(t)),
-        }
-    }
-    pub fn make_canon(&self, reflect: Box<dyn Reflect>)
-        -> Result<Box<dyn CanonReflect>, Box<dyn Reflect>>
-    {
-        (self.constructor)(reflect)
-    }
-    // ...
-}
-impl TypeRegistry {
-    fn make_canon(&self, reflect: Box<dyn Reflect>)
-        -> Result<Box<dyn CanonReflect>, Box<dyn Reflect>>
-    {
-        if let Some(registration) = self.get_with_name(reflect.type_name()) {
-            registration.make_canon(reflect)
-        } else {
-            Err(reflect)
-        }
-    }
-}
-```
-
-The `Reflect` trait now only has the following methods:
+The `Reflect` trait now has the following methods:
 ```rust
 pub trait Reflect: Send + Sync {
+    // new
+    fn as_full(&self) -> Option<&dyn CanonReflect>;
+    fn into_full(self: Box<Self>) -> Option<Box<dyn CanonReflect>>;
+
     fn type_name(&self) -> &str;
 
     fn as_reflect(&self) -> &dyn Reflect;
@@ -229,14 +178,11 @@ pub trait Reflect: Send + Sync {
     fn reflect_partial_eq(&self, _value: &dyn Reflect) -> Option<bool> {}
     fn serializable(&self) -> Option<Serializable> {}
 }
-impl dyn Reflect {
-    pub fn make_canon<T: Typed>(self: Box<Self>)
-        -> Result<Box<dyn CanonReflect>, Box<dyn Reflect>>
-    {
-        T::from_reflect(self).map(|t| Box::new(t))
-    }
-}
 ```
+
+`into_full` will return `None` by default, but in the `#[derive(Reflect)]`
+macro will return `Some(self)`. Converting from a proxy non-canonical `Reflect`
+to a `CanonReflect` is currently impossible.
 
 Note that [trait upcasting] would allow us to remove the `as_reflect` and
 `as_reflect_mut` methods. In fact, I don't think they are necessary at all.
@@ -249,9 +195,8 @@ only `Reflect`.
 `Reflect` let you navigate any type regardless independently of their shape
 with the `reflect_ref` and `reflect_mut` methods. `CanonReflect` is a special
 case of `Reflect` that also let you convert into a concrete type using the
-`Any` methods. To get a `CanonReflect` from a `Reflect`, you should use any
-of the `make_canon` methods on `dyn Reflect`, `TypeRegistry` or
-`TypeRegistration`.
+`Any` methods. To get a `CanonReflect` from a `Reflect`, you should use
+`Reflect::into_full`.
 
 Any type derived with `#[derive(Reflect)]` implements `CanonReflect`. The only
 types that implements `Reflect` but not `CanonReflect` are "proxy" types such
@@ -261,14 +206,8 @@ as `DynamicStruct`, or any third party equivalent.
 
 - Users must be aware of the difference between `CanonReflect` and `Reflect`,
   and it must be explained.
-- You cannot directly convert a `Reflect` into a `Any` or `T`, you must first
-  make sure it is conforms a canonical representation by using either
-  `TypeRegistry::make_canon` or `<dyn Reflect>::make_canon<T: Typed>(self:
-  Box<self>)`.
-- The addition of `constructor` to `Typed` will increase the size of generated
-  code.
-- `constructor` makes `Typed` not object safe. But it should be fine
-  since `Typed` is not intended to be used as a dynamic trait objects.
+- It is impossible to make a proxy `Reflect` into a `CanonReflect` without
+  knowing the underlying type.
 
 ## Unresolved questions
 
@@ -277,8 +216,7 @@ as `DynamicStruct`, or any third party equivalent.
   it was too long.
   \
   Technically, `Canon` doesn't mean "normal representation", as "canonical"
-  does, but it's short and close enough to be understood. I thought about
-  using `canonize` instead of `make_canon`, but it felt too religious.
+  does, but it's short and close enough to be understood.
 - An earlier version of this RFC had the exact opposite approach to fix the
   uniqueness issue: Instead of removing all underlying-dependent methods from
   `Reflect` and adding them to a new trait, we kept the underlying-dependent
@@ -291,14 +229,8 @@ as `DynamicStruct`, or any third party equivalent.
   such that it's easier to check if we are converting into the proper canonical
   type. We might also benefit from a method that is capable of taking two
   type paths and comparing them accounting for shortcuts.
-- Performance: currently we force-convert from `CanonReflect` to `Reflect`,
-  then deeply traverse the data structure for all our reflect methods. It could
-  be greatly optimized if we add a way to tell if the underlying type is
-  already canon. (For example `make_canon` could be a no-op if the underlying
-  type is already the canonical form)
-  \
-  This also interacts interestingly with `ReflectRef` and `ReflectMut`. Should
-  the `Value` variant hold a `dyn Reflect` or a `dyn CanonReflect`?
+- Could we modify the `ReflectRef` and `ReflectMut` enums to enable a sort of
+  "partial" evaluation of structures by adding a `&dyn CanonReflect` variant?
 - `impl<T: Struct> Reflect for T {}` and other subtraits rather than
   `Struct: Reflect`.
 - Redesign `reflect_hash` and `reflect_partial_eq`, since this RFC doesn't fix
@@ -306,5 +238,8 @@ as `DynamicStruct`, or any third party equivalent.
 - Add a `reflect_owned` that returns a `Dynamic` equivalent of `ReflectRef`
   (As an earlier version of this RFC called `ReflectProxy`)
 - Make use of [trait upcasting].
+- An earlier version of this RFC changed heavily the `FromReflect` trait to
+  make use of it in the construction of `Reflect` from `PartialReflect`, this
+  was only needed because `into_full` didn't exist.
 
 [trait upcasting]: https://github.com/rust-lang/rust/issues/65991
