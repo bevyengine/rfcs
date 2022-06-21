@@ -6,8 +6,6 @@ Bevy's current scheduling architecture (as of 0.7) has a large number of issues 
 Certain concepts and behaviors are unnecessarily fused together and certain building blocks—stages, run criteria, states—are presented as independent but actually have significant internal coupling.
 These properties frequently lead users into encounters with unexpected side effects and indecipherable errors.
 
-It's become a tangled mess.
-
 This is a holistic redesign that decouples system storage from system scheduling, makes system labels more useful, slims down the app builder API, leverages exclusive systems to handle complex control flow (gives a clear purpose to everything in general), and more.
 
 ## Motivation
