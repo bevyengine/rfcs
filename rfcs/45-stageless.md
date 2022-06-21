@@ -215,6 +215,7 @@ This is the same process the default `App` runner uses to execute the startup se
 
 Commands are arbitrary world modifications that are most commonly used to spawn or despawn entities and add or remove components.
 Since those types of changes have unpredictable side effects on stored component data, commands are deferred until the next scheduled `apply_buffers` exclusive system runs.
+If a system depends on the effects of commands in another system, you should make sure that there is a `apply_buffers` between them.
 
 ```rust
 use bevy::prelude::*;
