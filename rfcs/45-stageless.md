@@ -6,8 +6,6 @@ Bevy's current scheduling architecture (as of 0.7) has a large number of issues 
 Certain concepts and behaviors are unnecessarily fused together and certain building blocks—stages, run criteria, states—are presented as independent but actually have significant internal coupling.
 These properties frequently lead users into encounters with unexpected side effects and indecipherable errors.
 
-It's become a tangled mess.
-
 This is a holistic redesign that decouples system storage from system scheduling, makes system labels more useful, slims down the app builder API, leverages exclusive systems to handle complex control flow (gives a clear purpose to everything in general), and more.
 
 ## Motivation
@@ -40,8 +38,6 @@ Let's define some terms so that hopefully we're all on the same page.
 - **schedule** (noun): the executable form of a system set
 - **executor**: executes a schedule on a world
 - **"ready"**: when a system is no longer waiting for dependencies to complete
-- **"complete"**: when a system has finished running or was skipped (because a condition didn't pass)
-- **"incompatible"**: when two systems have conflicting access to some data (would be data race if they ran at the same time)
 
 To build a Bevy app, users have to specify when their systems should run. By default, systems have no strict order nor conditions for execution. The process of specifying those is called **scheduling**. To make things more ergonomic, systems can be grouped into **system sets**, which can be ordered and conditioned in the same manner as systems. Furthermore, systems and system sets can be ordered together and grouped together *within larger sets*, which allows users to describe logical hierarchies.
 
@@ -217,6 +213,7 @@ This is the same process the default `App` runner uses to execute the startup se
 
 Commands are arbitrary world modifications that are most commonly used to spawn or despawn entities and add or remove components.
 Since those types of changes have unpredictable side effects on stored component data, commands are deferred until the next scheduled `apply_buffers` exclusive system runs.
+If a system depends on the effects of commands in another system, you should make sure that there is a `apply_buffers` between them.
 
 ```rust
 use bevy::prelude::*;
@@ -315,9 +312,8 @@ Let's take a look at what implementing this would take:
   - Update executor to include the access of run conditions when checking if systems can run.
 - Commands
   - Add `apply_buffers` exclusive system.
-    - Option 1: This system just toggles a signal resource while the executor itself still flushes the buffers (closer to how it works now).
-    - Option 2: This system actually drains system command queues, which are stored on the `World` (i.e. in some interior mutable resource).
-    - **Note**: In Option 1, the executor only sees the systems in the schedule being executed. Other systems would not be processed.
+    - This system just toggles a signal resource while the executor itself still flushes the buffers.
+    - **Note**: The executor only sees the systems in the schedule being executed. Other systems would not be processed.
 - Executor
   - Defer task creation until we know a system can and should run.
 - States
@@ -473,7 +469,8 @@ When the executor is presented with a ready system, we do the following:
   - If not, leave the system in the ready queue and move onto the next one.
 - If yes, evaluate the RC of the non-evaluated sets that the system is under in hierarchical order (from the outermost set to the innermost set).
   - If any set's RC return false, mark all the systems (incl. current one) and sets under that set as completed/evaluated.
-  - If any set's RC return true, mark the set as evaluated.
+  - If all of the set's RC return true, mark the set as evaluated.
+
 - If all the sets' RC returned true, now evaluate the system's RC.
   - If any of these return false, mark the system as completed.
 - If all the system's RC returned true, run the system.
@@ -759,3 +756,4 @@ In addition, there is quite a bit of interesting but less urgent follow-up work:
 7. Automatic insertion and removal of systems based on `World` state to reduce schedule clutter and better support one-off logic.
 8. Tools to force a specific schedule execution order: useful for debugging system order bugs and precomputing strategies.
 9. Better tools to tackle system execution order ambiguities.
+10. Instead of triggering command sync with a resource, use a system that can actually drain the system command queues, which are stored on the `World` (i.e. in some interior mutable resource). This would potentially allow for people to play with alternative methods for applying commands i.e. parallelization.
