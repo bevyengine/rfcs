@@ -47,8 +47,8 @@ To build a Bevy app, users have to specify when their systems should run. By def
 
 In short, for any system or system set, users can:
 
-- add execution order constraints relative to other systems or sets (i.e. "this system runs before A")
-- add conditions that must be true for it to run (i.e. "this system only runs if a player has full health")
+- add execution order constraints relative to other systems or sets (e.g. "this system runs before A")
+- add conditions that must be true for it to run (e.g. "this system only runs if a player has full health")
 - add it to sets (which define common behavior for all systems within that set)
 
 These properties are all additive.
