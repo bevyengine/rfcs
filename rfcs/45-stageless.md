@@ -414,7 +414,7 @@ By default, if something is ordered relative to an "unknown" system or set, that
 struct SystemRegistry {
     // Systems can only be run on the `World` that initialized them.
     world_id: Option<WorldId>,
-    // Maps a labels to identifiers.
+    // Maps labels to identifiers.
     // We need to be able to quickly look up specific systems and sets or iterate over them.
     // `RegId` is unique identifier, generated on insertion.
     ids: HashMap<BoxedSystemLabel, RegId>,
