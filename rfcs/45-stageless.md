@@ -40,8 +40,6 @@ Let's define some terms so that hopefully we're all on the same page.
 - **schedule** (noun): the executable form of a system set
 - **executor**: executes a schedule on a world
 - **"ready"**: when a system is no longer waiting for dependencies to complete
-- **"complete"**: when a system has finished running or was skipped (because a condition didn't pass)
-- **"incompatible"**: when two systems have conflicting access to some data (would be data race if they ran at the same time)
 
 To build a Bevy app, users have to specify when their systems should run. By default, systems have no strict order nor conditions for execution. The process of specifying those is called **scheduling**. To make things more ergonomic, systems can be grouped into **system sets**, which can be ordered and conditioned in the same manner as systems. Furthermore, systems and system sets can be ordered together and grouped together *within larger sets*, which allows users to describe logical hierarchies.
 
