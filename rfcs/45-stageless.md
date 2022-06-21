@@ -754,5 +754,5 @@ In addition, there is quite a bit of interesting but less urgent follow-up work:
 6. Run schedules without `&mut World`, inferring access based on the contents of the `Schedule`.
 7. Automatic insertion and removal of systems based on `World` state to reduce schedule clutter and better support one-off logic.
 8. Tools to force a specific schedule execution order: useful for debugging system order bugs and precomputing strategies.
-9. Better tools to tackle system execution order ambiguities./
+9. Better tools to tackle system execution order ambiguities.
 10. Instead of triggering command sync with a resource, use a system that can actually drain the system command queues, which are stored on the `World` (i.e. in some interior mutable resource). This would potentially allow for people to play with alternative methods for applying commands i.e. parallelization.
