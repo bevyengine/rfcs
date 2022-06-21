@@ -312,9 +312,8 @@ Let's take a look at what implementing this would take:
   - Update executor to include the access of run conditions when checking if systems can run.
 - Commands
   - Add `apply_buffers` exclusive system.
-    - Option 1: This system just toggles a signal resource while the executor itself still flushes the buffers (closer to how it works now).
-    - Option 2: This system actually drains system command queues, which are stored on the `World` (i.e. in some interior mutable resource).
-    - **Note**: In Option 1, the executor only sees the systems in the schedule being executed. Other systems would not be processed.
+    - This system just toggles a signal resource while the executor itself still flushes the buffers.
+    - **Note**: The executor only sees the systems in the schedule being executed. Other systems would not be processed.
 - Executor
   - Defer task creation until we know a system can and should run.
 - States
@@ -755,4 +754,5 @@ In addition, there is quite a bit of interesting but less urgent follow-up work:
 6. Run schedules without `&mut World`, inferring access based on the contents of the `Schedule`.
 7. Automatic insertion and removal of systems based on `World` state to reduce schedule clutter and better support one-off logic.
 8. Tools to force a specific schedule execution order: useful for debugging system order bugs and precomputing strategies.
-9. Better tools to tackle system execution order ambiguities.
+9. Better tools to tackle system execution order ambiguities./
+10. Instead of triggering command sync with a resource, use a system that can actually drain the system command queues, which are stored on the `World` (i.e. in some interior mutable resource). This would potentially allow for people to play with alternative methods for applying commands i.e. parallelization.
