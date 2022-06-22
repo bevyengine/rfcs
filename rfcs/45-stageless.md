@@ -392,17 +392,25 @@ trait IntoConfiguredSet {
 
 ### Scheduling errors
 
-There are several reasons an app may error due to improper scheduling. Most are related to graph solvability.
+There are several reasons an app may error due to improper scheduling.
+Most are related to graph solvability.
+The graph is validated in two different ways.
+One that checks the users configuration between systems and sets. This is referred to as the user's hierarchy below.
+The other checks against the flattened system graph, where the nodes of the graph are only systems.
+So a system sets dependencies become flattened into dependencies on the systems in the set.
 
-1. Your dependencies contain a loop or cycle.
+1. A system's dependencies contain a loop or cycle.
 2. Your hierarchy contains a loop or cycle.
-3. Your hierarchy has a transitive edge (something is both in some set and not at the same time.)
-4. You called `.in_set` with a system's label.
-5. (User-configurable) You have a dependency between two things that aren't in the same set.
+3. Your hierarchy has a transitive edge. i.e. there are multiple paths between two sets.
+4. You called `.in_set` with a system's label. Labels on systems are enforced to only contain that system.
+5. (User-configurable) You have a dependency between two things (sets or systems) that aren't part the same set. This can lead to implicit ordering of systems between sets that might have been unwanted.
 6. (User-configurable) You referenced an "unknown" label (you forgot to add the system or set somewhere).
-7. (User-configurable) You have two things with conflicting data access and ambiguous order.
+7. (User-configurable) You have two things with conflicting data access and ambiguous order. Reference https://github.com/bevyengine/bevy/pull/4299 for more details.
 
-By default, if something is ordered relative to an "unknown" system or set, that dependency will be ignored and the user will get a warning. We warn instead of error so that users can order their systems relative to systems and sets from plugins (particularly the default plugins) whether they exist or not.
+By default, if something is ordered relative to an "unknown" system or set,
+that dependency will be ignored and the user will get a warning.
+We warn instead of error so that users can order their systems relative to systems
+and sets from plugins (particularly the default plugins) whether they exist or not.
 
 ### Storage
 
