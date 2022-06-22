@@ -468,7 +468,7 @@ When the executor is presented with a ready system, we do the following:
 - Check that all the data accessed by the system, its run conditions (RC), and the RC of any sets it is under (that haven't been evaluated yet) is available.
   - If not, leave the system in the ready queue and move onto the next one.
 - If yes, evaluate the RC of the non-evaluated sets that the system is under in hierarchical order (from the outermost set to the innermost set).
-  - If any set's RC return false, mark all the systems (incl. current one) and sets under that set as completed/evaluated.
+  - If any set's RC return false, mark all the systems (incl. current one) and sets under that set as completed and evaluated.
   - If all of the set's RC return true, mark the set as evaluated.
 
 - If all the sets' RC returned true, now evaluate the system's RC.
