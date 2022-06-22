@@ -18,6 +18,12 @@ For clarity, we will always call "new Reflect" the new version of Reflect,
 with guaranteed uniqueness, and "old Reflect" the current implementation of
 Reflect.
 
+#### pass for
+
+We say that old `T: Reflect` **passes for** old `U: Reflect` when `T`'s
+`type_name` is equal to `U`'s, and it is possible to convert from a `T` to a `U`
+using `apply`, `set` or `FromReflect::from_reflect`.
+
 #### underlying
 
 The **underlying** value of a dynamic object (eg: `dyn Reflect`) is the
