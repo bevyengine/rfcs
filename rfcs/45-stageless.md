@@ -402,7 +402,8 @@ So the dependencies on system sets become flattened into dependencies on the sys
 1. A system's dependencies contain a loop or cycle.
 2. The hierarchical graph contains a loop or cycle.
 3. The hierarchical graph has a transitive edge. i.e. there are multiple paths between two sets.
-4. You called `.in_set` with a system's label. Only labels on system sets are allowed to contain multiple systems.
+4. You called `.in_set` with a label that belongs to a single system, rather than a system set.
+
 5. (User-configurable) You have a dependency between two sets or systems that aren't part the same overarching set. This can lead to implicit transitive ordering of systems between sets that might have been unwanted.
 
 6. (User-configurable) You referenced an "unknown" label. e.g. `.after()` references a label that has not been added to a system or system set. 
