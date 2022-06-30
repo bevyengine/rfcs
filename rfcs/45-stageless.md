@@ -421,7 +421,7 @@ So the dependencies on system sets become flattened into dependencies on the sys
 
 
 (5), (6), and (7) do not lead to unsolvable graphs and can be user configured to warn, error, or ignore. 
-By default these are warnings. (7) has additional configuration options. 
+By default these are warnings. (7) also has additional configuration options. 
 See https://github.com/bevyengine/bevy/pull/4299 for more details.
 
 ### Storage
