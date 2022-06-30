@@ -393,24 +393,23 @@ trait IntoConfiguredSet {
 ### Scheduling errors
 
 There are several reasons an app may error due to improper scheduling.
-Most are related to graph solvability.
-The graph is validated in two different ways.
-One that checks the users configuration between systems and sets. This is referred to as the user's hierarchy below.
-The other checks against the flattened system graph, where the nodes of the graph are only systems.
-So a system sets dependencies become flattened into dependencies on the systems in the set.
+Most are related to graph solvability. The graph is solved in two different ways.
+The first is the graph where system sets and systems are considered graph nodes. This graph is called the hierarchical graph.
+The edges are checked for errors between systems and system sets at the same nesting level.
+The other graph that is checked is the flattened system graph. In this graph system sets are flattened into connections between only systems.
+So the dependencies on system sets become flattened into dependencies on the systems in the set.
 
 1. A system's dependencies contain a loop or cycle.
-2. Your hierarchy contains a loop or cycle.
-3. Your hierarchy has a transitive edge. i.e. there are multiple paths between two sets.
-4. You called `.in_set` with a system's label. Labels on systems are enforced to only contain that system.
-5. (User-configurable) You have a dependency between two things (sets or systems) that aren't part the same set. This can lead to implicit ordering of systems between sets that might have been unwanted.
-6. (User-configurable) You referenced an "unknown" label (you forgot to add the system or set somewhere).
-7. (User-configurable) You have two things with conflicting data access and ambiguous order. Reference https://github.com/bevyengine/bevy/pull/4299 for more details.
+2. The hierarchical graph contains a loop or cycle.
+3. The hierarchical graph has a transitive edge. i.e. there are multiple paths between two sets.
+4. You called `.in_set` with a system's label. Only labels on system sets are allowed to contain multiple systems.
+5. (User-configurable) You have a dependency between two sets or systems that aren't part the same set. This can lead to implicit ordering of systems between sets that might have been unwanted.
+6. (User-configurable) You referenced an "unknown" label. e.g. `.after()` references a label that has not been added to a system or system set. 
+7. (User-configurable) You have two things with conflicting data access and ambiguous order. 
 
-By default, if something is ordered relative to an "unknown" system or set,
-that dependency will be ignored and the user will get a warning.
-We warn instead of error so that users can order their systems relative to systems
-and sets from plugins (particularly the default plugins) whether they exist or not.
+(5), (6), and (7) do not lead to unsolvable graphs and can be user configured to warn, error, or ignore. 
+By default these are warnings. (7) has additional configuration options. 
+See https://github.com/bevyengine/bevy/pull/4299 for more details.
 
 ### Storage
 
