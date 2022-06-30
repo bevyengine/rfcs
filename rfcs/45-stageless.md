@@ -407,7 +407,8 @@ So the dependencies on system sets become flattened into dependencies on the sys
 5. (User-configurable) You have a dependency between two sets or systems that aren't part the same overarching set. This can lead to implicit transitive ordering of systems between sets that might have been unwanted.
 
 6. (User-configurable) You referenced an "unknown" label. e.g. `.after()` references a label that has not been added to a system or system set. 
-7. (User-configurable) You have two things with conflicting data access and ambiguous order. 
+7. (User-configurable) You have two systems with conflicting data access and ambiguous order. 
+
 
 (5), (6), and (7) do not lead to unsolvable graphs and can be user configured to warn, error, or ignore. 
 By default these are warnings. (7) has additional configuration options. 
