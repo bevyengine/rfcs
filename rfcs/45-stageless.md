@@ -402,6 +402,16 @@ So the dependencies on system sets become flattened into dependencies on the sys
 1. A system's dependencies contain a loop or cycle.
 2. The hierarchical graph contains a loop or cycle.
 3. The hierarchical graph has a transitive edge. i.e. there are multiple paths between two sets.
+
+    ```rust
+    let mut reg = world.resource_mut::<SystemRegistry>();
+    reg.add_set(A);
+    reg.add_set(B.to(A));
+    // The next line causes a panic during graph solving.
+    // A cannot be parent and grandparent to C at same time. 
+    reg.add_set(C.to(B).to(A))
+    ```
+
 4. You called `.in_set` with a label that belongs to a single system, rather than a system set.
 
 5. (User-configurable) You have a dependency between two sets or systems that aren't part the same overarching set. This can lead to implicit transitive ordering of systems between sets that might have been unwanted.
