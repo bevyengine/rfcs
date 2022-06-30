@@ -394,7 +394,7 @@ trait IntoConfiguredSet {
 
 There are several reasons an app may error due to improper scheduling.
 Most are related to graph solvability. The graph is solved in two different ways.
-The first is the graph where system sets and systems are considered graph nodes. This graph is called the hierarchical graph.
+The first is the graph where the nodes represent system sets and systems. This graph is called the hierarchical graph.
 The edges are checked for errors between systems and system sets at the same nesting level.
 The other graph that is checked is the flattened system graph. In this graph system sets are flattened into connections between only systems.
 So the dependencies on system sets become flattened into dependencies on the systems in the set.
