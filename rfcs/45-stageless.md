@@ -392,17 +392,37 @@ trait IntoConfiguredSet {
 
 ### Scheduling errors
 
-There are several reasons an app may error due to improper scheduling. Most are related to graph solvability.
+There are several reasons an app may error due to improper scheduling.
+Most are related to graph solvability. The graph is solved in two different ways.
+The first is the graph where system sets and systems are considered graph nodes. This graph is called the hierarchical graph.
+The edges are checked for errors between systems and system sets at the same nesting level.
+The other graph that is checked is the flattened system graph. In this graph system sets are flattened into connections between only systems.
+So the dependencies on system sets become flattened into dependencies on the systems in the set.
 
-1. Your dependencies contain a loop or cycle.
-2. Your hierarchy contains a loop or cycle.
-3. Your hierarchy has a transitive edge (something is both in some set and not at the same time.)
-4. You called `.in_set` with a system's label.
-5. (User-configurable) You have a dependency between two things that aren't in the same set.
-6. (User-configurable) You referenced an "unknown" label (you forgot to add the system or set somewhere).
-7. (User-configurable) You have two things with conflicting data access and ambiguous order.
+1. A system's dependencies contain a loop or cycle.
+2. The hierarchical graph contains a loop or cycle.
+3. The hierarchical graph has a transitive edge. i.e. there are multiple paths between two sets.
 
-By default, if something is ordered relative to an "unknown" system or set, that dependency will be ignored and the user will get a warning. We warn instead of error so that users can order their systems relative to systems and sets from plugins (particularly the default plugins) whether they exist or not.
+    ```rust
+    let mut reg = world.resource_mut::<SystemRegistry>();
+    reg.add_set(A);
+    reg.add_set(B.to(A));
+    // The next line causes a panic during graph solving.
+    // A cannot be parent and grandparent to C at same time. 
+    reg.add_set(C.to(B).to(A))
+    ```
+
+4. You called `.in_set` with a label that belongs to a single system, rather than a system set.
+
+5. (User-configurable) You have a dependency between two sets or systems that aren't part the same overarching set. This can lead to implicit transitive ordering of systems between sets that might have been unwanted.
+
+6. (User-configurable) You referenced an "unknown" label. e.g. `.after()` references a label that has not been added to a system or system set. 
+7. (User-configurable) You have two systems with conflicting data access and ambiguous order. 
+
+
+(5), (6), and (7) do not lead to unsolvable graphs and can be user configured to warn, error, or ignore. 
+By default these are warnings. (7) also has additional configuration options. 
+See https://github.com/bevyengine/bevy/pull/4299 for more details.
 
 ### Storage
 
