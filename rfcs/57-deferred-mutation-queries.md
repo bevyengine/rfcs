@@ -65,7 +65,9 @@ fn foo(
 
 ## Implementation strategy
 
-A naive implementation can be done with the following code:
+### Naive implementation
+
+can be done by any user with the existing codebase with the following:
 ```rs
 fn foo(
     // We need to `Entity` to apply mutation to the right entity
@@ -85,47 +87,66 @@ fn foo(
     }
 }
 ```
-As you can see it's a lot of additional work that's mostly boilerplate,
-but it outlines the necessary components.
+
+It's a lot of work that's mostly boilerplate, but it outlines the necessary components.
 
 The smart copy-on-write-like pointer has to store the `Entity` as well as a mutable reference to the `Commands`.
 The component itself has to implement `Clone`.
 
 With this approach the order of mutation will be determined by the order of command applications in the sync points.
 
+### Dedicated implementation
+
+If naive implementation brings enough performance improvement through benchmarking, a dedicated solution can be made with guaranteed performance benefits.
+
+The biggest optimizations can be achieved through:
+- Batching mutations of the same component type in advance.  
+  Instead of collecting all mutations right before applying them
+  collect them during the registration of mutation
+  or somewhere on the way.
+- Sorting mutations of the same component type.  
+  Will dramatically reduce cache misses.
+  Most likely insert sort during batching.
+- Applying mutations per component type in parallel.  
+  Unlike `Commands` which locks the entire world.
+
+The application of mutations can be done separately from command resolution
+furthermore each component can be applied at different moments.
+
+Registration of those systems will need to be explicit like `apply_mutation_system<T: Component + Clone>`,
+but convinience `App` methods can be provided to implement them at some default moment.
+
+The query will require a special type, like `DelayMutQuery`, to contain the local buffer (naive implementation's `Commands`).
+
+(I need to read through the command architecture to be sure, but...)
+This may require modifications in the scheduler, new type of benchmark will be required to ensure the overhead is minimal as compared to the existing implementation.
+
 ## Drawbacks
 
-The use-cases are little to the point it may not be worth implementing.
+The use-cases are little to the point it may not be worth implementing. Although it won't stop me from trying! :')
 
-Speed benefits are also to be tested and can, potentially, spectacularly kill this idea.
+Performance benefits are hard to guess and require benchmarking, even in user code.
 
 ## Rationale and alternatives
 
-Staying with `&mut` is always an option.
+Just using `&mut`.
 
-Resolving mutable access at runtime within systems is a massive **no**.
+~~Resolving mutable access at runtime.~~ (only villains do that)
 
 ## Prior art
 
-The topic as far as I'm aware is unexplored to the point it's hard to predict the benefits.
-It may be, that the parallelizm of those few use cases simply does not outweight the algorithm behind it.
+The topic as far as I'm aware is unexplored.
 
-I've not aware of anyone using the naive implementation. My assumed reason for that is that it's non-intuitive, since it uses `insert` for upsert.
+I have not seen anyone use the naive implementation.
+I assume it's non-intuitive, since it uses `insert` for upsert.
 
 ## Unresolved questions
-
-- Because `Commands` are parameter-level and component wrappers aren't, the query signature may require changes like `Query` -> `DelayMutQuery`.
 
 - Order of mutations
 
 ## Future possibilities
 
-- Separation from `Commands` would allow for
-    - Different sync points from entity spawning and despawning
-    - Resolving ordering early as opposed to during application
-    - Batching mutations AA
-
-- Lensing would allow to targeting more components.
+- Lensing would allow for targeting more components at questionably smaller memory cost.
   Instead of copying everything, only the modified fields can be memorized.
   This means that non-`Copy` components are also usable.
   This also means that large components (memory-wise) can be updated with less memory usage.
