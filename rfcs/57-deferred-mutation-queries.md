@@ -70,18 +70,18 @@ fn foo(
 can be done by any user with the existing codebase with the following:
 ```rs
 fn foo(
-    // We need to `Entity` to apply mutation to the right entity
+    // We need `Entity` to apply mutation for identification
     query: Query<(Entity, &Bar)>,
-    // We need `Commands` to buffer the mutation for future application
+    // We need `Commands` to buffer the mutations
     mut commands: Commands,
 ) {
     for (entity, bar) in bars.iter() {
         if arbitrary == condition {
             // Component has to implement `Clone`
             let mut mutated_bar = bar.clone();
-            // To show the need for `Clone` in this example I only mutate a field
+            // To show the need for `Clone` in this example I only mutate a single field (as opposed to replacing the whole component)
             mutated_bar.0 = value;
-            // Use `insert` like an `upsert`, not too obvious
+            // Use `insert` like an `upsert`, not super obvious
             commands.entity(entity).insert(mutated_bar);
         }
     }
