@@ -6,19 +6,16 @@ Derive `FromReflect` by default when deriving `Reflect`, add `ReflectFromReflect
 
 ## Terminology
 
-#### *Dynamic Types*
+### *Dynamic Types* vs *Real Types*
 
-To make this document easier to read, the term "**Dynamic**" (with this casing) will be used to refer to any of the `Dynamic***` structs. This includes `DynamicStruct`, `DynamicTupleStruct`, `DynamicList`, etc.
+A **Dynamic** type refers to any of the `Dynamic***` structs used by `bevy_reflect` to represent a basic Rust data structure. For example, a `DynamicTupleStruct` is a Dynamic that represents a tuple struct in Rust.
 
-Other forms might include "Dynamics," "Dynamic structs," or "Dynamic types" depending on context.
+A **Real** type, on the other hand, refers to any type that is *not* a Dynamic. For example, `i32` is a Real type, and so is `Vec<T>`.
 
-In example code, variables containing these types will be denoted as `dyn_X`, where `X` corresponds to their data structure. For example, `dyn_tuple_struct` would represent a `DynamicTupleStruct`.
+Since both may be represented as a `dyn Reflect`, examples in this RFC will try to use the following conventions:
 
-#### *Real Types*
-
-The term "**real type**" will be used to distinguish Dynamics and other concrete types. We can define it as any concrete type known at compile time that is *not* one of the Dynamic structs. 
-
-In example code, variables containing real types will be denoted as `real_Y`, where `Y` corresponds to their data structure. For example, `real_list` would represent a list-like type, such as `Vec<T>`.
+* Variables named `dyn_***` contain a Dynamic type. The full name should match the name of the corresponding Dynamic type. For example, a `dyn_tuple` represents a `DynamicTuple`.
+* Variables named `real_***` contain a Real type. The full name should match the corresponding data structure. For example, a `real_tuple` represents any Rust tuple, such as `(i32, f32, usize)`.
 
 ## Background
 
@@ -26,7 +23,7 @@ In example code, variables containing real types will be denoted as `real_Y`, wh
 
 For those unfamiliar, here's a quick refresher on `FromReflect`.
 
-The `FromReflect` trait is meant to allow types to be constructed dynamically (well, not completely, but we'll get into that later). Specifically, it enables a real type to be generated from a Dynamic one. As an example, we can convert a `DynamicTuple` to a real tuple like so:
+The `FromReflect` trait is meant to allow types to be constructed dynamically (well, not completely, but we'll get into that later). Specifically, it enables a Real type to be generated from a Dynamic one. As an example, we can convert a `DynamicTuple` to a Real tuple like so:
 
 ```rust
 let mut dyn_tuple = DynamicTuple::default();
@@ -36,7 +33,7 @@ dyn_tuple.insert(321usize);
 let real_tuple = <(usize, usize)>::from_reflect(&dyn_tuple).unwrap();
 ```
 
-A Dynamic value to a real one. Neat!
+A Dynamic value to a Real one. Neat!
 
 ### How does `FromReflect` work?
 
@@ -58,11 +55,11 @@ This is why, when deriving `FromReflect`, all fields *must* also implement `From
 
 ### Why is `FromReflect` useful?
 
-So why does this matter? If we need the real type we can just avoid using Dynamics, right?
+So why does this matter? If we need the Real type we can just avoid using Dynamics, right?
 
 Well for any users who have tried working with serialized reflection data, they've likely come across the biggest use case for `FromReflect`: deserialization.
 
-When reflected data is deserialized, all of it is placed in a Dynamic type[^2]. This means that, even if we know the real type ahead of time, we don't quite have it yet. This is where `FromReflect` shines, as it allows us to convert that Dynamic into our desired real type.
+When reflected data is deserialized, all of it is placed in a Dynamic type[^2]. This means that, even if we know the Real type ahead of time, we don't quite have it yet. This is where `FromReflect` shines, as it allows us to convert that Dynamic into our desired Real type.
 
 ## Motivation
 
@@ -71,7 +68,7 @@ So where's the issue?
 The main problem is in the ergonomics of this whole system for the typical Bevy developer as well as the consistency of it across the Bevy ecosystem. To be specific, there are three areas that could be improved:
 
 1. **Derive Complexity** - A way to cut back on repetitive or redundant code.
-2. **Dynamic Conversions** - A way to use `FromReflect` in a purely dynamic way, where no real types are known.
+2. **Dynamic Conversions** - A way to use `FromReflect` in a purely dynamic way, where no Real types are known.
 3. **Deserialization Clarity** - A way to make it clear to the user exactly what they are getting back from the deserializer.
 
 Please note that these are not listed in order of importance but, rather, order of understanding.
@@ -133,9 +130,9 @@ By marking the container with `#[from_reflect(auto_derive = false)]`, we signal 
 
 > Adding `ReflectFromReflect` type data
 
-`FromReflect` is great in that you can easily convert a Dynamic type to a real one. Oftentimes, however, you might find yourself in a situation where the real type is not known. You need to call `<_>::from_reflect`, but have no idea what should go in place of `<_>`.
+`FromReflect` is great in that you can easily convert a Dynamic type to a Real one. Oftentimes, however, you might find yourself in a situation where the Real type is not known. You need to call `<_>::from_reflect`, but have no idea what should go in place of `<_>`.
 
-In these cases, the `ReflectFromReflect` type data may be used. This can be retrieved from the type registry using the `TypeID` or the type name of the real type. For example:
+In these cases, the `ReflectFromReflect` type data may be used. This can be retrieved from the type registry using the `TypeID` or the type name of the Real type. For example:
 
 ```rust
 let rfr = registry
@@ -145,7 +142,7 @@ let rfr = registry
 let real_struct: Box<dyn Reflect> = rfr.from_reflect(&dyn_struct).unwrap();
 ```
 
-Calling `rfr.from_reflect` will return an `Option<Box<dyn Reflect>>`, where the `Box<dyn Reflect>` contains the real type registered with `type_id`.
+Calling `rfr.from_reflect` will return an `Option<Box<dyn Reflect>>`, where the `Box<dyn Reflect>` contains the Real type registered with `type_id`.
 
 #### More Derive Complexity
 
@@ -170,9 +167,9 @@ let some_data: Box<dyn Reflect> = reflect_deserializer.deserialize(&mut deserial
 let real_struct: Foo = some_data.take().unwrap(); // PANIC!
 ```
 
-Again, this is because `ReflectDeserializer` always returns a Dynamic[^2]. A user must then use `FromReflect` themselves to get the real value.
+Again, this is because `ReflectDeserializer` always returns a Dynamic[^2]. A user must then use `FromReflect` themselves to get the Real value.
 
-Instead, `ReflectDeserializer::deserialize` now performs the conversion automatically before returning. Not only does this cut back on code needed to be written by the user, but it also cuts back on the need for them to understand the complexity and internals of deserializing reflected data. This means that the above code should no longer panic (assuming the real type *actually is* `Foo`).
+Instead, `ReflectDeserializer::deserialize` now performs the conversion automatically before returning. Not only does this cut back on code needed to be written by the user, but it also cuts back on the need for them to understand the complexity and internals of deserializing reflected data. This means that the above code should no longer panic (assuming the Real type *actually is* `Foo`).
 
 If any type in the serialized data did not register `ReflectFromReflect`, this should result in an error being returned indicating that `ReflectFromReflect` was not registered for the given type. With the changes listed in **[Derive Complexity](#derive-complexity)**, this should be less likely to happen, since all types should register it by default. If it does happen, the user can choose to either register said type data, or forgo the automatic conversion with **dynamic deserialization**.
 
@@ -180,7 +177,7 @@ If any type in the serialized data did not register `ReflectFromReflect`, this s
 
 There may be some cases where a user has data that doesn't conform to `FromReflect` but is still serializable. For example, we might not want to make `Entity` constructible, but we could still pass along data that *represents* an `Entity` so we it can be constructed in some Bevy-controlled way.
 
-These types require manual reconstruction of the real type using the deserialized data. As such, they should just deserialize to a Dynamic and leave the construction part up to the user. The `ReflectDeserializer::deserialize` method, before this RFC, would do just that and return a Dynamic for *all* types. We can re-enable this behavior on the deserializer be disabling automatic conversion:
+These types require manual reconstruction of the Real type using the deserialized data. As such, they should just deserialize to a Dynamic and leave the construction part up to the user. The `ReflectDeserializer::deserialize` method, before this RFC, would do just that and return a Dynamic for *all* types. We can re-enable this behavior on the deserializer be disabling automatic conversion:
 
 ```rust
 // Disable automatic conversions
@@ -281,4 +278,4 @@ One concern about integrating the `FromReflect` derive into the `Reflect` derive
 
 
 [^1]: This only applies to *active* fields, or fields not marked as `#[reflect(ignore)]`. For *inactive* fields, it instead requires a `Default` impl (unless given a specialized default value using `#[reflect(default = "some_function")]`)
-[^2]: Actually, not *all* data is deserialized into a Dynamic. Primitive types, like `u8`, are deserialized into their real type. This is a confusing disparity addressed by https://github.com/bevyengine/bevy/pull/4561.
+[^2]: Actually, not *all* data is deserialized into a Dynamic. Primitive types, like `u8`, are deserialized into their Real type. This is a confusing disparity addressed by https://github.com/bevyengine/bevy/pull/4561.
