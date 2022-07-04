@@ -180,7 +180,7 @@ If any type in the serialized data did not register `ReflectFromReflect`, this s
 
 There may be some cases where a user has data that doesn't conform to `FromReflect` but is still serializable. For example, we might not want to make `Entity` constructible, but we could still pass along data that *represents* an `Entity` so we it can be constructed in some Bevy-controlled way.
 
-These types require manual reconstruction of the real type using the deserialized data. This is what the previous behavior of `ReflectDeserializer::deserialize`. We can re-enable this behavior on the deserializer be disabling automatic conversion:
+These types require manual reconstruction of the real type using the deserialized data. As such, they should just deserialize to a Dynamic and leave the construction part up to the user. The `ReflectDeserializer::deserialize` method, before this RFC, would do just that and return a Dynamic for *all* types. We can re-enable this behavior on the deserializer be disabling automatic conversion:
 
 ```rust
 // Disable automatic conversions
