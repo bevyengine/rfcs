@@ -19,11 +19,52 @@ Since both may be represented as a `dyn Reflect`, examples in this RFC will try 
 
 ## Background
 
+### What is `Reflect`?
+
+Before diving into this RFC and the world of Bevy reflection, let's take a quick step back and recall what `Reflect` is and why we need it.
+
+Reflection in programming gives developers the power to analyze the code itself, and use that information to perform dynamic operations. This can be as simple as getting the name of a struct's field. Or it can be more complex, such as iterating over all elements of a tuple and comparing them with values in a list.
+
+Rust does not come with this functionality by default. Bevy's `Reflect` instead powers this *meta-programming* mechanism. `Reflect` can be derived on any struct using `#[derive(Reflect)]` and allows that struct to be reflected. This derive will also implement a number of other necessary traits. For structs, one such trait is `Struct` (or `TupleStruct` for tuple structs).
+
+If a type implements `Reflect`, you'll often see it used in trait object form: `dyn Reflect`.
+
+This whole system is very useful, especially for dynamically operating on a value based on the data we get from reflecting it.
+
+### Why do we need Dynamic types?
+
+Reflection works great when you already have a value to reflect. However, there are many times when you might not have a value (or the full value). For example, take the following struct:
+
+```rust
+struct Foo {
+  x: i32,
+  y: i32
+}
+```
+
+If we need to deserialize the following JSON:
+
+```json
+{
+  "type": "my_crate::Foo",
+  "struct": {
+    "x": {
+      "type": "i32",
+      "value": 123
+    }
+  }
+}
+```
+
+How can we do this? Notice that we're missing the `y` field!
+
+This is where Dynamic types come in— specifically a `DynamicStruct`. Dynamic types allow us to mimic *any* type. We can use this Dynamic to apply its data atop an existing value where applicable. Or, in the case above, we can use it to store partial information of a type.
+
+The problem is that when we deserialize this and get that `DynamicStruct` back, how do we get to the Real type, `Foo`? Enter `FromReflect`.
+
 ### What is `FromReflect`?
 
-For those unfamiliar, here's a quick refresher on `FromReflect`.
-
-The `FromReflect` trait is meant to allow types to be constructed dynamically (well, not completely, but we'll get into that later). Specifically, it enables a Real type to be generated from a Dynamic one. As an example, we can convert a `DynamicTuple` to a Real tuple like so:
+The `FromReflect` trait is meant to allow types to be constructed dynamically, often using Dynamic types. Specifically, it enables a Real type to be generated from a Dynamic one. As an example, we can convert a `DynamicTuple` to a Real tuple like so:
 
 ```rust
 let mut dyn_tuple = DynamicTuple::default();
