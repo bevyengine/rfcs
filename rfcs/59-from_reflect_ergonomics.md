@@ -100,7 +100,9 @@ So why does this matter? If we need the Real type we can just avoid using Dynami
 
 Well for any users who have tried working with serialized reflection data, they've likely come across the biggest use case for `FromReflect`: deserialization.
 
-When reflected data is deserialized, all of it is placed in a Dynamic type[^2]. This means that, even if we know the Real type ahead of time, we don't quite have it yet. This is where `FromReflect` shines, as it allows us to convert that Dynamic into our desired Real type.
+When reflected data is deserialized, all of it is placed in a Dynamic type[^2]. This means that, even if we know the Real type ahead of time, we're still stuck with the Dynamic type instead. Like in the example above, we might know we want `Foo`, but deserializing it using `ReflectDeserializer` will give us a `DynamicStruct`.
+
+This is why `FromReflect` is so useful: it allows us to convert that Dynamic into our desired Real type. So with it, we can convert the returned `DynamicStruct` into a Real instance of `Foo`.
 
 ## Motivation
 
