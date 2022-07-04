@@ -96,8 +96,6 @@ Depending on your game and the type of randomness you require, when specifying a
 
 https://github.com/bevyengine/bevy/pull/2504
 
-- The PR includes `rand` as a dependency but it is not in public API. We might be able to slim it down to [`getrandom`](https://crates.io/crates/getrandom).
-
 ## Drawbacks
 
 - This may not be general enough to include in Bevy.
