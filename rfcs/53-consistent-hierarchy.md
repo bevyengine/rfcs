@@ -389,7 +389,7 @@ design is reliant on the exact implementation.
 The original design that this proposal is based on is this 2014 article from
 [bitsquid
 developers](https://bitsquid.blogspot.com/2014/10/building-data-oriented-entity-system.html).
-The memory layout sugggested is awfully similar to bevy's ECS tables. However,
+The memory layout suggested is awfully similar to bevy's ECS tables. However,
 components are regularly swapped based on their dirty status. Placing dirty
 entities near the end of each contiguous slice. The hierarchical ECS storage
 alterantive aims to implement this.
