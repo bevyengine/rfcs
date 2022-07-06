@@ -103,7 +103,7 @@ A Dynamic value to a Real one. Neat!
 
 ### How does `FromReflect` work?
 
-Basically it's `FromReflect` all the way down.
+Basically, `FromReflect` methods are recursively called for each field.
 
 Given a struct like:
 
@@ -118,7 +118,7 @@ Calling `Foo::from_reflect` will kick off a chain of `FromReflect`:
 `Foo::from_reflect` calls `<(f32, f32)>::from_reflect` which itself calls `f32::from_reflect`.
 
 This is why, when deriving `FromReflect`, all fields *must* also implement `FromReflect`[^1].
-Without this, the trait itself won't just "not work"— it won't even compile.
+Without this, the trait implementation won't compile.
 
 ### Why is `FromReflect` useful?
 
