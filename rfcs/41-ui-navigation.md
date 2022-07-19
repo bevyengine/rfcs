@@ -15,7 +15,6 @@ On top of the current behavior, this adds the following capabilities:
 ## Terminology
 
 - _menu tree_: the access hierarchy of menus.
-TODO: illustration
 - _activating_ a focusable: Sending the `Action` event while this focusable is focused.
 - _focused menu_: The menu in which the currently focused `Focusable` is.
 - _child menu_ (of a focusable): The menu accessed from this focusable.
