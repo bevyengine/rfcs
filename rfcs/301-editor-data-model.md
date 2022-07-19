@@ -75,6 +75,22 @@ The data model guarantees the integrity of its data by allowing concurrent readi
 
 ## Implementation strategy
 
+<!-- This is the technical portion of the RFC.
+Try to capture the broad implementation strategy,
+and then focus in on the tricky details so that:
+
+- Its interaction with other features is clear.
+- It is reasonably clear how the feature would be implemented.
+- Corner cases are dissected by example.
+
+When necessary, this section should return to the examples given in the previous section and explain the implementation details that make them work.
+
+When writing this section be mindful of the following [repo guidelines](https://github.com/bevyengine/rfcs):
+
+- **RFCs should be scoped:** Try to avoid creating RFCs for huge design spaces that span many features. Try to pick a specific feature slice and describe it in as much detail as possible. Feel free to create multiple RFCs if you need multiple features.
+- **RFCs should avoid ambiguity:** Two developers implementing the same RFC should come up with nearly identical implementations.
+- **RFCs should be "implementable":** Merged RFCs should only depend on features from other merged RFCs and existing Bevy features. It is ok to create multiple dependent RFCs, but they should either be merged at the same time or have a clear merge order that ensures the "implementable" rule is respected. -->
+
 ### Names
 
 Being data-heavy, and forfeiting the structural access of Rust types, the data model makes extensive use of strings to reference items. In order to make those operations efficient, we define a `Name` type to represent those strings. The implementation of `Name` is outside of the scope of this RFC and left as an optimization, and should be considered as equivalent to a `String` wrapper:
@@ -119,10 +135,21 @@ enum BuiltInType {
     Name,
     Enum(UnsignedIntegralType), // C-style enum, not Rust-style
     Array(AnyType),
-    Dict(AnyType), // key is Name
-    ObjectRef,
+    Dict(AnyType), // key type is Name
+    ObjectRef(Option<Entity>),
 }
 ```
+
+_Note_: We explicitly handle all integral and floating-point bit variants to ensure tight value packing and avoid wasting space both in structs (`GameObject`; see below) and collections (arrays, _etc._).
+
+`ObjectRef` is a reference to any object, custom or built-in. This allows referencing components built-in inside Bevy or the Editor (TBD depending on design of that part). The reference needs to be valid (non-null) when the data gets processed for baking, but can temporarily (including while serialized to disk and later reloaded) be left invalid (`None`) for editing flexibility. Nullable references require a `NullableRef` component to be added to mark the reference as valid even if null.
+
+```rust
+#[derive(Component)]
+struct NullableRef;
+```
+
+This allows filtering out nullable references, and collect invalid `ObjectRef` instances easily via a `Query`, for example to emit some warning to the user.
 
 The `AnyType` is defined as either a built-in type or a reference to a custom Game type (see [Game types](#game-types)).
 
@@ -132,8 +159,6 @@ enum AnyType {
     Custom(Entity), // with GameType component
 }
 ```
-
-_Note_: We explicitly handle all integral and floating-point bit variants to ensure tight value packing and avoid wasting space both in structs (`GameObject`; see below) and collections (arrays, _etc._).
 
 ### Game world
 
@@ -251,9 +276,9 @@ struct ArrayType {
 }
 ```
 
-#### Dictionaries
+Array values store their elements contiguously in the byte storage (see [Game objects](#game-objects)), without padding between elements.
 
-TODO...
+#### Dictionaries
 
 Dictionaries are dynamically-sized homogenous collections mapping _keys_ to _values_, where each key is unique in the instance. The key type is always a string (`Name` type). The `DictType` defines the value type.
 
@@ -263,6 +288,8 @@ struct DictType {
     value_type: AnyType,
 }
 ```
+
+Dictionary values store their (key, value) pairs contiguously in the byte storage (see [Game objects](#game-objects)), key first followed by value, without padding.
 
 #### Structs
 
@@ -299,7 +326,7 @@ The `Property` struct contains also an optional validation function used to vali
 ```rust
 trait Validate {
     /// Check if a value is valid for the property.
-    fn is_valid(&self, property: &Property, value: &Value) -> bool;
+    fn is_valid(&self, property: &Property, value: &[u8]) -> bool;
 
     /// Try to assign a value to a property of an instance.
     fn try_set(&mut self, instance: &mut GameObject, property: &Property, value: &[u8]) -> bool;
@@ -380,21 +407,36 @@ Given a setup where a migration of a `src_inst: GameObject` is to be performed f
 
 _Note: the migration rules are written in terms of two distinct `src_inst` and `dst_inst` objects for clarity, but the implementation is free to do an in-place modification to prevent an allocation, provided the result is equivalent to migrating to a new instance then replacing the source instance with it._
 
-<!-- This is the technical portion of the RFC.
-Try to capture the broad implementation strategy,
-and then focus in on the tricky details so that:
+### Reflection extraction
 
-- Its interaction with other features is clear.
-- It is reasonably clear how the feature would be implemented.
-- Corner cases are dissected by example.
+The reflection data needed to create a `GameType` is extracted from the Game process launched by the Editor, via the help of the `EditorClientPlugin`. The plugin allows communicating with the Editor process to send it the data needed to create the `GameType`s, which is constituted of the list of types of the Game, with for each type:
 
-When necessary, this section should return to the examples given in the previous section and explain the implementation details that make them work.
+- its kind (sub-type)
+- any additional kind-specific data like the list of properties for a struct
 
-When writing this section be mindful of the following [repo guidelines](https://github.com/bevyengine/rfcs):
+For properties, the plugin extracts the byte offsets of all properties by listing the struct fields and using a runtime `offsetof` implementation like the one proposed by @TheRawMeatball:
 
-- **RFCs should be scoped:** Try to avoid creating RFCs for huge design spaces that span many features. Try to pick a specific feature slice and describe it in as much detail as possible. Feel free to create multiple RFCs if you need multiple features.
-- **RFCs should avoid ambiguity:** Two developers implementing the same RFC should come up with nearly identical implementations.
-- **RFCs should be "implementable":** Merged RFCs should only depend on features from other merged RFCs and existing Bevy features. It is ok to create multiple dependent RFCs, but they should either be merged at the same time or have a clear merge order that ensures the "implementable" rule is respected. -->
+```rust
+macro_rules! offset_of {
+    ($ty:ty, $field:ident) => {
+        unsafe {
+            let uninit = MaybeUninit::<$ty>::uninit();
+            let __base = uninit.as_ptr();
+            let __field = std::ptr::addr_of!((*__base).$field);
+            __field as usize - __base as usize
+        }
+    };
+}
+```
+
+See also the [rustlang discussion](https://internals.rust-lang.org/t/pre-rfc-add-a-new-offset-of-macro-to-core-mem/9273) on the matter. There is currently no Rust `offset_of()` macro, and not custom implementation known to work in a `const` context with the `stable` toolchain. However we only intend to use that macro at runtime, so are not blocked by this limitation.
+
+The details of:
+
+1. how to connect to the Game process from the Editor process via the `EditorClientPlugin`,
+2. what format to serialize the necessary type data into to be able to create `GameType`s,
+
+are left outside the scope of this RFC, and would be best addressed by a separate RFC focused on that interaction.
 
 ## Drawbacks
 
@@ -412,7 +454,25 @@ The data model adds a layer of abstraction over the "native" data the Game uses,
 - What is the impact of not doing this?
 - Why is this important to implement as a feature of Bevy itself, rather than an ecosystem crate? -->
 
+This design is thought to be the best in space because it adapts to the Bevy architecture the design of Our Machinery, which was built by a team of experts with years of experience and 2 shipped game engines. Our Machinery is also a relatively new game engine, so is not constrained by legacy choices which would make its design arguably outdated or not optimal.
+
+The impact of not doing this is obvious: we need to do _something_ about the Editor data model, so if not this RFC then we need another design anyway.
+
+The RFC is targeted at the Bevy Editor, so the change is to be implemented within that crate (or set of crates), with any additional changes to Bevy itself to catter for possible missing features in reflection. The data model constitutes the core of the Bevy Editor so implementation in an ecosystem crate is not suited.
+
+- **Alternative**: Use the current `Reflect` architecture as-is, with `Path`-based property manipulation. This is the most simple way, as it avoids the complexity of type layouts and byte stream values (and the `unsafe` associated). The drawback is that calling a virtual (trait) method for each get and set of each value is reasonable for manual edits in the Editor (execution time much smaller than user reaction time) but might become a performance issue when automated edits come into play, like for an animation system with a timeline window allowing to scroll current time and update all animated properties of all objects in the scene at once.
+
 ## Prior art
+
+<!-- Discuss prior art, both the good and the bad, in relation to this proposal.
+This can include:
+
+- Does this feature exist in other libraries and what experiences have their community had?
+- Papers: Are there any published papers or great posts that discuss this?
+
+This section is intended to encourage you as an author to think about the lessons from other tools and provide readers of your RFC with a fuller picture.
+
+Note that while precedent set by other engines is some motivation, it does not on its own motivate an RFC. -->
 
 ### Unity3D
 
@@ -460,18 +520,6 @@ They also list some bad experiences with the Bitsquid data model (a predecessor 
 - disk-based data model like JSON files can't represent undo/redo and copy/paste, leading to duplicated implementations for each system.
 - string-based object references are not semantically different from other strings in a JSON-like format, so cannot be reasoned about without semantic context, and internal references inside the same file are ill-defined.
 - file-based models play poorly with real-time collaboration.
-
-
-
-<!-- Discuss prior art, both the good and the bad, in relation to this proposal.
-This can include:
-
-- Does this feature exist in other libraries and what experiences have their community had?
-- Papers: Are there any published papers or great posts that discuss this?
-
-This section is intended to encourage you as an author to think about the lessons from other tools and provide readers of your RFC with a fuller picture.
-
-Note that while precedent set by other engines is some motivation, it does not on its own motivate an RFC. -->
 
 ## Unresolved questions
 
