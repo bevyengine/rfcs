@@ -252,6 +252,9 @@ To ease implementation of widgets, such as sliders,
 some focusables can "lock" the UI, preventing all other form of interactions.
 Another system will be in charge of unlocking the UI by sending a `NavRequest::Free`.
 
+This may be better served by keeping the `FocusPolicy` component,
+in situations where a global lock prevents other uses.
+
 
 ## Prior art
 
