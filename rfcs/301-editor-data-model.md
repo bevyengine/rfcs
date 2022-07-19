@@ -529,7 +529,7 @@ They also list some bad experiences with the Bitsquid data model (a predecessor 
 
 1. How do we store string instances? Storing a `String` requires an extra heap allocation per string and makes `GameObject` non-copyable. Interning and using an ID would solve this.
 
-## \[Optional\] Future possibilities
+## Future possibilities
 
 <!-- Think about what the natural extension and evolution of your proposal would
 be and how it would affect Bevy as a whole in a holistic way.
@@ -543,3 +543,13 @@ Note that having something written down in the future-possibilities section
 is not a reason to accept the current or a future RFC; such notes should be
 in the section on motivation or rationale in this or subsequent RFCs.
 If a feature or change has no direct value on its own, expand your RFC to include the first valuable feature that would build on it. -->
+
+Because the Editor data model provides a centralized source of truth for all editing systems, this enables building a unique undo/redo system and a unique copy/paste system shared by all other editing systems, without the need for each of those editing systems to design their own.
+
+I expect the following future RFCs to build on top of this one:
+
+- Game/Editor communication (IPC)
+- Undo/redo system
+- Copy/paste system
+- Live editing (update Game data in real-time while editing in Editor)
+- Remote collaboration (multiple users editing the same project collaboratively from multiple remote locations via networking)
