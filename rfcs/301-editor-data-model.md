@@ -116,73 +116,82 @@ enum BuiltInType {
     Int8, Int16, Int32, Int64, Int128,
     Uint8, Uint16, Uint32, Uint64, Uint128,
     Float32, Float64,
+    Name,
     Enum(UnsignedIntegralType), // C-style enum, not Rust-style
-    String,
-    Array(BuiltInType),
-    Dict,
+    Array(AnyType),
+    Dict(AnyType), // key is Name
     ObjectRef,
 }
 ```
 
-_Note_: We explicitly handle all integral and float bit variants to ensure tight value packing and avoid wasting space both in objects (`DataInstance`; see below) and collections (arrays, _etc._).
-
-### Data world
-
-The data model uses dynamic types, so it can be represented purely with data, without any build-time types. Bevy already has an ideal storage for data: the `World` ECS container. This RFC introduces a new struct to represent the data model, the `DataWorld`:
+The `AnyType` is defined as either a built-in type or a reference to a custom Game type (see [Game types](#game-types)).
 
 ```rust
-struct DataWorld(pub World);
+enum AnyType {
+    BuiltIn(BuiltInType),
+    Custom(Entity), // with GameType component
+}
 ```
 
-Since the underlying `World` already offers guarantees about concurrent mutability prevention, via the Rust language guarantees themselves, those guarantees transfer to the `DataWorld` allowing safe concurrent read-only access or exclusive write access to all data of the data model.
+_Note_: We explicitly handle all integral and floating-point bit variants to ensure tight value packing and avoid wasting space both in structs (`GameObject`; see below) and collections (arrays, _etc._).
 
-**TODO - Explain where the `DataWorld` lives. Idea was as a resource on the Editor's `World`, but that means regular Editor systems cannot directly write queries into the `DataWorld` ergonomically. See how extract does it for the render world though.**
+### Game world
 
-### Data types
+The data model uses dynamic types, so it can be represented purely with data, without any build-time types. Bevy already has an ideal storage for data: the `World` ECS container. This RFC introduces a new struct to represent the data model, the `GameWorld`:
 
-The data world is populated with the dynamic types coming from the various sources described in [User-facing explanation](#user-facing-explanation).
+```rust
+struct GameWorld(pub World);
+```
 
-This RFC introduces a `DataType` component that stores the description of a single dynamic type. We use the name `DataType` to hint at the link with the `DataWorld` and avoid any confusion with any pre-existing dynamic object from the `bevy_reflect` crate (_e.g._ `DynamicScene` or `DynamicEntity`).
+Since the underlying `World` already offers guarantees about concurrent mutability prevention, via the Rust language guarantees themselves, those guarantees transfer to the `GameWorld` allowing safe concurrent read-only access or exclusive write access to all data of the data model.
+
+**TODO - Explain where the `GameWorld` lives. Idea was as a resource on the Editor's `World`, but that means regular Editor systems cannot directly write queries into the `GameWorld` ergonomically. See how extract does it for the render world though.**
+
+### Game types
+
+The game world is populated with the dynamic types coming from the various sources described in [User-facing explanation](#user-facing-explanation).
+
+This RFC introduces a `GameType` component that stores the description of a single dynamic type from the Game. We use the name `GameType` to hint at the link with the `GameWorld`, and avoid the term "dynamic" to prevent any confusion with any pre-existing dynamic object from the `bevy_reflect` crate (_e.g._ `DynamicScene` or `DynamicEntity`).
 
 ```rust
 #[derive(Component)]
-struct DataType {
+struct GameType {
     name: Name,
     instances: Vec<Entity>,
 }
 ```
 
-The `DataType` itself only contains the name of the type. Other type characteristics depend on the kind of type (object, enum, _etc._) and are defined in other kind-specific components attached to the same `Entity`; see [sub-types](#sub-types) below for details.
+The `GameType` itself only contains the name of the type. Other type characteristics depend on the kind of type (struct, enum, _etc._) and are defined in other kind-specific components attached to the same `Entity`; see [sub-types](#sub-types) below for details.
 
-The data type contains an array of entities defining all the instances of this type for easy reference, since this information is not encoded in any Rust type (see [Data instances](#data-instances)) so cannot be queried via the usual `Query` mechanism.
+The game type contains an array of entities defining all the instances of this type for easy reference, since this information is not encoded in any Rust type (see [Data instances](#data-instances)) so cannot be queried via the usual `Query` mechanism.
 
 #### Type origin
 
-Some marker components are added to the same `Entity` holding the `DataType` itself, to declare the _origin_ of the type:
+Some marker components are added to the same `Entity` holding the `GameType` itself, to declare the _origin_ of the type:
 
 ```rust
 // Built-in type compiled from the Bevy version the Game is built with.
 #[derive(Component)]
 struct BevyType;
 
-// Type from the Game of the currently open project.
+// Type from the Game user code of the currently open project.
 #[derive(Component)]
-struct GameType;
+struct UserType;
 ```
 
-_Note that the Editor itself may depend on a different Bevy version. The built-in Bevy types of that version are not present in the `DataWorld`; only types from the Game are._
+_Note that the Editor itself may depend on a different Bevy version. The built-in Bevy types of that version are not present in the `GameWorld`; only types from the Game are._
 
 This strategy allows efficiently querying for groups of types, in particular to update them when the Game or a library is reloaded.
 
 ```rust
 fn update_game_type_instances(
     mut query: Query<
-        &DataType,
-        (With<GameType>, Changed<DataType>)
+        &GameType,
+        (With<UserType>, Changed<GameType>)
     >) {
-    for data_type in query.iter_mut() {
+    for game_type in query.iter_mut() {
         // apply migration rules to all instances of this type
-        for instance in &mut data_type.instances {
+        for instance in &mut game_type.instances {
             // [...]
         }
     }
@@ -196,23 +205,10 @@ Various kinds of types have additional data attached to a separate component spe
 The sub-type components allow, via the `Query` mechanism, to batch-handle all types of a certain kind, like for example listing all enum types:
 
 ```rust
-fn list_enum_types(query: Query<&DataType, With<EnumType>>) {
-    for data_type in query.iter() {
-        println!("Enum {}", data_type.name);
+fn list_enum_types(query: Query<&GameType, With<EnumType>>) {
+    for game_type in query.iter() {
+        println!("Enum {}", game_type.name);
     }
-}
-```
-
-#### Simple types
-
-_Simple types_ are built-in types defined by the data model itself, and corresponding to the basic types found in the Rust language. They constitute building blocks to creating more complex types via aggregation (see [Objects](#objects)).
-
-**FIXME - naming conflicting with SimpleType enum above**
-
-```rust
-#[derive(Component)]
-struct SimpleType {
-    value: SimpleTypeEnum,
 }
 ```
 
@@ -246,12 +242,12 @@ struct EnumType {
 
 #### Arrays
 
-Arrays are dynamically-sized homogenous collections of _elements_. The `ArrayType` defines the element type, which can be any valid data type.
+Arrays are dynamically-sized homogenous collections of _elements_. The `ArrayType` defines the element type, which can be any valid game type.
 
 ```rust
 #[derive(Component)]
 struct ArrayType {
-    elem_type: Entity, // with DataType component
+    elem_type: AnyType,
 }
 ```
 
@@ -259,40 +255,40 @@ struct ArrayType {
 
 TODO...
 
-Dictionaries are dynamically-sized homogenous collections mapping _keys_ to _values_, where each key is unique in the instance. The key type is always a string. The `DictType` defines the value type.
+Dictionaries are dynamically-sized homogenous collections mapping _keys_ to _values_, where each key is unique in the instance. The key type is always a string (`Name` type). The `DictType` defines the value type.
 
 ```rust
 #[derive(Component)]
 struct DictType {
-    value_type: Entity, // with DataType component
+    value_type: AnyType,
 }
 ```
 
-#### Objects
+#### Structs
 
-An _object_ is an heterogenous aggregation of other types (like a `struct` in Rust). The `ObjectType` component contains the _properties_ of the object.
+A _struct_ is an heterogenous aggregation of other types (like a `struct` in Rust). The `StructType` component contains the _properties_ of the struct.
 
 ```rust
 #[derive(Component)]
-struct ObjectType {
+struct StructType {
     properties: Vec<Property>, // sorted by `byte_offset`
 }
 ```
 
-Properties themselves are defined by a name and the type of their value. The type also stores the byte offset of that property from the beginning of an object instance, which allows packing property values for an object into a single byte stream, and enables various optimizations regarding diff'ing/patching and serialization. Modifying any of the `name`, `value_type`, or `byte_offset` constitute a type change, which mandates migrating all existing instances.
+Properties themselves are defined by a name and the type of their value. The type also stores the byte offset of that property from the beginning of a struct instance, which allows packing property values for a struct into a single byte stream, and enables various optimizations regarding diff'ing/patching and serialization. Modifying any of the `name`, `value_type`, or `byte_offset` constitute a type change, which mandates migrating all existing instances.
 
 ```rust
 struct Property {
     name: Name,
-    value_type: Entity, // with DataType component
+    value_type: AnyType,
     byte_offset: u32,
     validate: Option<Box<dyn Validate>>,
 }
 ```
 
-The _type layout_ refers to the collection of property offsets and types of an `ObjectType`, which together define:
+The _type layout_ refers to the collection of property offsets and types of an `StructType`, which together define:
 
-- the order in which the properties are listed in the object type (the properties are sorted in increasing byte offset order), and any instance value stored in a `DataInstance`.
+- the order in which the properties are listed in the struct type (the properties are sorted in increasing byte offset order), and any instance value stored in a `GameObject`.
 - the size in bytes of each property value, based on its type.
 - eventual gaps between properties, known as _padding bytes_, depending on their offsets and sizes.
 
@@ -306,46 +302,62 @@ trait Validate {
     fn is_valid(&self, property: &Property, value: &Value) -> bool;
 
     /// Try to assign a value to a property of an instance.
-    fn try_set(&mut self, instance: &mut DataInstance, property: &Property, value: &[u8]) -> bool;
+    fn try_set(&mut self, instance: &mut GameObject, property: &Property, value: &[u8]) -> bool;
 }
 ```
 
-### Data instances
+### Game objects
 
-Instances of any type are represented by the `DataInstance` component:
+Instances of any type are represented by the `GameObject` component:
 
 ```rust
 #[derive(Component)]
-struct DataInstance {
-    data_type: Entity, // with DataType component
+struct GameObject {
+    game_type: Entity, // with GameType component
     values: Vec<u8>,
 }
 ```
 
-The type of an instance is stored as the `Entity` holding the `DataType`, which can be accessed with the usual `Query` mechanisms:
+The type of an instance is stored as the `Entity` holding the `GameType`, which can be accessed with the usual `Query` mechanisms:
 
 ```rust
 fn get_data_instance_type(
-    q_instance: Query<&DataInstance, [...]>,
-    q_types: Query<&DataType>)
+    q_instance: Query<&GameObject, [...]>,
+    q_types: Query<&GameType>)
 {
     for data_inst in q_instances.iter() {
-        let data_type = q_types
-            .get_component::<DataType>(&data_inst.data_type).unwrap();
+        let game_type = q_types
+            .get_component::<GameType>(&data_inst.game_type).unwrap();
         // [...]
     }
 }
 ```
 
-The property values are stored in a raw byte array, at the property's offset from the beginning of the array. The size of each property value is implicit, based on its type. Any extra byte (padding byte) in `DataInstance.values` is set to zero.
+The property values are stored in a raw byte array, at the property's offset from the beginning of the array. The size of each property value is implicit, based on its type. Any extra byte (padding byte) in `GameObject.values` is set to zero. For example:
+
+```rust
+#[repr(C)] // for the example clarity only
+struct S {
+    f: f32,
+    b: u8,
+    u: u64,
+}
+```
+
+has its values stored in `GameObject.values` as:
+
+```txt
+[0 .. 3 | 4  | 5 ... 7 | 8 .. 11 ]   bytes
+[  f32  | u8 | padding |   u64   ]   values
+```
 
 _Note: The Rust compiler, as per Rust language rules, will reorder fields of any non-`#[repr(C)]` type to optimize the type layout and avoid padding in the Game process. This native type layout of each Game type is then transferred to the Editor to create dynamic types. We expect as a result minimal padding bytes, and therefore do not attempt to further tightly pack the values ourselves, for the sake of simplicity. This has the added benefit to make the Editor type layout binary-compatible with the Game type native layout._
 
 ### Migration rules
 
-The _migration rules_ are a set of rules applied when transforming a `DataInstance` from one `DataType` to another `DataType`. The rules define if such conversion can successfully take place, and what is its result.
+The _migration rules_ are a set of rules applied when transforming a `GameObject` from one `GameType` to another `GameType`. The rules define if such conversion can successfully take place, and what is its result.
 
-Given a setup where a migration of a `src_inst: DataInstance` is to be performed from a `src_type: DataType` to a `dst_type: DataType` to produce a new `dst_inst: DataInstance`, the migration rules are:
+Given a setup where a migration of a `src_inst: GameObject` is to be performed from a `src_type: GameType` to a `dst_type: GameType` to produce a new `dst_inst: GameObject`, the migration rules are:
 
 1. If `src_type == dst_type`, then set `dst_inst = src_inst`.
 2. Otherwise, create a new empty `dst_inst` and then for each property present in either `src_type` or `dst_type`:
@@ -466,6 +478,8 @@ Note that while precedent set by other engines is some motivation, it does not o
 <!-- - What parts of the design do you expect to resolve through the RFC process before this gets merged?
 - What parts of the design do you expect to resolve through the implementation of this feature before the feature PR is merged?
 - What related issues do you consider out of scope for this RFC that could be addressed in the future independently of the solution that comes out of this RFC? -->
+
+1. How do we store string instances? Storing a `String` requires an extra heap allocation per string and makes `GameObject` non-copyable. Interning and using an ID would solve this.
 
 ## \[Optional\] Future possibilities
 
