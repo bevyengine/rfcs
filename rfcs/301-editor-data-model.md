@@ -77,7 +77,7 @@ The data model guarantees the integrity of its data by allowing concurrent readi
 
 ### Names
 
-Being data-heavy, and forfeiting the structural access of types, the data model makes extensive use of strings to reference items. In order to make those operations efficient, we define a `Name` type to represent those strings. The implementation of `Name` is outside of the scope of this RFC and left as an optimization, and should be considered as equivalent to a `String` wrapper:
+Being data-heavy, and forfeiting the structural access of Rust types, the data model makes extensive use of strings to reference items. In order to make those operations efficient, we define a `Name` type to represent those strings. The implementation of `Name` is outside of the scope of this RFC and left as an optimization, and should be considered as equivalent to a `String` wrapper:
 
 ```rust
 struct Name(pub String);
@@ -85,7 +85,7 @@ struct Name(pub String);
 type Name = String;
 ```
 
-However the intent is to explore some optimization strategies like string interning for fast comparison. Those optimizations are left out of the scope of this RFC.
+The intent is to explore some optimization strategies like string interning for fast comparison. Those optimizations are left out of the scope of this RFC.
 
 ### Built-in types
 
@@ -136,6 +136,8 @@ struct DataWorld(pub World);
 
 Since the underlying `World` already offers guarantees about concurrent mutability prevention, via the Rust language guarantees themselves, those guarantees transfer to the `DataWorld` allowing safe concurrent read-only access or exclusive write access to all data of the data model.
 
+**TODO - Explain where the `DataWorld` lives. Idea was as a resource on the Editor's `World`, but that means regular Editor systems cannot directly write queries into the `DataWorld` ergonomically. See how extract does it for the render world though.**
+
 ### Data types
 
 The data world is populated with the dynamic types coming from the various sources described in [User-facing explanation](#user-facing-explanation).
@@ -146,14 +148,17 @@ This RFC introduces a `DataType` component that stores the description of a sing
 #[derive(Component)]
 struct DataType {
     name: Name,
-    properties: Vec<Property>,
     instances: Vec<Entity>,
 }
 ```
 
-The data type contains an array of entities defining all the object instances of this type for easy reference, since this information is not encoded in any Rust type (see [Data instances](#data-instances)) so cannot be queried via the usual `Query` mechanism.
+The `DataType` itself only contains the name of the type. Other type characteristics depend on the kind of type (object, enum, _etc._) and are defined in other kind-specific components attached to the same `Entity`; see [sub-types](#sub-types) below for details.
 
-Some marker components are also used on the same `Entity` holding the `DataType` itself, to declare the origin of the type:
+The data type contains an array of entities defining all the instances of this type for easy reference, since this information is not encoded in any Rust type (see [Data instances](#data-instances)) so cannot be queried via the usual `Query` mechanism.
+
+#### Type origin
+
+Some marker components are added to the same `Entity` holding the `DataType` itself, to declare the _origin_ of the type:
 
 ```rust
 // Built-in type compiled from the Bevy version the Game is built with.
@@ -184,56 +189,40 @@ fn update_game_type_instances(
 }
 ```
 
-Properties are defined by a name and the type of their value. The type also stores the byte offset of that property from the beginning of its object, which allows packing property values for an object into a single byte stream. Modifying any of the `name`, `value_type`, or `byte_offset` constitute a type change, which mandates migrating all existing instances.
-
-```rust
-struct Property {
-    name: Name,
-    value_type: Entity, // with DataType component
-    byte_offset: u32,
-    validate: Option<Box<dyn Validate>>,
-}
-```
-
-The _type layout_ refers to the collection of property offsets and types of a `DataType`, which together define:
-
-- the order in which the properties are listed in the object type, and any instance value stored.
-- the size of each property value, based on its type.
-- eventual gaps between properties, known as _padding bytes_, depending on their offset and size.
-
-Unlike Rust, the Editor data model guarantees that **padding bytes are zeroed**. This property enables efficient instance comparison via `memcmp()`-like byte-level comparison, without the need to rely on individual properties inspection nor any equality operator (`PartialEq` and `Eq` in Rust).
-
-The `Property` struct contains also an optional validation function used to validate the value for things like bounds check, nullability, _etc._ which is used both when the user (via the Editor UI) attempts to set a value, and when a value is set automatically (_e.g._ during deserialization).
-
-```rust
-trait Validate {
-    /// Check if a value is valid for the property.
-    fn is_valid(&self, property: &Property, value: &Value) -> bool;
-
-    /// Try to assign a value to a property of an instance.
-    fn try_set(&mut self, instance: &mut DataInstance, property: &Property, value: &[u8]) -> bool;
-}
-```
-
 ### Sub-types
 
-Various kinds of types have additional data attached to a separate component specific to that type. This is referred to as _sub-types_.
+Various kinds of types have additional data attached to a separate component specific to that kind. This is referred to as _sub-types_.
 
-The sub-types component allow, via the `Query` mechanism, to batch-handle all types of a certain kind, like listing all enum types.
+The sub-type components allow, via the `Query` mechanism, to batch-handle all types of a certain kind, like for example listing all enum types:
 
 ```rust
 fn list_enum_types(query: Query<&DataType, With<EnumType>>) {
     for data_type in query.iter() {
-        // [...]
+        println!("Enum {}", data_type.name);
     }
+}
+```
+
+#### Simple types
+
+_Simple types_ are built-in types defined by the data model itself, and corresponding to the basic types found in the Rust language. They constitute building blocks to creating more complex types via aggregation (see [Objects](#objects)).
+
+**FIXME - naming conflicting with SimpleType enum above**
+
+```rust
+#[derive(Component)]
+struct SimpleType {
+    value: SimpleTypeEnum,
 }
 ```
 
 #### Enums and flags
 
-Enums are sets of named integral values called _entries_. An enum has an underlying integral type called its _storage type_ containing the actual integral value of the enum. The storage type can be any integral type, signed or unsigned, with at most 64 bits (so, exclusing `Int128` and `Uint128`). The enum type defines a mapping between that value and its name. An enum value is stored as its storage type, and is equal to exactly one of the enum entries.
+Enums are sets of named integral values called _entries_. They are conceptually similar to so-called "C-style" enums. An enum has an underlying integral type called its _storage type_ containing the actual integral value of the enum. The storage type can be any integral type, signed or unsigned, with at most 64 bits (so, excluding `Int128` and `Uint128`). The enum type defines a mapping between that value and its name. An enum value is stored as its storage type, and is equal to exactly one of the enum entries.
 
-Flags are like enums, except the value can be any bitwise combination of entries. The storage type is always an unsigned integral type.
+**TODO - think about support for Rust-style enums...**
+
+Flags are like enums, except the value can be any bitwise combination of entries, instead of being restricted to a single entry. The storage type is always an unsigned integral type.
 
 The `EnumEntry` defines a single enum or flags entry with a `name` and an associated integral `value`. The value is encoded in the storage type, then stored in the 8-byte memory space offered by `value`. This means reading and writing the value generally involves reinterpreting the bit pattern.
 
@@ -270,18 +259,60 @@ struct ArrayType {
 
 TODO...
 
-Dictionaries are dynamically-sized homogenous collections mapping _keys_ to _values_, where each key is unique in the instance. The `DictType` defines the key and value types.
+Dictionaries are dynamically-sized homogenous collections mapping _keys_ to _values_, where each key is unique in the instance. The key type is always a string. The `DictType` defines the value type.
 
 ```rust
 #[derive(Component)]
 struct DictType {
-    key_type: Entity, // with DataType component
+    value_type: Entity, // with DataType component
+}
+```
+
+#### Objects
+
+An _object_ is an heterogenous aggregation of other types (like a `struct` in Rust). The `ObjectType` component contains the _properties_ of the object.
+
+```rust
+#[derive(Component)]
+struct ObjectType {
+    properties: Vec<Property>, // sorted by `byte_offset`
+}
+```
+
+Properties themselves are defined by a name and the type of their value. The type also stores the byte offset of that property from the beginning of an object instance, which allows packing property values for an object into a single byte stream, and enables various optimizations regarding diff'ing/patching and serialization. Modifying any of the `name`, `value_type`, or `byte_offset` constitute a type change, which mandates migrating all existing instances.
+
+```rust
+struct Property {
+    name: Name,
+    value_type: Entity, // with DataType component
+    byte_offset: u32,
+    validate: Option<Box<dyn Validate>>,
+}
+```
+
+The _type layout_ refers to the collection of property offsets and types of an `ObjectType`, which together define:
+
+- the order in which the properties are listed in the object type (the properties are sorted in increasing byte offset order), and any instance value stored in a `DataInstance`.
+- the size in bytes of each property value, based on its type.
+- eventual gaps between properties, known as _padding bytes_, depending on their offsets and sizes.
+
+Unlike Rust, the Editor data model guarantees that **padding bytes are zeroed**. This property enables efficient instance comparison via `memcmp()`-like byte-level comparison, without the need to rely on individual properties inspection nor any equality operator (`PartialEq` and `Eq` in Rust). It also enables efficient copy and serialization via direct memory reads and writes, instead of relying on getter/setter methods.
+
+The `Property` struct contains also an optional validation function used to validate the value of a property for things like range and bounds check, nullability, _etc._ which is used both when the user (via the Editor UI) attempts to set a value, and when a value is set automatically (_e.g._ during deserialization).
+
+```rust
+trait Validate {
+    /// Check if a value is valid for the property.
+    fn is_valid(&self, property: &Property, value: &Value) -> bool;
+
+    /// Try to assign a value to a property of an instance.
+    fn try_set(&mut self, instance: &mut DataInstance, property: &Property, value: &[u8]) -> bool;
 }
 ```
 
 ### Data instances
 
-Object instances are similarly represented by instances of the `DataInstance` component:
+Instances of any type are represented by the `DataInstance` component:
 
 ```rust
 #[derive(Component)]
@@ -308,7 +339,7 @@ fn get_data_instance_type(
 
 The property values are stored in a raw byte array, at the property's offset from the beginning of the array. The size of each property value is implicit, based on its type. Any extra byte (padding byte) in `DataInstance.values` is set to zero.
 
-_Note: we rely on the Rust compiler to reorder fields and avoid padding in the Game process, so we expect minimal padding bytes, and do not attempt to further tightly pack the values, for the sake of simplicity._
+_Note: The Rust compiler, as per Rust language rules, will reorder fields of any non-`#[repr(C)]` type to optimize the type layout and avoid padding in the Game process. This native type layout of each Game type is then transferred to the Editor to create dynamic types. We expect as a result minimal padding bytes, and therefore do not attempt to further tightly pack the values ourselves, for the sake of simplicity. This has the added benefit to make the Editor type layout binary-compatible with the Game type native layout._
 
 ### Migration rules
 
@@ -357,9 +388,9 @@ When writing this section be mindful of the following [repo guidelines](https://
 
 <!-- Why should we *not* do this? -->
 
-### Abstraction
+### Abstraction complexity
 
-The data model adds a layer of abstraction over the "native" data the Game uses, which makes most operations indirected and more abstract. For example, setting a value involves invoking a setter method, possibly after locking an object for write access, as opposed to simply assigning the value to the object (`c.x = 5;`).
+The data model adds a layer of abstraction over the "native" data the Game uses, which makes most operations indirected and more abstract. For example, setting a value involves invoking a setter method (or equivalent binary offset write), possibly after locking an object for write access, as opposed to simply assigning the value to the object (`c.x = 5;`).
 
 ## Rationale and alternatives
 
