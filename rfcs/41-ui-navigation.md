@@ -203,6 +203,14 @@ which in our case would be the last and new focused elements.
 I chose this crate over similar ones,
 because the code is dead simple and easy to vet.
 
+#### Going back to a previous menus
+
+`Focusable`s have a `dormant` state that is set when they go from
+active/focused to not active.
+This is a form of memory that allows focus to go back to the last focused
+element within a menu when it is re-visited.
+This is also the mechanism used to let the user decide which focusable to focus
+when none are focused yet.
 
 #### Spawning menus
 
