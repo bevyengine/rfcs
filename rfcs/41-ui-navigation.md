@@ -182,8 +182,8 @@ as rectangles.
 ![A screenshot of a RPG-style menu with the navigation tree overlayed](https://user-images.githubusercontent.com/26321040/141671969-ea4a461d-0949-4b98-b060-c492d7b896bd.png)
 
 A `Focusable` used to go from the root menu
-to the menu in which the currently focused entity is is _dormant_.
-The current focus position is represented as a trail of breadcrumb dormant
+to the menu in which the currently focused entity is is _active_.
+The current focus position is represented as a trail of breadcrumb active
 focusables and the currently focused focusable.
 
 This is reflected into the `NavEvent::FocusChanged` event.
@@ -191,8 +191,8 @@ When going from a focusable to another,
 the navigation system emits a `FocusChanged` event,
 the event contains two lists of entities:
 - The list of entities that after the navigation event are no more focused
-  or dormant
-- The list of entities that are newly dormant or focused
+  or active
+- The list of entities that are newly active or focused
 
 For the simplest case of navigating from one focusable to another
 in the same menu, the two list have a single element,
