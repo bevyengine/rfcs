@@ -2,264 +2,248 @@
 
 ## Summary
 
-Modification of the `Interaction` component to support keyboard & controller
-based navigation of UI on top of mouse-oriented navigation. In the rest of this
-RFC, consider the already existing "`Interaction`" bevy component as being a good
-candidate for being replaced by what we describe as "`Focusable`".
+Introduce [`bevy-ui-navigation`] into the bevy tree.
 
-The new navigation system by default enables unrestricted navigation between
-all `Focusable` entities. But the developer may chose to opt in to a more
-complex navigation scheme by adding `NavMenu`, encapsulating groups of
-`Focusable`s into their own menus. The `NavMenu` component can also express
-the navigation scheme within the menus.
-
-The goal is to make the easiest navigation scheme work out of the box and the
-more complex schemes easy or at least possible to implement.
+By default this, amounts to replacing `Interaction` with `Focusable` in `bevy_ui`.
+On top of the current behavior, this adds the following capabilities:
+- Focus management for **gamepads**
+- Decouples input from focus management
+- Decouples focus management from `bevy_ui`
+- User-specified input handling for UI interaction
+- An optional menu tree management system
 
 ## Terminology
 
-* A **`NavRequest`** is the sum of all possible ui-related user inputs. It's what
-  the algorithm takes as input, on top of the _navigation tree_ to figure out
-  the next focused element.
-* A **`Focusable`** is an Entity that can be navigated-to and highlighted (focused)
-  with a controller or keyboard
-* A **`NavMenu`** adds "scope" to `Focusable`s. Navigation between `Focusable`
-  entities will be constrained to other `Focusable` that are children of the
-  same `NavMenu`. It creates a self-contained menu. **A `NavMenu` may therefore
-  be better described as a _menu_**. Note that the `Focusable`s do not need to
-  be direct children of the `NavMenu`, only transitive children[^1]
-* The **menu tree** (sometimes _navigation tree_) is the logical relationship
-  between all `NavMenu`s.
-* There is a single **focused** Entity, which is the currently highlighted/used
-  Entity.
-* There can be several **active** elements, they represent the "path" through the
-  _navigation tree_ to the current _focused_ element. Which focusable in the
-  previous menus were activated in order to reach the menu we are in currently.
-* A **dormant** element is a previously active element from a branch of the
-  menu tree that is currently not focused.
-* The navigation algorithm **resolves** a `NavRequest` by finding which `Entity`
-  to next focus to
-* **focus memory** is what, for example, makes it possible in your text editor
-  to tab to a different file, edit it, and tab back to the file you were
-  previously editing and find yourself at the exact location where you left it.
-  It is the ability for the software to keep track where you were at.
-  **dormant** elements are necessary to track what was previously focused and
-  come back to it when needed
+- _menu tree_: the access hierarchy of menus.
+TODO: illustration
+- _activating_ a focusable: Sending the `Action` event while this focusable is focused.
+- _focused menu_: The menu in which the currently focused `Focusable` is.
+- _child menu_ (of a focusable): The menu accessed from this focusable.
 
 ## Motivation
 
-Currently, the developer must themselves write the relationship between
-various buttons in the menus and specify which button press leads to other menu
-items, etc. Or more simply, limit themselves to pointer-based navigation to
-avoid having to think about menu navigation.
+`bevy_ui` interaction story is crude.
+The only way to interact with the UI currently
+is through the `Interaction` and `FocusPolicy` components.
+`Interaction` only supports mouse or touch-based input.
+We want gamepad supports and more game-oriented functionalities,
+such as menu trees and movement between menus.
 
-By including navigation-related components such as `Focusable` and `NavMenu`,
-the developer can quickly get a controller-navigable menu up and running.
+The current UI focus system is limited to `bevy_ui` and
+can't be swapped out for something the user deems more appropriate.
 
-There already exists components with similar purposes in Bevy:
-[`Interaction` and `FocusPolicy`](https://github.com/bevyengine/bevy/blob/main/crates/bevy_ui/src/focus.rs#L14).
-However, it only supports a barebone mouse-oriented navigation scheme. And the
-focus handling is not even implemented.
+This is in contradiction with the general philosophy of bevy,
+which is of providing to the user all the tools necessary to create something
+that fits their needs optimally.
 
-My proposal, on top of making it easy to implement controller navigation of
-in-game UIs, enables keyboard navigation and answers accessibility concerns
-such as the ones
-[raised in this issue](https://github.com/bevyengine/bevy/issues/254).
+This RFC proposes to resolve all those questions.
+[`bevy-ui-navigation`] provides a highly customizable ECS-based navigation engine.
 
 ## User-facing explanation
 
-Examples and an implementation-oriented description is available in the
-[ui-navigation plugin README](https://github.com/nicopap/ui-navigation/blob/master/Readme.md).
+The [bevy-ui-navigation README][`bevy-ui-navigation`] is a good start.
+To summarize, here are the headlines:
+- The navigation system can only be interacted with with events:
+  `NavRequest` as input and `NavEvent` as output.
+- `NavEvent::FocusChanged` contains the list of entities that are traversed
+  to go from the last focus position to the new one.
+- ui-navigation provides default input systems, 
+  but it's possible to disable them and instead use custom ones.
+  This is why we restrict interactions with navigation to events.
+- ui-navigation provides a system to declare buttons as "leading to menu X"
+  in order to create menu trees.
+- ui-navigation defines [custom `SystemParam`][event_helpers]s
+  to ease reaction to events (such a button press or menu change).
+  The most naive usage results into [elm architecture][elm_architecture]-like code.
+  Systems updating the model (ECS hierarchy) and systems reacting to events. 
+- It is possible to create isolated menus by using the `NavMenu` component.
+- All `Focusable` children in the `NavMenu` entity's tree will be part
+  of this menu, and moving using a gamepad from one focusable in a menu
+  can only lead to another focusable within the same menu.
+  You can specify a focusable in any other menu that will lead to this
+  one once activated.
 
-To interact in real-time with the UI, the developer emits `NavRequest`s events.
-The navigation system responds with `NavEvent` events, such as
-`NavEvent::FocusChanged` or `NavEvent::Caught`. 
+## Implementation
 
-The navigation system is the only one to handle the focus state of the UI. The
-user interacts with it strictly by sending `NavRequest`s, reading `NavEvent` or
-using the `Focusable` methods. Typically in a system with a
-`Query<&Focusable, Changed<Focusable>>` parameter.
+Since `bevy-ui-navigation` already exists,
+we will discuss its design, it's functionalities and their uses.
 
-Rather than directly reacting to input, we opt to make our system reactive to
-`NavRequest`, this way the developer is free to chose which button does what in
-the game. The developer also has the complete freedom to swap at runtime what
-sends or how those `NavRequest` are generated.
+Implementation details are already covered by the implementation,
+which btw is fully documented (including internal architecture).
 
-### Example
+### Exposed API
 
-Let's start with a practical example, and try figure out how we could specify
-navigation in it:
+The crux of `bevy-ui-navigation` are the following types:
+- `Focusable` component
+  - `lock`: activating it will lock the navigation engine and discard all `NavRequest`.
+  - `cancel`: activating it will do the equivalent of receiving a `Cancel` request.
+  - `dormant`: this will be the preferred entity to focus when entering a menu.
+- `NavMenu` enum
+  - `Wrapping**`/`Bound**`: navigation can wrap
+    if directional sticks are pressed in a direction there are no focusables in
+  - `**Scope`/`**2d`: A scopped menu is tab menu navigable with special hotkeys.
+- `NavRequest` event
+  - `Action`: equivalent to left click or `A` button on controller
+  - `Cancel`: backspace or `B` on controller
+  - `FocusOn`: request to move the focus to a specific `Entity`
+  - `Move(Direction)`: directional gamepad or keyboard input
+  - `ScopeMove(ScopeDirection)`: tab menu hotkey
+- `NavEvent` event
+  - `InitiallyFocused`: We went from 0 focused to 1 focused element
+  - `NoChanges`: The `NavRequest` did not change the focus state.
+  - `FocusChanged`: The `NavRequest` changed the focus state,
+    has the list of items that were made inactive
+    and items made active.
+  - `Locked`: The `NavRequest` caused the focus system to lock.
+  - `Unlocked`: Something unlocked the focus system.
+- `MoveParam` trait
+  - Used to pick a focusable in a provided direction
+  - The `NavigationPlugin` is generic over the `MoveParam`
+  - `DefaultNavigationPlugins` provides a default implementation of `MoveParam`
 
-![Typical RPG tabbed menu](https://user-images.githubusercontent.com/26321040/140716885-eb089626-21d2-4711-a0c9-cf185bc0f19a.png)
+### `Focusable`
 
-The tab "soul" and the panel "abc" are highlighted to show the player what menu
-they are down, they are **active** elements. The circle "B" is highlighted
-differently to show it is the **focused** element.
+A `Focusable` is an entity that can be focused.
+For gamepad-based navigation,
+this requires a way to pick a focusable in a provided direction.
+This is delegated to the UI library implementation
+through the `MoveParam` trait.
+In the case of bevy, `bevy_ui` is the UI library implementation,
+and the `GlobalTransform` is used to locate focusables in regard to each-other.
 
-You can move `UP`/`DOWN` in the submenu, but you can also use `LT`/`RT` to
-go from one submenu to the other (the _soul_, _body_ etc tabs). In code, we
-might react to focus changes (for example to change the color of
-focused/unfocused elements) as follow:
+The `Focusable` component holds state about what happens when it is activated
+and what focus state it is in. (focused, active, inactive, etc.)
+
+#### Note on hovering state
+
+Since navigation is completely decoupled from input and ui lib,
+it is impossible for it to tell whether a focusable is hovered.
+To keep the hovering state functionality,
+it will be necessary to add it as an independent component
+separate from the navigation library.
+
+### Input customization
+
+`ui-navigation` can be added to the app in two ways:
+1. With `NavigationPlugin`
+2. With `DefaultNavigationPlugins`
+
+(1) only inserts the navigation systems and resources,
+while (2) also adds the input systems generating the `NavRequest`s
+for gamepads, mouse and keyboard.
+
+This enables convenient defaults
+while letting users insert their own custom input logic.
+
+
+### What to focus first?
+
+Gamepad input assumes an initially focused element
+for navigating "move in direction" or "press action".
+At the very beginning of execution, there are no focused element,
+so we need fallbacks.
+By default, it is any `Focusable` when none are focused yet.
+But the user can spawn a `Focusable` as `dormant`
+and the algorithm will prefer it when no focused nodes exist yet.
+
 ```rust
-fn setup_ui() {
-  // setup UI like you would setup UI in bevy today
-}
-fn handle_nav_events(mut events: EventReader<NavEvent>, game: Res<Gameui>) {
-    use bevy_ui_navigation::{NavEvent::Caught, NavRequest::Action};
-    for event in events.iter() {
-        match event {
-            Caught { from, request: Action } if from.first() == game.start_game_button => {
-                  // Start the game on "A" or "ENTER" button press
-            }
-            _ => {}
-        }
-    }
-}
-fn button_system(
-    materials: Res<Materials>,
-    mut focusables: Query<(&Focusable, &mut Handle<ColorMaterial>), Changed<Focusable>>,
-) {
-    for (focus_state, mut material) in focusables.iter_mut() {
-        if focus_state.is_focused() {
-            *material = materials.focused.clone();
-        } else {
-            *material = materials.inert.clone();
-        }
-    }
-}
+self.focusables
+    .iter()
+    // The focused focusable.
+    .find_map(|(e, focus)| (focus.state == Focused).then(|| e))
+    // Dormant focusable within the root menu (if it exists)
+    .or_else(root_dormant)
+    // Any dormant focusable
+    .or_else(any_dormant)
+    // Any focusable
+    .or_else(fallback)
 ```
 
-## Implementation strategy
 
-### Multiple menus
+### Menu navigation handling
 
-The first intuition is that this screenshot shows three menus:
-* The "tabs menu" containing _soul_, _body_, _mind_ and _all_ "tabs"
-* The "soul menu" containing _gdk_, _kfc_ and _abc_ "panels"
-* The "ABC menu" containing a, b, c, A, B, C "buttons"
+The public API has `NavMenu`, but we use internally `TreeMenu`,
+this prevents end users from breaking assumptions about the menu trees.
 
-We expect to be able to navigate the "tabs menu" **from anywhere** by pressing
-`LT`/`RT`. (or `TAB`,`SHIFT+TAB` on keyboard) We expect to be able to move
-between buttons within the "ABC menu" with arrow keys, same with the "soul menu".
+We define the `TreeMenu` component.
+All `Focusable` direct or indirect children of a `TreeMenu` are part of that menu.
+A `TreeMenu` has a `Focusable` focus parent,
+when that `Focusable` is focused and the `Action` request is received,
+the focus changes to the `TreeMenu`
 
-Finally, we expect to be able to go from one menu to another by pressing `A`
-when the corresponding element in the parent menu is _focused_ or go back to
-the parent menu when pressing `B`. (`ENTER` and `BACKSPACE` on keyboard)
+In short, the navigation tree is built on two elements:
+- The `reachable_from` that a `NavMenu` was spawned with
+- The `Focusable` within the hierarchy of a `NavMenu`
 
-### Navigating within a single menu
+This is a tree in the ECS.
 
-Our game engine already knows the position of our UI elements. We can use this
-as information to deduce the next _focused_ element when pressing an arrow key.
+In the following screenshot, `Focusable`s are represented as circles, and menus
+as rectangles.
 
-In fact, if we have only a single menu on screen, we could stop at this point,
-since there is no restrictions on navigation between `Focusable`s.
+![A screenshot of a RPG-style menu with the navigation tree overlayed](https://user-images.githubusercontent.com/26321040/141671969-ea4a461d-0949-4b98-b060-c492d7b896bd.png)
 
-### Specifying navigation between menus
+A `Focusable` used to go from the root menu
+to the menu in which the currently focused entity is is _dormant_.
+The current focus position is represented as a trail of breadcrumb dormant
+focusables and the currently focused focusable.
 
-But we have more than one menu. We can't magically infer what the developer
-thinks is a menu, this is why we need `NavMenu`s.
+This is reflected into the `NavEvent::FocusChanged` event.
+When going from a focusable to another,
+the navigation system emits a `FocusChanged` event,
+the event contains two lists of entities:
+- The list of entities that after the navigation event are no more focused
+  or dormant
+- The list of entities that are newly dormant or focused
 
-In our example, we want to be able to go from "soul menu" to "ABC menu" with
-`A`/`B` (Action, Cancel). `Action` let you enter the related submenu, while
-`Cancel` does the opposite.
+For the simplest case of navigating from one focusable to another
+in the same menu, the two list have a single element,
+so it is capital that it is easy to access those elements.
+This is why we use a `NonEmpty`, from the `non_empty_vec` crate.
+A `NonEmpty<T>` has a `first` method that returns a `T`,
+which in our case would be the last and new focused elements.
+I chose this crate over similar ones,
+because the code is dead simple and easy to vet.
 
-With `NavMenu`s the menu layout may look like this:
 
-![The previous tabbed menu example, but with _menus_ and _focusables_ highlighted](https://user-images.githubusercontent.com/26321040/141671969-ea4a461d-0949-4b98-b060-c492d7b896bd.png)
+#### Spawning menus
 
-The _menus_ are represented as semi-transparent squares; the _focusables_
-are circles.
+Menus store a reference to their parent,
+but that parent is not necessarily their hierarchical parent.
+The parent is just a button in another menu.
+It is inconvenient to have to pre-spawn each button to acquire their `Entity` id
+just to be able to spawn the menu you'll get to from that button.
+`ui-navigation` uses a proxy component holding both the parent and the menu state info.
+That proxy component is `MenuSeed`,
+you can initialize it either with the `Name` or `Entity` of the parent focusable of the menu.
+A system will take all `MenuSeed` components and replace them with a `TreeMenu`.
 
-A `NavMenu` keeps track of the Entity `Focusable` that leads to it (in the
-example, the "soul" tab entity is tracked by the "soul menu" `NavMenu`).
+This introduces a single frame lag on menu spawn,
+but it improves ergonomics to users.
+I thought it was a pretty good trade-off,
+since spawning menus is not time critical, unlike input.
 
-The `NavMenu` isolates the set of `Focusable`s of a single menu:
 
-![Graph menu layout](https://user-images.githubusercontent.com/26321040/140716920-fd298afb-093b-47f9-8309-c4c354c3d40f.png)
-(red-orange represents _focused_ elements, gold are _active_ elements)
+#### cancel events
 
-In bevy, a `NavMenu` might be nothing more than a component to add to the
-`NodeBundle` parent of the _focusables_ you want in your menu. On top of that,
-it needs to track which _focusable_ you _activated_ to enter this menu:
-```rust
-#[derive(Component)]
-struct NavMenu {
-  parent_focusable: Option<Entity>,
-}
-```
+When entering a menu, you want a way to leave it and return to the previous menu.
+To do this, we have two options:
+- The `Cancel` request
+- The `cancel` focusable
 
-### `NavMenu` settings
+This will change the focus to the parent button of the focused menu.
 
-#### Scope menu
+#### Moving into a menu
 
-However, it's not enough to be able to go up and down the menu hierarchy, we
-also want to be able to directly "speak" with the tabs menu and switch from the
-"soul menu" to the "body menu" with a simple press of `RT`, not having to
-press `B` twice to get to the tabs menu.
+When the `Action` request is sent while a `Focusable` with a child menu is focused,
+the focus will move to the child menu,
+selecting the focusable to focus
+with a heuristic similar to the initial focused selection.
 
-The tabs menu is a special sort of menu, with movement that can be triggered
-from another menu reachable from it. We must add a `setting: NavSetting` field
-to the `NavMenu` component to distinguish this sort of menu. In our
-implementation we call them `scope menu`s.
+### Locking
 
-The `NavRequest::ScopeMove` request associated with `RT`/`LT` (or anything the
-developer sets) will climb up the _menu tree_ to find the enclosing
-_scope menu_ and move focus within that menu.
-
-#### Looping
-
-We may also chose to lock or unlock the ability to wrap back right when going
-left from the leftmost element of a menu, same with any other directions. For
-example pressing `DOWN` when "c" is _focused_ could change focus to "a". We
-should use the `setting` field to keep track of this as well.
-
-### Navigation tree
-
-All in all, the navigation tree is just the specification of which menu is
-reachable from where. Not the relation between each individual focusable. This
-drastically simplifies the structure of the tree. Because a game may have many
-interactive UI elements, but not that many menus.
-
-The previous graph diagram may have been a bit misleading. It's not the real
-_navigation graph_ (that we introduced as _menu graph_ for good reasons).
-The tree that the algorithm deals with and traverse is between menus
-rather than `Focusable` elements. The graph as it is used in our code is the
-following:
-
-![RPG menu demo split between menus with pointers leading to the "parent
-focusable"](https://user-images.githubusercontent.com/26321040/141672009-e023855e-10a7-4c50-a8dd-eff10acb2208.png)
-
-We may also imagine an implementation where the non-selected menus are hidden
-but loaded into the ECS. In this case, the navigation tree might look like
-this:
-
-![RPG menu graph without focusables, only
-menus](https://user-images.githubusercontent.com/26321040/141672033-8bd43660-78af-4521-b367-03c7270c58c5.png)
-
-### Algorithm
-
-The algorithm is the `resolve` function in [ui-navigation](https://github.com/nicopap/ui-navigation/blob/master/src/lib.rs#L414).
-The meat of it is 50 lines of code.
-
-The current implementation has an example demonstrating all features we
-discussed in this RFC. For a menu layout as follow:
-
-![Example layout](https://user-images.githubusercontent.com/26321040/141671978-a6ef0e99-8ee1-4e5f-9d56-26c65f748331.png)
-
-We can navigate it with a controller as follow:
-
-![Example layout being navigated with a controller, button presses shown as
-overlay](https://user-images.githubusercontent.com/26321040/141612751-ba0e62b2-23d6-429a-b5d1-48b09c10d526.gif)
-
-### UI Benchmarks discussion
-
-As mentioned in [this RFC](https://github.com/alice-i-cecile/rfcs/blob/ui-central-dogma/rfcs/ui-central-dogma.md),
-we should benchmark our design against actual UI examples. I think that the
-one used in this RFC as driving example (the RPG tabbed menu) illustrates well
-enough how we could implement Benchmark 2 (main menu) using our system.
-Benchmark 1 is irrelevant. Benchmark 3 could potentially be solved by just
-marking the interactive element with the `Focusable` component and nothing
-else, so that every element can be reached from anywhere.
+To ease implementation of widgets, such as sliders,
+some focusables can "lock" the UI, preventing all other form of interactions.
+Another system will be in charge of unlocking the UI by sending a `NavRequest::Free`.
 
 
 ## Prior art
@@ -288,30 +272,6 @@ I wanted to defer the raw input processing to the user. The current
 implementation provides default systems to manage ui input, with a
 `InputMapping` resource to customize a little bit the system's behaviors. 
 
-We **requires** the user to explicitly add the input systems to their `App`
-rather than adding them to our `NavigationPlugin` because we **need** the
-flexibility to swap out the default input handling after a certain point in the
-game development phase (as my personal practical experience shows).
-
-Though this is a very basic solution that screams "temporary", and should
-probably in the future be swapper in favor of something more thought out and
-ergonomic.
-
-How would that work? Is there already examples in bevy where we provide default
-button mappings that can be changed?
-
-I think we should think deeply about input handling in default plugins.
-However, this is out of scope for this RFC.
-
-
-### Mouse hover behavior
-
-I went the easy route when implementing mouse support, of having the focus
-follow the mouse. In certain circumstances this is not wishable, but currently
-I don't see an alternative that doesn't need to completely reinvent a new
-system on top of the current one.
-
-
 ### Game-oriented assumptions
 
 This was not intended during implementation, but in retrospect, the `NavMenu`
@@ -334,6 +294,16 @@ component, and the elements highlighted in yellow have a `Focusable` component.
 This way we create a menu to navigate between dockers. This is perfectly
 consistent with our design.
 
+### (Solved, but worth asking) Moving UI camera & 3d UI
+
+The completely decoupled implementation of the navigation system
+enables user to implement their own UI.
+It is perfectly possible to add a `Focusable` component to a 3d object
+and, for example, provide a [mouse picking] based input system
+sending the `NavRequest`,
+while using `world_to_viewport` in `MoveParam` for gamepad navigation.
+(or completely omitting gamepad support by providing a stub `MoveParam`)
+
 
 ## Drawbacks and design limitations
 
@@ -343,61 +313,19 @@ I think the most problematic aspect of this implementation is that we push on
 the user the responsibility of upholding invariants. This is not a safety
 issue, but it leads to panics. The invariants are:
 1. Never create a cycle of menu connections
-2. There must be at most one root `NavMenu`
-3. Each `NavMenu` must at least have one contained `Focusable`
+2. Each `NavMenu` must at least have one contained `Focusable`
 
 The upside is that the invariants become only relevant if the user _opts into_
 `NavMenu`. Already, this is a choice made by the user, so they can be made
 aware of the requirements in the `NavMenu` documentation.
 
-If the invariants are not upheld, the navigation system will simply panic. I
-didn't test enough the current implementation to see if all cases of panics
-lead to meaningful error messages.
+If the invariants are not upheld, the navigation system will simply panic.
 
 It may be possible to be resilient to the violation of the invariants, but I
 think it's better to panic, because violation will most likely come from
 misunderstanding how the navigation system work or programming errors.
 
-### Jargon
-
-The end user will have to deal with new concepts introduced by this RFC:
-* `dormant`
-* `active`
-* `focused`
-* `NavRequest`
-* `NavEvent`
-* `NavMenu`
-* `Focusable`
-* `cycling`
-* `scope menu`
-
-This seems alright, although `dormant` may be misleading, given it's a synonym
-to "inactive". It is technically an antonym to "active", but in the current
-design, it is not really the case. Beside I have a tendency to type "doormat"
-instead.
-
-On the implementation side. We have `inert` which is synonym to `dormant` and
-`inactive` but is just a word to fill the roll of "none of the above".
-
-I think the one term that can be improved is `NavMenu`. Replacing it with
-`NavMenu` constructs on pre-existing knowledge and is a good approximation of
-what it represents.
-
-### Performance
-
-The navigation system might be slow with a very large amount of `Focusable`
-elements. **I didn't benchmark it**. In fact the `ultimate_menu_navigation.rs`
-example is laggy. Especially visible with mouse focus. I'm not sure why. It
-seems to be because of the large number of `Focusable` and doing geometry
-computation on all of them (which is necessary to find the next element to
-focus or check which element is under the cursor)
-
-Note that the current implementation only performs computation on `NavRequest`
-events. The input systems might add their own processing. I tried to minimise
-as much as possible the `default_mouse_input` runtime, but it still seem quite
-laggy.
-
-We might improve the performance with well designed 2d navigation caches. But
-i'm not sure how this would look like.
-
-[^1]: ie: includes children, grand-children, grand-grand-children etc.
+[mouse picking]: https://github.com/aevyrie/bevy_mod_picking/
+[`bevy-ui-navigation`]: https://github.com/nicopap/ui-navigation
+[event_helpers]: https://docs.rs/bevy-ui-navigation/0.18.0/bevy_ui_navigation/event_helpers/index.html#examples
+[elm_architecture]: https://guide.elm-lang.org/architecture/
