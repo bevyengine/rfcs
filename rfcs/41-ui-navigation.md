@@ -306,6 +306,29 @@ while using `world_to_viewport` in `MoveParam` for gamepad navigation.
 
 ## Drawbacks and design limitations
 
+### How does this work with the spawn/despawn workflow?
+
+The current design imposes to the user that all UI nodes such a buttons and
+menus must be already loaded, even if not visible on screen.
+This is to support re-focusing the last focused element when moving between
+menus.
+The design of this RFC _hinges on_ the whole tree been loaded in ECS while
+executing navigation requests, and would work poorly if menus were spawned and
+despawned dynamically.
+From what I gather from questions asked in the `#help` discord channel,
+I think the design most people come up with naturally is to spawn and despawn
+dynamically the menus as they are traversed, which is incompatible with
+this design.
+However, in practice, in my own games, I worked around it by expanding the
+whole UI tree beyond the UI camera view and moving around the camera.
+An alternative would simply to set the `style.display` of non-active menus to
+`None` and change the style when focus enters them.
+This also fixes the already-existing 1 frame latency issue with the
+spawn/despawn design.
+
+Something that automates that could be a natural extension of the exposed API.
+It may also help end users go with the best design first.
+
 ### User upheld invariants
 
 I think the most problematic aspect of this implementation is that we push on
