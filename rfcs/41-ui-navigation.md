@@ -51,10 +51,6 @@ To summarize, here are the headlines:
   This is why we restrict interactions with navigation to events.
 - ui-navigation provides a system to declare buttons as "leading to menu X"
   in order to create menu trees.
-- ui-navigation defines [custom `SystemParam`][event_helpers]s
-  to ease reaction to events (such a button press or menu change).
-  The most naive usage results into [elm architecture][elm_architecture]-like code.
-  Systems updating the model (ECS hierarchy) and systems reacting to events. 
 - It is possible to create isolated menus by using the `NavMenu` component.
 - All `Focusable` children in the `NavMenu` entity's tree will be part
   of this menu, and moving using a gamepad from one focusable in a menu
@@ -360,5 +356,3 @@ misunderstanding how the navigation system work or programming errors.
 
 [mouse picking]: https://github.com/aevyrie/bevy_mod_picking/
 [`bevy-ui-navigation`]: https://github.com/nicopap/ui-navigation
-[event_helpers]: https://docs.rs/bevy-ui-navigation/0.18.0/bevy_ui_navigation/event_helpers/index.html#examples
-[elm_architecture]: https://guide.elm-lang.org/architecture/
