@@ -365,7 +365,7 @@ The crux of `bevy-ui-navigation` are the following types:
 
 ### `Focusable`
 
-See `bevy-ui-navigation` [`Focusable`] doc
+See `bevy-ui-navigation` [`Focusable`] doc.
 
 The `Focusable` component holds state about what happens when it is activated
 and what focus state it is in. (focused, active, inactive, etc.)
