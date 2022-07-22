@@ -546,7 +546,7 @@ See `bevy-ui-navigation` [`NavEvent`] doc.
 Events emitted by the navigation system.
 
 (Please see the docs.rs page, the rest of this section refers to terms
-explained in those pages)
+explained in it)
 
 Note the usage of `NonEmpty` from the `non_empty_vec` crate.
 
