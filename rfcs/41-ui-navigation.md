@@ -280,16 +280,87 @@ The nitty-gritty code… is already available!
 The [`bevy-ui-navigation`] repo contains the code.
 [this is a good start for people interested in the architecture][ui-nav-arch].
 
-This section therefore will not discuss the detailed implementation,
-but rather the overall design and the decisions that led to them.
+### Internal representation
+
+The navigation tree is a set of relationships between entities with either the
+[`Focusable`] component or the [`TreeMenu`] component.
+
+The hierarchy is specified by both the native bevy hierarchy
+and the `focus_parent` of the [`TreeMenu`] component.
+
+In the following screenshot, `Focusable`s are represented as circles, menus
+as rectangles, and the `focus_parent` by blue arrows
+(menu points to its parent).
+
+![A screenshot of a RPG-style menu with the navigation tree overlayed](https://user-images.githubusercontent.com/26321040/141671969-ea4a461d-0949-4b98-b060-c492d7b896bd.png)
+
+Note that gold buttons are `FocusState::Active` while the orange-red button
+("B") is `FocusState::Focused`.
+
+Since the "tabs menu" doesn't have an outgoing arrow, it is the root menu.
+
+The active buttons are a breadcrumb of buttons to activate to reach
+the current menu with the `Focused` focusable from the root menu.
+
+To move the focus from the "soul menu" to the "ABC menu",
+you need to send `NavRequest::Action` while the button "abc" is focused
+(i.e.: _"activating"_ the button).
+
+Such a move would generate the following `NavEvent`:
+```rust
+NavEvent::FocusChanged {
+  to: [<abc entity>, <B entity>],
+  from: [<abc entity>],
+}
+```
+
+If there were a "KFC menu" (currently hidden) [child of](#Terminology)
+the "kfc" button, then [activating](#Terminology)
+the "kfc" button would send the focus to
+the prioritized focusable within the "KFC menu".
+
+To navigate from "ABC menu" back to "soul menu",
+you would send `NavRequest::Cancel`.
+Such a move would generate the following `NavEvent`:
+```rust
+NavEvent::FocusChanged {
+  to: [<abc entity>],
+  from: [<abc entity>, <B entity>],
+}
+```
+The "tabs menu" is defined as a "scope menu", which means that
+by default, the `LT` and `RT` gamepad buttons will navigate
+the "tabs menu" regardless of the current focus position.
+
+Pressing `RT` while "B" if focused, would generate the following `NavEvent`:
+```rust
+NavEvent::FocusChanged {
+  to: [<body entity>, <prioritized button in body menu>],
+  from: [<soul entity>, <abc entity>, <B entity>],
+}
+```
+
+There is no [child menus](#Terminology) of the "B" button
+and "B" is of type `FocusAction::Normal`,
+therefore, sending `NavRequest::Action` while "B" is highlighted
+will do nothing and generate the following `NavEvent`:
+```rust
+NavEvent::NoChanges {
+  request: NavRequest::Action,
+  from: [<soul entity>, <abc entity>, <B entity>],
+}
+```
+
+See [relevant implementation section for details on `NavEvent`](#NavEvent)
+
 
 ### Exposed API
 
 The crux of `bevy-ui-navigation` are the following types:
-- [`Focusable`](#Focusable) component
-- [`NavMenu`](#NavMenu) enum
+- [`Focusable`](#Focusable) component [on docs.rs][`Focusable`]
+- [`NavMenu`](#NavMenu) enum [on docs.rs][`NavMenu`]
 - `NavRequest` event [on docs.rs][`NavRequest`]
-- `NavEvent` event [on docs.rs][`NavEvent`]
+- [`NavEvent`](#NavEvent) event [on docs.rs][`NavEvent`]
 - [`MenuNavigationStrategy`](#MenuNavigationStrategy) trait
 
 ### `Focusable`
@@ -360,46 +431,71 @@ A `Focusable` can execute a variety of `FocusAction` when receiving
 
 ### `NavMenu`
 
-The public API has `NavMenu`, but we use internally `TreeMenu`,
+See `bevy-ui-navigation` [`NavMenu`] doc.
+
+The public API has `NavMenu`, but we use internally [`TreeMenu`],
 this prevents end users from breaking assumptions about the menu trees.
 [More details on this decision](#spawning-menus).
 
-We define the `TreeMenu` component.
-All `Focusable` direct or indirect children of a `TreeMenu` are part of that menu.
-A `TreeMenu` has a `Focusable` focus parent,
-when that `Focusable` is focused and the `Action` request is received,
-the focus changes to the `TreeMenu`
+A menu that isolate children [`Focusable`]s from other
+focusables and specify navigation method within itself.
 
-In short, the navigation tree is built on two elements:
-- The `reachable_from` that a `NavMenu` was spawned with
-- The `Focusable` within the hierarchy of a `NavMenu`
+A [`NavMenu`] can be used to:
+* Prevent navigation from one specific submenu to another
+* Specify if 2d navigation wraps around the screen.
+* Specify "scope menus" such that a
+  `NavRequest::ScopeMove` emitted when
+  the focused element is a [`Focusable`] nested within this `NavMenu`
+  will navigate this menu.
+* Specify _submenus_ and specify from where those submenus are reachable.
+* Specify which entity will be the parents of this [`NavMenu`], see
+  `NavMenu::reachable_from` or `NavMenu::reachable_from_named` if you don't
+  have access to the `Entity`
+  for the parent [`Focusable`]
 
-In the following screenshot, `Focusable`s are represented as circles, and menus
-as rectangles.
+If you want to specify which [`Focusable`] should be
+focused first when entering a menu, you should mark one of the children of
+this menu with `Focusable::prioritized`.
 
-![A screenshot of a RPG-style menu with the navigation tree overlayed](https://user-images.githubusercontent.com/26321040/141671969-ea4a461d-0949-4b98-b060-c492d7b896bd.png)
+#### Invariants
 
-A `Focusable` used to go from the root menu
-to the menu in which the currently focused entity is is _active_.
-The current focus position is represented as a trail of breadcrumb active
-focusables and the currently focused focusable.
+**You need to follow those rules  to avoid panics**:
+1. A menu must have **at least one** [`Focusable`] child in the UI
+   hierarchy.
+2. There must not be a menu loop. I.e.: a way to go from menu A to menu B and
+   then from menu B to menu A while never going back.
 
-This is visible in the `NavEvent::FocusChanged` event.
-When going from a focusable to another,
-the navigation system emits a `FocusChanged` event,
-the event contains two lists of entities:
-- The list of entities that after the navigation event are no more focused
-  or active
-- The list of entities that are newly active or focused
+#### Panics
 
-For the simplest case of navigating from one focusable to another
-in the same menu, the two list have a single element,
-so it is capital that it is easy to access those elements.
-This is why we use a `NonEmpty`, from the `non_empty_vec` crate.
-A `NonEmpty<T>` has a `first` method that returns a `T`,
-which in our case would be the last and new focused elements.
-I chose this crate over similar ones,
-because the code is dead simple and easy to vet.
+Thankfully, programming errors are caught early and you'll probably get a
+panic fairly quickly if you don't follow the invariants.
+* Invariant (1) panics as soon as you add the menu without focusable
+  children.
+* Invariant (2) panics if the focus goes into a menu loop.
+
+#### Variants
+
+* **Bound2d**: Non-wrapping menu with 2d navigation.
+  It is possible to move around this menu in all cardinal directions, the
+  focus changes according to the physical position of the
+  [`Focusable`] in it.
+  \
+  If the player moves to a direction where there aren't any focusables,
+  nothing will happen.
+* **Wrapping2d**: Wrapping menu with 2d navigation.
+  It is possible to move around this menu in all cardinal directions, the
+  focus changes according to the physical position of the
+  [`Focusable`] in it.
+  \
+  If the player moves to a direction where there aren't any focusables,
+  the focus will "wrap" to the other direction of the screen.
+* **BoundScope**: Non-wrapping scope menu
+  Controlled with `NavRequest::ScopeMove`
+  even when the focused element is not in this menu, but in a submenu
+  reachable from this one.
+* **WrappingScope**: Wrapping scope menu
+  Controlled with `NavRequest::ScopeMove` even
+  when the focused element is not in this menu, but in a submenu reachable from this one.
 
 #### Going back to a previous menus
 
@@ -443,12 +539,36 @@ I thought it was a pretty good trade-off,
 since spawning menus is not time critical, unlike input.
 
 
+### `NavEvent`
+
+See `bevy-ui-navigation` [`NavEvent`] doc.
+
+Events emitted by the navigation system.
+
+(Please see the docs.rs page, the rest of this section refers to terms
+explained in those pages)
+
+Note the usage of `NonEmpty` from the `non_empty_vec` crate.
+
+In most case, we only care about a single focusable in `NoChanges` and
+`FocusChanged` (the `.first()` one).
+Furthermore, we _know_ those lists will never be empty (since there is always
+one focusable at all time).
+We also really don't want to provide a clunky API where you have to `unwrap` or
+adapt to `Option`s when it is not needed.
+So we provide the list of changed focusable as an `NonEmpty`.
+
+I vetted several "non empty vec" crates, and `non_empty_vec`
+had the cleanest and easiest to understand implementation.
+This is why, I chose it.
+
+
 #### cancel events
 
 When entering a menu, you want a way to leave it and return to the previous menu.
 To do this, we have two options:
-- The `Cancel` request
-- The `cancel` focusable
+- A `NavRequest::Cancel`
+- _activating_ a `FocusAction::Cancel` focusable.
 
 This will change the focus to the parent button of the focused menu.
 
@@ -607,7 +727,7 @@ As such, `FocusPolicy` becomes useless and is removed.
 
 ## Open questions
 
-### Game-oriented assumptions
+### (Solved, but worth asking) Game-oriented assumptions
 
 This was not intended during implementation, but in retrospect, the `NavMenu`
 system is relatively opinionated.
@@ -694,3 +814,4 @@ misunderstanding how the navigation system work or programming errors.
 [`FocusAction`]: https://docs.rs/bevy-ui-navigation/latest/bevy_ui_navigation/enum.FocusAction.html
 [`NavMenu`]: https://docs.rs/bevy-ui-navigation/latest/bevy_ui_navigation/enum.NavMenu.html
 [`UiProjectionQuery`]: https://github.com/nicopap/ui-navigation/blob/17c771b7f752cfd604f21056f9d4ca6772529c6f/src/resolve.rs#L378-L429
+[`TreeMenu`]: https://github.com/nicopap/ui-navigation/blob/30c828a465f9d4c440d0ce6e97051a5f7fafa425/src/resolve.rs#L201-L216
