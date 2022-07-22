@@ -739,7 +739,7 @@ Indeed, we assume we are trying to build a game UI with a series of "menus" and
 that it is possible to keep track of a "trail" of buttons from a "root menu" to
 the deepest submenu we are currently browsing.
 
-The example of a fancy editor with a bunch of dockered widgets seems to break
+The example of a fancy editor with a bunch of docked widgets seems to break
 that assumption. However, I think we could make it so each docker has a tab,
 and we could navigate between the tabs. I think such an implementation strategy
 encourages better mouseless navigation support and it might not be a
