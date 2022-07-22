@@ -755,6 +755,14 @@ to identify which cursor originated the request,
 and keeping track in the `FocusState` which cursor the `Focused`, `Activated`
 and `Prioritized` variants are for.
 
+### Higher level wrappers
+
+In this RFC we discussed the possibility of improved API in a few places:
+- The `bevy-ui-navigation` [`event_helpers`] module, to simplify interacting
+  with `NavEvent`s
+- A visual wrapper for menu navigation that handles `display` `Style`s of menus
+  when they are entered and left
+
 ## Drawbacks and design limitations
 
 ### Major differences with the current focus implementation
