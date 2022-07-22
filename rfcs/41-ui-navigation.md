@@ -697,37 +697,9 @@ Otherwise, given my little experience in game programming, I am probably overloo
 standard practices. My go-to source ("Game Engine Architecture" by Jason
 Gregory) doesn't mention ui navigation systems.
 
-## Major differences with the current focus implementation
+## Closed, interesting questions
 
-### `Hovered` is not covered
-
-Since navigation is completely decoupled from input and ui lib,
-it is impossible for it to tell whether a focusable is hovered.
-To keep the hovering state functionality,
-it will be necessary to add it as an independent component
-separate from the navigation library.
-
-A fully generic navigation API cannot handle hover state.
-This doesn't mean we have to entirely give up hovering.
-It can simply be added back as a component independent
-from the focus system.
-
-### Interaction tree
-
-In this design, interaction is not "bubble up" as in the current `bevy_ui`
-design.
-
-This is because there is a clear and exact distinction
-in what can be "focused", what is a "menu", and everything else.
-Focused element do not share their state with their parent.
-The breadcrumb of menus defined [in the `NavMenu` section](#NavMenu)
-is a very different concept from marking parents as focused.
-
-As such, `FocusPolicy` becomes useless and is removed.
-
-## Open questions
-
-### (Solved, but worth asking) Game-oriented assumptions
+### Game-oriented assumptions
 
 This was not intended during implementation, but in retrospect, the `NavMenu`
 system is relatively opinionated.
@@ -749,7 +721,7 @@ component, and the elements highlighted in yellow have a `Focusable` component.
 This way we create a menu to navigate between dockers. This is perfectly
 consistent with our design.
 
-### (Solved, but worth asking) Moving UI camera & 3d UI
+### Moving UI camera & 3d UI
 
 The completely decoupled implementation of the navigation system
 enables user to implement their own UI.
@@ -784,6 +756,34 @@ and keeping track in the `FocusState` which cursor the `Focused`, `Activated`
 and `Prioritized` variants are for.
 
 ## Drawbacks and design limitations
+
+### Major differences with the current focus implementation
+
+#### `Hovered` is not covered
+
+Since navigation is completely decoupled from input and ui lib,
+it is impossible for it to tell whether a focusable is hovered.
+To keep the hovering state functionality,
+it will be necessary to add it as an independent component
+separate from the navigation library.
+
+A fully generic navigation API cannot handle hover state.
+This doesn't mean we have to entirely give up hovering.
+It can simply be added back as a component independent
+from the focus system.
+
+#### Interaction tree
+
+In this design, interaction is not "bubble up" as in the current `bevy_ui`
+design.
+
+This is because there is a clear and exact distinction
+in what can be "focused", what is a "menu", and everything else.
+Focused element do not share their state with their parent.
+The breadcrumb of menus defined [in the `NavMenu` section](#NavMenu)
+is a very different concept from marking parents as focused.
+
+As such, `FocusPolicy` becomes useless and is removed.
 
 ### How does this work with the spawn/despawn workflow?
 
