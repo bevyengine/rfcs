@@ -53,8 +53,8 @@ To summarize, here are the headlines:
 - ui-navigation provides default input systems, 
   but it's possible to disable them and instead use custom ones.
   This is why we restrict interactions with navigation to events.
-- It is possible to create isolated menus by using the `NavMenu` component.
-- All `Focusable` children in the `NavMenu` entity's tree will be part
+- It is possible to create isolated menus by using the `MenuSetting` component.
+- All `Focusable` children in the `MenuSetting` entity's tree will be part
   of this menu, and moving using a gamepad from one focusable in a menu
   can only lead to another focusable within the same menu.
   You can specify a focusable in any other menu that will lead to this
@@ -195,7 +195,7 @@ The exact mechanism for disabling default input is still to be designed.
 
 ### Creating a menu
 
-See the `bevy-ui-navigation` [`NavMenu`] doc,
+See the `bevy-ui-navigation` [`MenuSetting`] doc,
 [and example](https://github.com/nicopap/ui-navigation/blob/master/examples/menu_navigation.rs).
 
 To create a menu, use the newly added `MenuBundle`,
@@ -358,7 +358,7 @@ See [relevant implementation section](#NavEvent) for details on `NavEvent`.
 
 The crux of `bevy-ui-navigation` are the following types:
 - [`Focusable`](#Focusable) component [on docs.rs][`Focusable`]
-- [`NavMenu`](#NavMenu) enum [on docs.rs][`NavMenu`]
+- [`MenuSetting`](#MenuSetting) enum [on docs.rs][`MenuSetting`]
 - `NavRequest` event [on docs.rs][`NavRequest`]
 - [`NavEvent`](#NavEvent) event [on docs.rs][`NavEvent`]
 - [`MenuNavigationStrategy`](#MenuNavigationStrategy) trait
@@ -383,7 +383,7 @@ a generic navigation system. (see [dedicated section](#hovered-is-not-covered))
 
 * **Prioritized**: 
   An entity that was previously `Active` from a branch of the menu tree that is
-  currently not focused. When focus comes back to the `NavMenu` containing this
+  currently not focused. When focus comes back to the `MenuSetting` containing this
   `Focusable`, the `Prioritized` element will be the `Focused` entity.
 * **Focused**:
   The currently highlighted/used entity, there is only a single focused entity.
@@ -396,7 +396,7 @@ a generic navigation system. (see [dedicated section](#hovered-is-not-covered))
   This Focusable is on the path in the menu tree to the current Focused entity.
   \
   `FocusState::Active` focusables are the `Focusable`s from previous menus that
-  were activated in order to reach the `NavMenu` containing the currently focused
+  were activated in order to reach the `MenuSetting` containing the currently focused
   element.
   \
   It is one of the "breadcrumb" of buttons to reach the current focused
@@ -414,7 +414,7 @@ A `Focusable` can execute a variety of `FocusAction` when receiving
 * **Normal**:
   Acts like a standard navigation node.
   \
-  Goes into relevant menu if any [`NavMenu`] is
+  Goes into relevant menu if any [`MenuSetting`] is
   `reachable_from` this `Focusable`.
 * **Cancel**:
   If we receive `NavRequest::Action` while this `Focusable` is
@@ -429,27 +429,27 @@ A `Focusable` can execute a variety of `FocusAction` when receiving
   want to accidentally unfocus, or suspending the navigation system while
   in-game.
 
-### `NavMenu`
+### `MenuSetting`
 
-See `bevy-ui-navigation` [`NavMenu`] doc.
+See `bevy-ui-navigation` [`MenuSetting`] doc.
 
-The public API has `NavMenu`, but we use internally [`TreeMenu`],
+The public API has `MenuSetting`, but we use internally [`TreeMenu`],
 this prevents end users from breaking assumptions about the menu trees.
 [More details on this decision](#spawning-menus).
 
 A menu that isolate children [`Focusable`]s from other
 focusables and specify navigation method within itself.
 
-A [`NavMenu`] can be used to:
+A [`MenuSetting`] can be used to:
 * Prevent navigation from one specific submenu to another
 * Specify if 2d navigation wraps around the screen.
 * Specify "scope menus" such that a
   `NavRequest::ScopeMove` emitted when
-  the focused element is a [`Focusable`] nested within this `NavMenu`
+  the focused element is a [`Focusable`] nested within this `MenuSetting`
   will navigate this menu.
 * Specify _submenus_ and specify from where those submenus are reachable.
-* Specify which entity will be the parents of this [`NavMenu`], see
-  `NavMenu::reachable_from` or `NavMenu::reachable_from_named` if you don't
+* Specify which entity will be the parents of this [`MenuSetting`], see
+  `MenuSetting::reachable_from` or `MenuSetting::reachable_from_named` if you don't
   have access to the `Entity`
   for the parent [`Focusable`]
 
@@ -514,8 +514,10 @@ The parent is just a button in another menu.
 
 It is inconvenient to have to pre-spawn each button to acquire their `Entity` id
 just to be able to spawn the menu you'll get to from that button.
-[`bevy-ui-navigation`] uses a proxy component holding both the parent
+[`bevy-ui-navigation`] uses a proxy holding both the parent
 and the menu state info.
+
+
 
 That proxy component is `MenuSeed`,
 you can initialize it either with the `Name` or `Entity` of the parent focusable of the menu.
@@ -701,7 +703,7 @@ Gregory) doesn't mention ui navigation systems.
 
 ### Game-oriented assumptions
 
-This was not intended during implementation, but in retrospect, the `NavMenu`
+This was not intended during implementation, but in retrospect, the `MenuSetting`
 system is relatively opinionated.
 
 Indeed, we assume we are trying to build a game UI with a series of "menus" and
@@ -716,7 +718,7 @@ limitation.
 
 ![Krita UI screenshot](https://user-images.githubusercontent.com/26321040/141671939-24b8a7c3-b296-4fd4-8ae0-3bbe7fe4c9a3.png)
 
-In this example, we can imagine the root `NodeBundle` having a `NavMenu`
+In this example, we can imagine the root `NodeBundle` having a `MenuSetting`
 component, and the elements highlighted in yellow have a `Focusable` component.
 This way we create a menu to navigate between dockers. This is perfectly
 consistent with our design.
@@ -788,7 +790,7 @@ design.
 This is because there is a clear and exact distinction
 in what can be "focused", what is a "menu", and everything else.
 Focused element do not share their state with their parent.
-The breadcrumb of menus defined [in the `NavMenu` section](#NavMenu)
+The breadcrumb of menus defined [in the `MenuSetting` section](#MenuSetting)
 is a very different concept from marking parents as focused.
 
 As such, `FocusPolicy` becomes useless and is removed.
@@ -821,11 +823,11 @@ I think the most problematic aspect of this implementation is that we push on
 the user the responsibility of upholding invariants. This is not a safety
 issue, but it leads to panics. The invariants are:
 1. Never create a cycle of menu connections
-2. Each `NavMenu` must at least have one contained `Focusable`
+2. Each menu must at least have one contained `Focusable`
 
 The upside is that the invariants become only relevant if the user _opts into_
-`NavMenu`. Already, this is a choice made by the user, so they can be made
-aware of the requirements in the `NavMenu` documentation.
+`MenuSetting`. Already, this is a choice made by the user, so they can be made
+aware of the requirements in the `MenuSetting` documentation.
 
 If the invariants are not upheld, the navigation system will simply panic.
 
@@ -843,6 +845,6 @@ misunderstanding how the navigation system work or programming errors.
 [`Focusable`]: https://docs.rs/bevy-ui-navigation/latest/bevy_ui_navigation/struct.Focusable.html
 [`FocusState`]: https://docs.rs/bevy-ui-navigation/latest/bevy_ui_navigation/enum.FocusState.html
 [`FocusAction`]: https://docs.rs/bevy-ui-navigation/latest/bevy_ui_navigation/enum.FocusAction.html
-[`NavMenu`]: https://docs.rs/bevy-ui-navigation/latest/bevy_ui_navigation/enum.NavMenu.html
+[`MenuSetting`]: https://docs.rs/bevy-ui-navigation/latest/bevy_ui_navigation/enum.NavMenu.html
 [`UiProjectionQuery`]: https://github.com/nicopap/ui-navigation/blob/17c771b7f752cfd604f21056f9d4ca6772529c6f/src/resolve.rs#L378-L429
 [`TreeMenu`]: https://github.com/nicopap/ui-navigation/blob/30c828a465f9d4c440d0ce6e97051a5f7fafa425/src/resolve.rs#L201-L216
