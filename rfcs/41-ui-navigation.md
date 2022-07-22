@@ -276,9 +276,6 @@ See [relevant implementation section](#MenuNavigationStrategy).
 
 ## Implementation
 
-Since `bevy-ui-navigation` already exists,
-we will discuss its design, it's functionalities and their uses.
-
 The nitty-gritty code… is already available!
 The [`bevy-ui-navigation`] repo contains the code.
 [this is a good start for people interested in the architecture][ui-nav-arch].
