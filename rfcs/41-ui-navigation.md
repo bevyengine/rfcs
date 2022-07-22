@@ -73,7 +73,7 @@ The `Interaction` component in `ButtonBundle` is replaced by `Focusable`.
   if none exist yet.
   \
   To specify which focusable to focus initially, spawn a `ButtonBundle` with
-  `focusable: Focusable::dormant()`.
+  `focusable: Focusable::prioritized()`.
   \
   See [implementation section about initial focus](#what-to-focus-first).
 
@@ -310,10 +310,10 @@ it can be accessed with the `state` method on `Focusable`.
 **Hovering state is not specified here**, since it is orthogonal to
 a generic navigation system. (see [dedicated section](#hovered-is-not-covered))
 
-* **Dormant**: 
+* **Prioritized**: 
   An entity that was previously `Active` from a branch of the menu tree that is
   currently not focused. When focus comes back to the `NavMenu` containing this
-  `Focusable`, the `Dormant` element will be the `Focused` entity.
+  `Focusable`, the `Prioritized` element will be the `Focused` entity.
 * **Focused**:
   The currently highlighted/used entity, there is only a single focused entity.
   \
@@ -331,7 +331,7 @@ a generic navigation system. (see [dedicated section](#hovered-is-not-covered))
   It is one of the "breadcrumb" of buttons to reach the current focused
   element.
 * **Inert**:
-  None of the above: This Focusable is neither Dormant, Focused or Active.
+  None of the above: This Focusable is neither Prioritized, Focused or Active.
 
 #### Focusable action types
 
@@ -403,7 +403,7 @@ because the code is dead simple and easy to vet.
 
 #### Going back to a previous menus
 
-`Focusable`s have a `dormant` state that is set when they go from
+`Focusable`s have a `prioritized` state that is set when they go from
 active/focused to not active.
 This is a form of memory that allows focus to go back to the last focused
 element within a menu when it is re-visited.
@@ -542,7 +542,7 @@ for navigating "move in direction" or "press action".
 At the very beginning of execution, there are no focused element,
 so we need fallbacks.
 By default, it is any `Focusable` when none are focused yet.
-But the user can spawn a `Focusable` as `dormant`
+But the user can spawn a `Focusable` as `prioritized`
 and the algorithm will prefer it when no focused nodes exist yet.
 
 ```rust
@@ -550,10 +550,10 @@ self.focusables
     .iter()
     // The focused focusable.
     .find_map(|(e, focus)| (focus.state == Focused).then(|| e))
-    // Dormant focusable within the root menu (if it exists)
-    .or_else(root_dormant)
-    // Any dormant focusable
-    .or_else(any_dormant)
+    // Prioritized focusable within the root menu (if it exists)
+    .or_else(root_prioritized)
+    // Any prioritized focusable
+    .or_else(any_prioritized)
     // Any focusable
     .or_else(fallback)
 ```
