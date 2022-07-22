@@ -473,29 +473,23 @@ panic fairly quickly if you don't follow the invariants.
   children.
 * Invariant (2) panics if the focus goes into a menu loop.
 
-#### Variants
+#### Fields
 
-* **Bound2d**: Non-wrapping menu with 2d navigation.
-  It is possible to move around this menu in all cardinal directions, the
-  focus changes according to the physical position of the
-  [`Focusable`] in it.
-  \
-  If the player moves to a direction where there aren't any focusables,
-  nothing will happen.
-* **Wrapping2d**: Wrapping menu with 2d navigation.
-  It is possible to move around this menu in all cardinal directions, the
-  focus changes according to the physical position of the
-  [`Focusable`] in it.
-  \
-  If the player moves to a direction where there aren't any focusables,
-  the focus will "wrap" to the other direction of the screen.
-* **BoundScope**: Non-wrapping scope menu
-  Controlled with `NavRequest::ScopeMove`
-  even when the focused element is not in this menu, but in a submenu
-  reachable from this one.
-* **WrappingScope**: Wrapping scope menu
-  Controlled with `NavRequest::ScopeMove` even
-  when the focused element is not in this menu, but in a submenu reachable from this one.
+```rust
+pub struct MenuSetting {
+    /// Whether to wrap navigation.
+    ///
+    /// When the player moves to a direction where there aren't any focusables,
+    /// if this is true, the focus will "wrap" to the other direction of the screen.
+    pub wrapping: bool,
+    /// Whether this is a scope menu.
+    ///
+    /// A scope menu is controlled with [`NavRequest::ScopeMove`]
+    /// even when the focused element is not in this menu, but in a submenu
+    /// reachable from this one.
+    pub scope: bool,
+}
+```
 
 #### Going back to a previous menus
 
@@ -516,8 +510,6 @@ It is inconvenient to have to pre-spawn each button to acquire their `Entity` id
 just to be able to spawn the menu you'll get to from that button.
 [`bevy-ui-navigation`] uses a proxy holding both the parent
 and the menu state info.
-
-
 
 That proxy component is `MenuSeed`,
 you can initialize it either with the `Name` or `Entity` of the parent focusable of the menu.
