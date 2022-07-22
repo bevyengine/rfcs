@@ -35,6 +35,9 @@ such as menu trees and movement between menus.
 The current UI focus system is limited to `bevy_ui` and
 can't be swapped out for something the user deems more appropriate.
 
+Decoupling navigation from input and graphics also provides a handy API
+for third party integration such as accessibility tools.
+
 ## User-facing explanation
 
 The [bevy-ui-navigation README][`bevy-ui-navigation`] is a good start.
