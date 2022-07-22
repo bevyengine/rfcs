@@ -759,6 +759,29 @@ sending the `NavRequest`,
 while using `world_to_viewport` in `MoveParam` for gamepad navigation.
 (or completely omitting gamepad support by providing a stub `MoveParam`)
 
+## Future possibilities
+
+### New and better mouse picking!
+
+Since the focus algorithm does not handle input, it is not relevant
+to how we chose which entity is focused.
+
+The input methods can be interchanged without having to change or update
+the navigation plugins.
+
+### Multiple cursors
+
+A non-so-uncommon pattern of video games (especially split-screen)
+is to have two different players handle two different cursors on screen.
+
+The current design assumes a unique cursor navigating the menus
+and can't account for multi-cursor.
+However, it seems not fundamentally impossible to add multiple cursors.
+
+It would require modifying the `NavRequest` to include a sort of ID
+to identify which cursor originated the request,
+and keeping track in the `FocusState` which cursor the `Focused`, `Activated`
+and `Prioritized` variants are for.
 
 ## Drawbacks and design limitations
 
