@@ -309,7 +309,7 @@ you need to send `NavRequest::Action` while the button "abc" is focused
 Such a move would generate the following `NavEvent`:
 ```rust
 NavEvent::FocusChanged {
-  to: [<abc entity>, <B entity>],
+  to: [<B entity>, <abc entity>],
   from: [<abc entity>],
 }
 ```
@@ -325,7 +325,7 @@ Such a move would generate the following `NavEvent`:
 ```rust
 NavEvent::FocusChanged {
   to: [<abc entity>],
-  from: [<abc entity>, <B entity>],
+  from: [<B entity>, <abc entity>],
 }
 ```
 The "tabs menu" is defined as a "scope menu", which means that
@@ -335,8 +335,8 @@ the "tabs menu" regardless of the current focus position.
 Pressing `RT` while "B" if focused, would generate the following `NavEvent`:
 ```rust
 NavEvent::FocusChanged {
-  to: [<body entity>, <prioritized button in body menu>],
-  from: [<soul entity>, <abc entity>, <B entity>],
+  to: [<prioritized button in body menu>, <body entity>],
+  from: [<B entity>, <abc entity>, <soul entity>],
 }
 ```
 
@@ -347,7 +347,7 @@ will do nothing and generate the following `NavEvent`:
 ```rust
 NavEvent::NoChanges {
   request: NavRequest::Action,
-  from: [<soul entity>, <abc entity>, <B entity>],
+  from: [ <B entity>, <abc entity>, <soul entity>],
 }
 ```
 
