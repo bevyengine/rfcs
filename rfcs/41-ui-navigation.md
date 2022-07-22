@@ -39,19 +39,8 @@ can't be swapped out for something the user deems more appropriate.
 
 The [bevy-ui-navigation README][`bevy-ui-navigation`] is a good start.
 
-The API exposed in this RFC are relatively "low level".
-Ideally, we provide default wrapping systems to simplify using the focus
-system.
-
-However, it's completely open for the user to plug their own input
-and focus handling.
-[`bevy-ui-navigation`] provides its own wrapper around `NavEvent`,
-called [`event_helpers`].
-However, [`event_helpers`] is not included in this RFC,
-because it is a very opinionated API.
-It is better left to a different PR where the contentious points
-can be solved independently of the rest of the navigation system.
-
+The API exposed in this RFC is relatively "low level".
+Ideally, we provide default wrapping APIs to simplify using the focus system.
 
 To summarize, here are the headlines:
 - The navigation system can only be interacted with with events:
@@ -256,7 +245,6 @@ sliders][gambit-slider] using [`bevy-ui-navigation`].
 
 Warlock's Gambit has audio sliders, built on top of `bevy_ui`
 and [`bevy-ui-navigation`].
-They are not optimal, as they were made for a 7 days jam.
 
 We used the [locking mechanism](#locking) to disable navigation when starting to
 drag the slider's knob, when the player pressed down the left mouse button.
@@ -347,7 +335,7 @@ a generic navigation system. (see [dedicated section](#hovered-is-not-covered))
 
 #### Focusable action types
 
-See ui-navigation [`FocusAction`] doc.
+See `bevy-ui-navigation` [`FocusAction`] doc.
 
 A `Focusable` can execute a variety of `FocusAction` when receiving
 `NavRequest::Action`, the default one is `FocusAction::Normal`.
@@ -529,9 +517,9 @@ but I didn't find the need for such fine-grained controls.
 
 ### Input customization
 
-[See the ui-navigation README example](https://github.com/nicopap/ui-navigation#simple-case).
+[See the `bevy-ui-navigation` README example](https://github.com/nicopap/ui-navigation#simple-case).
 
-`ui-navigation` can be added to the app in two ways:
+The `NavigationPlugin` can be added to the app in two ways:
 1. With `NavigationPlugin`
 2. With `DefaultNavigationPlugins`
 
