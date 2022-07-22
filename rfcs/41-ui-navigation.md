@@ -351,7 +351,7 @@ NavEvent::NoChanges {
 }
 ```
 
-See [relevant implementation section for details on `NavEvent`](#NavEvent)
+See [relevant implementation section](#NavEvent) for details on `NavEvent`.
 
 
 ### Exposed API
