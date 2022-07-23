@@ -4,6 +4,8 @@
 
 Introduce [`bevy-ui-navigation`] into the bevy tree.
 
+[PR Status][this RFC's PR].
+
 By default this, amounts to replacing `Interaction` with `Focusable` in `bevy_ui`.
 On top of the current behavior, this adds the following capabilities:
 - Focus management for **gamepads**
@@ -774,6 +776,20 @@ This doesn't mean we have to entirely give up hovering.
 It can simply be added back as a component independent
 from the focus system.
 
+#### `Clicked` is not a focus state
+
+Compared to the current `Interaction` system, the new focus system
+separates semantics of "action" events and "UI focus state".
+
+Meaning that `Interaction::Clicked`'s equivalent in the new navigation system
+is the `NavEvent::NoChanges` event.
+
+This is important, as code relying on the "Clicked" focus state
+will need to be replace with reaction to a `NavEvent`.
+
+Looking at the code changes in the existing UI examples in [this RFC's PR]
+is a good indicator at how the code will need to be changed.
+
 #### Interaction tree
 
 In this design, interaction is not "bubble up" as in the current `bevy_ui`
@@ -840,3 +856,4 @@ misunderstanding how the navigation system work or programming errors.
 [`MenuSetting`]: https://docs.rs/bevy-ui-navigation/latest/bevy_ui_navigation/enum.NavMenu.html
 [`UiProjectionQuery`]: https://github.com/nicopap/ui-navigation/blob/17c771b7f752cfd604f21056f9d4ca6772529c6f/src/resolve.rs#L378-L429
 [`TreeMenu`]: https://github.com/nicopap/ui-navigation/blob/30c828a465f9d4c440d0ce6e97051a5f7fafa425/src/resolve.rs#L201-L216
+[this RFC's PR]: https://github.com/bevyengine/bevy/pull/5378
