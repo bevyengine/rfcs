@@ -10,8 +10,8 @@ In this RFC, the following terms are used:
 
 - **Game** refers to any application made with Bevy, which encapsulates proper games but also any other kind of Bevy application (CAD, architecture software, _etc._).
 - **Author** refers to any person (including non-technical) building the Game with the intent of shipping it to end users.
-- **Editor** refers to the software used to edit Game data and prepare them for runtime consumption, and which this RFC describes the data model of.
-- **Runtime** refers to the Game or Editor process running time, as opposed to compiling or building time. When not otherwise specified, this refers to the Game's runtime. In general it's synonymouns of a process running, and is opposed to _build time_ or _compile time_.
+- **Editor** refers to the software used to edit Game data and prepare them for runtime consumption.
+- **Runtime** refers to the Game process running time, as opposed to compiling or building time. In general it's synonymouns of a process running, and is opposed to _build time_ or _compile time_.
 - **Project** refers to the Editor's representation of the Game that data is being created/edited for, and all the assets, metadata, settings, or any other data the Editor needs and which is associated to that specific Game. There's a 1:1 mapping between a Game and an Editor project.
 
 ## Motivation
@@ -509,7 +509,7 @@ Data is serialized and saved as YAML files. Although this process is outside of 
 
 Unity notably supports hot-reloading user code (C# assemblies) during editing and even while the Game is playing in Play Mode inside the Editor. It also supports editing on the fly data while the Game is running in that mode, via its Inspector window. This is often noted as a useful features, and hints again at a data-oriented model.
 
-## Our Machinery
+### Our Machinery
 
 [Our Machinery](https://ourmachinery.com/) has a few interesting blog posts about the architecture of the engine. Notably, a very detailed and insightful blog post about their data model.
 
@@ -538,6 +538,86 @@ They also list some bad experiences with the Bitsquid data model (a predecessor 
 - disk-based data model like JSON files can't represent undo/redo and copy/paste, leading to duplicated implementations for each system.
 - string-based object references are not semantically different from other strings in a JSON-like format, so cannot be reasoned about without semantic context, and internal references inside the same file are ill-defined.
 - file-based models play poorly with real-time collaboration.
+
+### Guerrilla Games
+
+[🎞 _GDC 2017 - Creating a Tools Pipeline for Horizon: Zero Dawn_](https://www.youtube.com/watch?v=KRJkBxKv1VM)
+
+Guerrilla Games started to rebuild their entire tools pipeline during production of _Horizon: Zero Dawn_. The aim was to replace a set of disparate tools, including a custom Maya plugin embedding the renderer of _Decima_ (their proprietary game engine); they state Maya is not suited for level editing.
+
+#### General architecture
+
+Given their various constraints (game already in production, rebuilding everything from scratch, wanted to reuse Decima's libraries), they decided to go for a tools framework built on top of the Decima code. In particular, they reuse the existing Decima RTTI (reflection) system. Their focus is also on a limited subset of a full-featured editor: object creation and placement. Nonetheless, they approached the design with the intent to eventually replace all other tools, therefore their design decisions are worth considering.
+
+In detail, the following choices were made:
+
+1. Integrate limited sub-systems OR the full game
+
+   - Limited sub-systems is purpose built, controllable, fast to build, but adds a new codepath separate from the game and encourages visual and behavioral disparities.
+   - Full game makes available all game systems under a single unified codepath. In their case, it also adds for free their in-game DebugUI system. However there is an overhead to running all systems of an entire game all the time for any editing action only concerned by a few of them.
+
+   Due to time constraints, they decided to integrate the full game inside the Editor.
+
+2. In-process OR out-of-process
+
+   - In-process (game and editor share the same execution process) is fast to setup, allows direct and synchronous access to game data from the editor. The drawbacks are instabilities (game crash = editor crash = loss of work) and a high difficulty to enforce code separation.
+   - Out-of-process (game process and editor process run separately) enables stability, cleaner separated code, and more responsive UI (game performance has no impact on the editor UI, provided CPU not starved). However the inital development is more complex, and it's harder to debug 2 asynchronous processes.
+
+   In the end, they decided to go for in-process due to time constraints, but with a design that allows future out-of-process by enforcing a very strict code separation between Editor and Game. To that end, we can consider they conceptually went with an out-of-process solution.
+
+#### Editor model
+
+The editor supports play-time editing, whereby the game is paused and some edits are made to a level, before the game is resumed on that newly-edited level. However the game uses baked data (called _converted_ in the presentation), and baking is a destructive process which loses some information necessary for editing (like, objects hierarchies of static objects before it's flattened, to allow local-space editing). To work around this issue, they introduce an Editor Node, which contains the edit-time representation of (and maps 1:1 with) a runtime (baked) game object. This defines their data model for the editor, with a one-way relationship Editor -> Game. So Game code doesn't have any Editor-specific code. They build 2 separate hierarchies of Editor Nodes, one for the Editor to manipulate, and one tied with the Game, to enforce code separation (and later allow out-of-process).
+
+They mention some specific non-goals:
+
+- No proxy representation of Game objects.
+- No string-based accessors to Game objects.
+- No Editor-specific boilerplate.
+- No code generation step in the build.
+
+Instead they aimed at:
+
+- Working directly with conrete objects.
+- Directly modifying object members.
+- Re-using the editing and baking tools already existing to create/transform data.
+
+The data model allows object changes to the Game by generating _transactions_ applied to the Node Tree of the Editor itself, which then broadcasts those changes to the Node Tree of the Game, which applies them to the actual runtime game objects. This allows making _e.g._ a position change in local space (relative to parent object) in the Editor, where the hierarchy is known, which is transformed into a world-space transaction sent to the Game which apply them to baked that (which don't have any hierarchy info left).
+
+When the change originates from the Game itself, like object placement / vegetation painting / terrain scuplting inside the rendered viewport, the Game sends back an _intention_ that is sent to the Editor. Then the Editor applies it like any other modification. This keeps the Editor authority over its Node Tree, keeps the flow of changes from Editor to Game, and prevents infinite loops (Game modified Editor data, which applies them to Game, _etc._).
+
+For newly-added objects, they go into details on how they generate a patch file for the Game then apply it while the Game is paused. This feature is named _GameSync_ and has the following reported properties:
+
+- ➕ Works on all changes throughout the Editor
+- ➕ Works on target platform (console)
+- ➕ No game restart required
+- ➖ Complex change analysis
+- ➖ Performance issues
+- ➖ Crashes, inconsistencies
+- ➖ Low level of confidence from users
+
+From those conclusions, including the statement that they wish to rewrite GameSync in the future, we can conclude this feature represents a challenging task.
+
+Finally, the Editor data model allows them to expose a Python API to build new tools easily.
+
+#### Undo system
+
+They also specifically list requirements for an Undo system:
+
+- Simple and reliable.
+- No virtual undo/redo functions:
+  - Didn't want the possibility of undo not being symmetric to redo
+  - Didn't want to have to write new undo/redo functions for each new feature
+
+The ideal undo system they aimed at can automatically track changes and how to revert them. They achieve this with manual tagging for start and end of modification. Change detection is based on reflection (RTTI) and builds a list of commands (add object, set value, _etc._) that can be easily reverted (remove object, set old value, _etc._). The system includes a notification mechanism for any system to observe changes to objects, which helps system decoupling and prevent duplicated functionalities. They explicitly mention a Model-View-Controller (MVC) pattern.
+
+They list some pros and cons of this approach:
+
+- ➕ Reliable system for arbitrarily complex changes
+- ➕ No distinction between undo and redo (all commands)
+- ➕ Stable code that changed very little once written
+- ➖ Manual code tagging easy to forget, hard to debug
+- ➖ No filesystem operations support
 
 ## Unresolved questions
 
