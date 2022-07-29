@@ -670,6 +670,8 @@ self.focusables
     .or_else(root_prioritized)
     // Any prioritized focusable
     .or_else(any_prioritized)
+    // Any focusable within the root menu (if it exists)
+    .or_else(in_root_menu)
     // Any focusable
     .or_else(fallback)
 ```
