@@ -729,6 +729,27 @@ sending the `NavRequest`,
 while using `world_to_viewport` in `MoveParam` for gamepad navigation.
 (or completely omitting gamepad support by providing a stub `MoveParam`)
 
+#### How does this work with `FocusPolicy`?
+
+`FocusPolicy` is a way to prevent or allow mouse pointer "hover"
+to go to an UI element below the one in front of the camera.
+Think of it as a way to make "transparent" or "opaque" to mouse cursor cast
+queries selectively UI elements.
+
+Since navigation is orthogonal to cursor pointing, we keep the `FocusPolicy`.
+If the policy is set to `Capture`, the element will be focused by hover.
+If the policy is set to `Pass`, the pointing algorithm tries to find another
+element behind it.
+
+There is a major difference though:
+There could be multiple objects under the cursor,
+therefore several could be "active" at a time.
+The navigation design described in this RFC disallows
+multiple focused elements at a time.
+This is a semantic change to `Interaction`, which is removed,
+the user would have needed to migrate to `Focusable` already,
+so the impact of this change is nil.
+
 ## Future possibilities
 
 ### New and better mouse picking!
@@ -775,8 +796,11 @@ separate from the navigation library.
 
 A fully generic navigation API cannot handle hover state.
 This doesn't mean we have to entirely give up hovering.
-It can simply be added back as a component independent
+It is simply added back as a component independent
 from the focus system.
+
+Note that the new `Hover` component does not comply with `FocusPolicy`.
+This allows reducing the complexity of the focus code.
 
 #### `Clicked` is not a focus state
 
@@ -791,19 +815,6 @@ will need to be replace with reaction to a `NavEvent`.
 
 Looking at the code changes in the existing UI examples in [this RFC's PR]
 is a good indicator at how the code will need to be changed.
-
-#### Interaction tree
-
-In this design, interaction is not "bubble up" as in the current `bevy_ui`
-design.
-
-This is because there is a clear and exact distinction
-in what can be "focused", what is a "menu", and everything else.
-Focused element do not share their state with their parent.
-The breadcrumb of menus defined [in the `MenuSetting` section](#MenuSetting)
-is a very different concept from marking parents as focused.
-
-As such, `FocusPolicy` becomes useless and is removed.
 
 ### How does this work with the spawn/despawn workflow?
 
