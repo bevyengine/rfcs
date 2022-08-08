@@ -76,10 +76,10 @@ Before a nursery crate can be accepted to Bevy itself, the following conditions 
 
 This checklist may be helpful when considering issues for the `upstreaming` milestone:
 
-- [] are the examples and documentation helpful and complete?
-- [] do all features work as intended?
-- [] is the code quality acceptable?
-- [] is there any urgent highly-experimental work that should be completed before attempting to integrate more closely with the rest of the engine?
+- [ ] are the examples and documentation helpful and complete?
+- [ ] do all features work as intended?
+- [ ] is the code quality acceptable?
+- [ ] is there any urgent highly-experimental work that should be completed before attempting to integrate more closely with the rest of the engine?
 
 Crates **do not have to be complete** to be merged into Bevy itself: merely polished and clearly useful.
 
