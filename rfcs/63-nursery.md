@@ -49,6 +49,7 @@ A crate is a good fit for the nursery if:
 1. The crate covers functionality that we eventually want to include in the engine itself. Factors include:
    1. Broadly useful to engine users.
    2. A direct replacement or improvement for an existing engine feature.
+   3. Nursery crates should never expand the planned scope; the choice is between upstreaming and rewriting, not upstreaming vs. leaving in the third party ecosystem forever.
 2. The crate is reasonably mature.
 3. The crate is well-loved.
 4. The crate follows a high standard for testing, code quality and documentation.
@@ -112,9 +113,10 @@ Like always, the project lead may choose to hand out (or revoke) additional perm
    1. May increase chaos and dilute product direction.
    2. Tracking areas of expertise may get onerous.
    3. Marginally increases security risks (2FA + only write permissions reduce this risk substantially).
-3. Likely to increase the scope of the core engine.
-   1. Feature flags, template games and plugin sets help ensure users only compile and ship the features they care about.
-   2. Adding maintainers ensures that the workload does not increase significantly.
+3. Might increase the scope of the core engine.
+   1. Nursery crates should never expand the planned scope of the engine; merely avoid reimplementation of planned work.
+   2. Feature flags, template games and plugin sets help ensure users only compile and ship the features they care about.
+   3. Adding maintainers ensures that the workload does not increase significantly.
 
 ## Rationale and alternatives
 
