@@ -107,6 +107,7 @@ Like always, the project lead may choose to hand out (or revoke) additional perm
 
 1. Clearly picks winners within the crate ecosystem.
    1. These winners typically already exist, but it's hard for beginners to discover that critical information.
+   2. Competing crates may end up being merged as part of the nursery process.
 2. Hands out additional merge rights to the engine.
    1. May increase chaos and dilute product direction.
    2. Tracking areas of expertise may get onerous.
