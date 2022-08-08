@@ -108,15 +108,16 @@ for same-frame updates.
 For more advanced behaviors, the user should listen to the [`NavEvent`] event
 reader.
 
-The default way of hooking your UI to your code in [`bevy-ui-navigation`] is
+The default way of hooking the UI to code in [`bevy-ui-navigation`] is
 a bit rough:
-* Mark your UI elements with either marker components or an enum
+
+* Mark the UI elements with either marker components or an enum
 * listen for [`NavEvent`] in a UI handling system,
-* filter for the ones you care about (typically `NavEvent::NoChanges`),
+* filter for the ones cared about (typically `NavEvent::NoChanges`),
 * check what [`NavRequest`] triggered it,
 * retrieve the focused entity from the event,
-* check against your own queries what entity it is,
-* write code for each case you want to handle
+* check against other queries what entity it is,
+* write code for each case to handle
 
 ```rust
 use bevy::prelude::*;
@@ -148,23 +149,31 @@ fn handle_ui(
 }
 ```
 
-It could be useful to provide a higher level API on top of [`NavEvent`].
-[`bevy-ui-navigation`] has a module dedicated to it: [`event_helpers`].
-Using [`event_helpers`] would reduce the previous code to:
+To make it easier to react to "activation" events, we provide a trait extension
+to `EventReader<NavEvent>`. This adds the `nav_iter` method, which returns a
+wrapper struct that understands the concept of "activation":
+
 ```rust
-fn handle_ui(mut button_events: NavEventQuery<&MainMenuButton, With<ActiveButton>>) {
-  // NOTE: this will silently ignore multiple navigation event at the same frame.
-  // It should be a very rare occurrence.
-  match button_events.single_activated().ignore_remaining() {
-    // Do things when specific button is activated
-    Some(MainMenuButton::Start) => {}
-    Some(MainMenuButton::Options) => {}
-    Some(MainMenuButton::Exit) => {}
-    None => {}
+fn handle_ui(
+  mut events: EventReader<NavEvent>,
+  buttons: Query<&MainMenuButton, With<ActiveButton>>,
+) {
+  for button in events.nav_iter().activated_in_query(&buttons) {
+      match button {
+        // Do things when specific button is activated
+        MainMenuButton::Start => {}
+        MainMenuButton::Options => {}
+        MainMenuButton::Exit => {}
+      }
   }
 }
 ```
 
+The current implementation is missing a method to handle mutable queries.
+
+A previous design added a custom `SystemParam` that the user could call
+directly. The trait extension allows the user to seamlessly go from the wrapper
+struct to the actual `EventReader` and vis-versa, which is a plus.
 
 ### Moving the cursor
 
@@ -197,6 +206,15 @@ The exact mechanism for disabling default input is still to be designed.
 
 ### Creating a menu
 
+[`bevy-ui-navigation`]'s menu system is purely optional,
+and it is likely that a large section of users will ignore it
+and content themselves with `Focusable`s, which is capable enough.
+
+The menu system is also the source of most of the complexity and pitfalls.
+
+However, having such a system available out of the box integrating seamlessly
+with the existing focus system is just great user experience.
+
 See the `bevy-ui-navigation` [`MenuSetting`] doc,
 [and example](https://github.com/nicopap/ui-navigation/blob/master/examples/menu_navigation.rs).
 
@@ -211,11 +229,12 @@ Meaning you don't have to make your [`Focusable`]s direct children of the menu.
 struct MenuBundle {
   #[bundle]
   pub node_bundle: NodeBundle,
-  pub menu: MenuSeed,
+  pub menu: MenuBuilder,
 }
 ```
 
-See [relevant implementation section](#spawning-menus) for details on `MenuSeed`.
+See [relevant implementation section](#spawning-menus) for details on
+`MenuBuilder`.
 
 [`bevy-ui-navigation`] supports menus and inter-menu navigation out-of-the-box.
 Users will have to write code to hide/show menus,
@@ -259,7 +278,7 @@ around the knob with the mouse.
 We then use mouse movement to move around the knob,
 and update the audio level based on the knob's position.
 
-We send a `NavRequest::Free` when the player release's the left mouse button.
+We send a `NavRequest::Unlock` when the player release's the left mouse button.
 
 
 ### Custom directional navigation
@@ -284,11 +303,26 @@ The [`bevy-ui-navigation`] repo contains the code.
 
 ### Internal representation
 
+`Focusable`s are just components,
+if the user doesn't ever spawn a `MenuBundle`,
+then there is really not that much to describe.
+
+Outside of menus,
+most of the complexity resides in handling input and the event responses.
+Which is already implemented and will be re-used by [`bevy-ui-navigation`].
+
+For menus, to work, however, we design around a _navigation tree_.
+
 The navigation tree is a set of relationships between entities with either the
 [`Focusable`] component or the [`TreeMenu`] component.
 
-The hierarchy is specified by both the native bevy hierarchy
-and the `focus_parent` of the [`TreeMenu`] component.
+There are two relationships backed in UI navigation:
+
+1. A fully private one defining the "parent" of a menu in [`TreeMenu`]
+2. A fully public one dependent on bevy_hierarchy Parent/Children
+   used to tell which focusables is in a menu.
+   A focusable is in a menu if it is a descendent of a [`TreeMenu`]
+   (with children of `Focusable`s and `TreeMenu`s within that menu culled)
 
 In the following screenshot, `Focusable`s are represented as circles, menus
 as rectangles, and the `focus_parent` by blue arrows
@@ -356,6 +390,33 @@ NavEvent::NoChanges {
 See [relevant implementation section](#NavEvent) for details on `NavEvent`.
 
 
+### The resolve algorithm
+
+This is just a plain-english description of the `resolve` function in
+`resolve.rs`:
+
+The `TreeMenu::focus_parent` (the private relationship)
+allows to define "links" between menus.
+
+Menus usually are not children of other menus,
+so it can't use the Parent/Child relation
+
+Internally, what happens is:
+
+- `FocusOn(Entity)`: pick the current focused and the target entity.
+  Build the breadcrumbs from them to the root (this is easy with focus_parent),
+  then trim the common tail, update the relevant focusable's state.
+- `Action`, check if any menu has its field `focus_parent` = current focused,
+  then set focused to that menu's `active_child`.
+- `Cancel`, find this focusable's parent menu, set the new focused to its focus_parent
+- `Move(Direction)` just call the `MenuNavigationStrategy`'s resolve_2d
+  with a list of all focusables within the focused's menu
+
+The navigation tree is "just there" in the ECS,
+and traversed based on various entry points
+depending on the `NavRequest` it received.
+The direction of tree traversal is basically always from leaf to root.
+
 ### Exposed API
 
 The crux of `bevy-ui-navigation` are the following types:
@@ -405,6 +466,11 @@ a generic navigation system. (see [dedicated section](#hovered-is-not-covered))
   element.
 * **Inert**:
   None of the above: This Focusable is neither Prioritized, Focused or Active.
+* **Blocked**:
+  Prevents all interactions with this Focusable.
+  \
+  This is equivalent to removing the Focusable component from the entity,
+  but without the latency.
 
 #### Focusable action types
 
@@ -424,7 +490,7 @@ A `Focusable` can execute a variety of `FocusAction` when receiving
   enter the parent one).
 * **Lock**:
   If we receive `NavRequest::Action` while this `Focusable` is
-  focused, the navigation system will freeze until `NavRequest::Free`
+  focused, the navigation system will freeze until `NavRequest::Unlock`
   is received, sending a `NavEvent::Unlocked`.
   \
   This is useful to implement widgets with complex controls you don't
@@ -459,21 +525,27 @@ If you want to specify which [`Focusable`] should be
 focused first when entering a menu, you should mark one of the children of
 this menu with `Focusable::prioritized`.
 
-#### Invariants
+#### Limitations
 
-**You need to follow those rules  to avoid panics**:
-1. A menu must have **at least one** [`Focusable`] child in the UI
-   hierarchy.
-2. There must not be a menu loop. I.e.: a way to go from menu A to menu B and
-   then from menu B to menu A while never going back.
+Menu navigation relies heavily on the bevy hierarchy being consistent.
+You might get inconsistent state under the folowing conditions:
+
+- You despawned an entity in the `FocusState::Active` state
+- You changed the parent of a [`Focusable`] member of a menu to a new menu.
+
+The navigation system might still work as expected,
+however, `Focusable::state` may be missleading
+for the length of one frame.
 
 #### Panics
 
-Thankfully, programming errors are caught early and you'll probably get a
-panic fairly quickly if you don't follow the invariants.
-* Invariant (1) panics as soon as you add the menu without focusable
-  children.
-* Invariant (2) panics if the focus goes into a menu loop.
+**Menu loops will cause a panic**.
+A menu loop is a way to go from menu A to menu B and
+then from menu B to menu A while never going back.
+
+Don't worry though, menu loops are really hard to make by accident,
+and it will only panic if you use a `NavRequest::FocusOn(entity)`
+where `entity` is inside a menu loop.
 
 #### Fields
 
@@ -513,13 +585,13 @@ just to be able to spawn the menu you'll get to from that button.
 [`bevy-ui-navigation`] uses a proxy holding both the parent
 and the menu state info.
 
-That proxy component is `MenuSeed`,
+That proxy component is `MenuBuilder`,
 you can initialize it either with the `Name` or `Entity` of the parent focusable of the menu.
-A system will take all `MenuSeed` components and replace them with a `TreeMenu`.
+A system will take all `MenuBuilder` components and replace them with a `TreeMenu`.
 
 This also enables front-loading the check of whether the parent focusable
 `Entity` is indeed a `Focusable`.
-Before turning the `MenuSeed` into a `TreeMenu`,
+Before turning the `MenuBuilder` into a `TreeMenu`,
 we check that the alleged parent is indeed `Focusable`, and panic otherwise.
 
 If we couldn't assume parents to be focusable,
@@ -621,10 +693,12 @@ pub trait MenuNavigationStrategy {
 
 To ease implementation of widgets, such as sliders,
 some focusables can "lock" the UI, preventing all other form of interactions.
-Another system will be in charge of unlocking the UI by sending a `NavRequest::Free`.
+Another system will be in charge of unlocking the UI by sending a `NavRequest::Unlock`.
 
-The default input sets the escape key to send a `NavRequest::Free`,
-but the user may chose to `Free` through any other mean.
+It is also possible to send lock requests with `NavRequest::Lock`.
+
+The default input sets the escape key to send a `NavRequest::Unlock`,
+but the user may chose to `Unlock` through any other mean.
 
 This might be better served to a locking component that block navigation
 of specific menu trees,
@@ -633,46 +707,65 @@ but I didn't find the need for such fine-grained controls.
 
 ### Input customization
 
-[See the `bevy-ui-navigation` README example](https://github.com/nicopap/ui-navigation#simple-case).
+As a default bevy plugin, letting user change defaults is a bit more tricky,
+here is how it is done is the current implementation:
 
-The `NavigationPlugin` can be added to the app in two ways:
-1. With `NavigationPlugin`
-2. With `DefaultNavigationPlugins`
-
-(1) only inserts the navigation systems and resources,
-while (2) also adds the input systems generating the `NavRequest`s
-for gamepads, mouse and keyboard.
-
-This enables convenient defaults
-while letting users insert their own custom input logic.
-
-More customization is available:
-[`MenuNavigationStrategy`](#MenuNavigationStrategy) allows customizing
-the spacial resolution between focusables within a menu.
-
+```rust
+App::new()
+    .add_plugins_with(DefaultPlugins, |group| {
+        group
+            // Add your own cursor navigation system
+            // by using `NavigationPlugin::<MyOwnNavigationStrategy>::new()`
+            // See the [`bevy_ui_navigation::MenuNavigationStrategy`] trait.
+            //
+            // You can use a custom gamepad directional handling system if you want to.
+            // This could be useful if you want such navigation in 3d space
+            // to take into consideration the 3d camera perspective.
+            //
+            // Here we use the default one provided by `bevy_ui` because
+            // it is already capable of handling navigation in 2d space
+            // (even using `Sprite` over UI `Node`)
+            .add(BevyUiNavigationPlugin::new())
+            // Prevent `UiPlugin` from adding the default input systems for navigation.
+            // We want to add our own mouse input system (mouse_pointer_system).
+            .add(UiPlugin {
+                default_navigation: false,
+            })
+    })
+    // Since gamepad input already works for Sprite-based menus,
+    // we add back the default gamepad input handling from `bevy_ui`.
+    // default_gamepad_input depends on NavigationInputMapping so we
+    // need to also add this resource back.
+    .init_resource::<NavigationInputMapping>()
+    // can manually add back the systems defined in bevy_ui_navigation
+    .add_system(default_gamepad_input.before(NavRequestSystem))
+    // And add user-defined one as well. In this example,
+    // we removed the default mouse input system and replaced it with our own.
+    .add_system(mouse_pointer_system.before(NavRequestSystem))
+```
 
 ### What to focus first?
 
 Gamepad input assumes an initially focused element
 for navigating "move in direction" or "press action".
-At the very beginning of execution, there are no focused element,
-so we need fallbacks.
+At the very beginning of execution,
+or after having despawned the focused element,
+there are no focused element, so we need fallbacks.
+
 By default, it is any `Focusable` when none are focused yet.
 But the user can spawn a `Focusable` as `prioritized`
 and the algorithm will prefer it when no focused nodes exist yet.
 
 ```rust
-self.focusables
-    .iter()
-    // The focused focusable.
-    .find_map(|(e, focus)| (focus.state == Focused).then(|| e))
-    // Prioritized focusable within the root menu (if it exists)
-    .or_else(root_prioritized)
-    // Any prioritized focusable
+// The focused focusable if it exists.
+focused
+    // Any focusable in the "active" menu, if there is such a thing
+    .or_else(any_in_active)
+    // Any focusable marked as prioritized if there is one
     .or_else(any_prioritized)
-    // Any focusable within the root menu (if it exists)
-    .or_else(in_root_menu)
-    // Any focusable
+    // Any focusable in the root menu, if there is one
+    .or_else(any_in_root)
+    // Just any focusable at all, if there is one
     .or_else(fallback)
 ```
 
@@ -750,6 +843,18 @@ This is a semantic change to `Interaction`, which is removed,
 the user would have needed to migrate to `Focusable` already,
 so the impact of this change is nil.
 
+### Panics on menu loop
+
+It is possible to define a cycle of menu connections,
+and this will cause a panic at run time.
+
+However, it's hard to define a menu cycle by accident.
+Because the `Entity` used to access a menu is a property of the menu itself,
+So it can only have a single parent. Which makes it harder to define a loop.
+
+It is still possible to define a loop, and this will cause a panic the moment
+the loop is entered.
+
 ## Future possibilities
 
 ### New and better mouse picking!
@@ -774,13 +879,45 @@ to identify which cursor originated the request,
 and keeping track in the `FocusState` which cursor the `Focused`, `Activated`
 and `Prioritized` variants are for.
 
-### Higher level wrappers
+### Higher level menu wrapper
 
-In this RFC we discussed the possibility of improved API in a few places:
-- The `bevy-ui-navigation` [`event_helpers`] module, to simplify interacting
-  with `NavEvent`s
-- A visual wrapper for menu navigation that handles `display` `Style`s of menus
-  when they are entered and left
+A visual wrapper for menu navigation that handles `display` `Style`s of menus
+when they are entered and left.
+
+### Tab navigation
+
+We should add an optional navigation system
+that allows navigating through `Focusable`s using keyboard, such as tab.
+
+### User placement of the `TreeMenu` insertion systems
+
+It should be possible for the user to add the insertion system wherever they
+want, this would allow lower latency in spawning the UI.
+
+However, those systems currently depend on private types,
+this requires a design rethinking to allow to expose those systems without
+exposing internals that will blow up in the user's face.
+
+### Optimization
+
+I took care to avoid quadratic behaviors in the navigation algorithm,
+but the linear constant factor is fairly high:
+
+- Multiple iteration of the list of `Focusable`s at times
+- a few allocations per `NavRequest`
+- multiple recursive exploration of hierarchy tree at times
+
+### More robustness
+
+As mentioned in [a future section](#Menu-hierarchy-invariants),
+the menu system is frail to changes to the hierarchy,
+mostly affecting `Active` menus.
+
+However, I'm not sure how bad the hierarchy changes affect navigation,
+and it would be a mistake to "not panic at all cost."
+A panic is an opportunity to teach the user a better way of doing things.
+Not panicking might result in making ui-navigation harder to use.
+
 
 ## Drawbacks and design limitations
 
@@ -805,13 +942,24 @@ This allows reducing the complexity of the focus code.
 #### `Clicked` is not a focus state
 
 Compared to the current `Interaction` system, the new focus system
-separates semantics of "action" events and "UI focus state".
+separates semantics of "action" events and "UI focus state."
 
 Meaning that `Interaction::Clicked`'s equivalent in the new navigation system
 is the `NavEvent::NoChanges` event.
 
 This is important, as code relying on the "Clicked" focus state
 will need to be replace with reaction to a `NavEvent`.
+
+`Clicked` also allowed to change the button style
+when the mouse button is held down.
+
+We somewhat emulate that by first providing focus on pressing down
+and sending `NavRequest::Action` on mouse up.
+
+However, the corresponding `NavEvent` for button activation will only be
+sent after the `NavRequest::Action` is sent.
+Which means, activation happens when before `Interaction`
+went from `Clicked` to `Hovered`.
 
 Looking at the code changes in the existing UI examples in [this RFC's PR]
 is a good indicator at how the code will need to be changed.
@@ -838,23 +986,26 @@ spawn/despawn design.
 Something that automates that could be a natural extension of the exposed API.
 It may also help end users go with the best design first.
 
-### User upheld invariants
+### Menu hierarchy invariants
 
-I think the most problematic aspect of this implementation is that we push on
-the user the responsibility of upholding invariants. This is not a safety
-issue, but it leads to panics. The invariants are:
-1. Never create a cycle of menu connections
-2. Each menu must at least have one contained `Focusable`
+For menus to be optimally ergonomic to declare and use,
+we chose which `Focusable` is in a menu by looking at the bevy hierarchy.
 
-The upside is that the invariants become only relevant if the user _opts into_
-`MenuSetting`. Already, this is a choice made by the user, so they can be made
-aware of the requirements in the `MenuSetting` documentation.
+This has downsides, mainly, that the user can at any time completely change the
+hierarchy: despawn entities, change their parent, remove their parents etc.
 
-If the invariants are not upheld, the navigation system will simply panic.
+It is impossible to anticipate how the user will change the menu hierarchy,
+yet we rely on it.
 
-It may be possible to be resilient to the violation of the invariants, but I
-think it's better to panic, because violation will most likely come from
-misunderstanding how the navigation system work or programming errors.
+This problem only shows up when using menus, therefore,
+it will likely only be a concern for more complex games with navigable menus.
+
+In addition, because it's an _opt in_ feature,
+we can advertise the dangers of manipulating the hierarchy of menus
+in the documentation for the components and bundles used to create menus.
+
+The failure mods are unclear,
+the implementation might in fact be resilient to hierarchy changes.
 
 [mouse picking]: https://github.com/aevyrie/bevy_mod_picking/
 [`bevy-ui-navigation`]: https://github.com/nicopap/ui-navigation
