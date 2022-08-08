@@ -109,7 +109,7 @@ Like always, the project lead may choose to hand out (or revoke) additional perm
 2. Hands out additional merge rights to the engine.
    1. May increase chaos and dilute product direction.
    2. Tracking areas of expertise may get onerous.
-   3. Marginally increases security risks (2FA + only write permissions) reduce this risk substantially.
+   3. Marginally increases security risks (2FA + only write permissions reduce this risk substantially).
 3. Likely to increase the scope of the core engine.
    1. Feature flags, template games and plugin sets help ensure users only compile and ship the features they care about.
    2. Adding maintainers ensures that the workload does not increase significantly.
