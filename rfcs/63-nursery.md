@@ -95,6 +95,13 @@ This checklist may be helpful when considering issues for the `upstreaming` mile
 - [ ] do all features work as intended?
 - [ ] is the code quality acceptable?
 - [ ] is there any urgent highly-experimental work that should be completed before attempting to integrate more closely with the rest of the engine?
+- [ ] do the decisions that the crate has made align with [Bevy's general philosophy](https://github.com/bevyengine/bevy/blob/main/CONTRIBUTING.md#what-were-trying-to-build)?
+- [ ] if we were to start from scratch, what would we have changed?
+  - [ ] can we get there without requiring a full rewrite?
+- [ ] are there any dependencies to third-party plugins?
+- [ ] can we reduce our dependency tree by standardizing with `bevy` itself or rewriting small dependencies?
+- [ ] does the crate contain any features that we have explicitly relegated to the third-party ecosystem?
+- [ ] can niche functionality be split out into ecosystem crates that builds on the foundation established by the new core engine crate?
 - [ ] does the crate need to be renamed / re-versioned as part of the integration process?
 
 Crates **do not have to be complete** to be merged into Bevy itself: merely polished and clearly useful.
