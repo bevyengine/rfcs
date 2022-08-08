@@ -6,6 +6,7 @@ Work done within the [broader Bevy ecosystem](https://bevyengine.org/assets/) is
 These crates should live in a **nursery** owned by the Bevy org for a period of time,
 where they can be polished and refined by the broader community,
 before eventually being merged in completely.
+When this occurs, nursery crate maintainers will be granted scoped merge rights to the main engine.
 
 ## Motivation
 
