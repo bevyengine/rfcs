@@ -119,12 +119,16 @@ the core maintainer team of the nursery crate will be offered (but do not need t
 **scoped merge rights** for the Bevy project.
 
 Nursery crate maintainers have shown themselves to have the judgement and reliability needed to manage part of the core engine:
-upstreaming a crate should not impose any additional barriers to the crate's development and maintenance.
+upstreaming a crate should not impose serious additional barriers to the crate's development and maintenance.
 Following the standard rules for community reviews, they will be able to merge PRs that affect their nursery crate and directly related areas of the engine.
 Controversial PRs in their area will still require following the standard `bevy` protocol.
 At the time of writing, this means sign-off from the project lead.
 
-Like always, the project lead may choose to hand out (or revoke) additional permissions on a case-by-case basis where warranted, but the expansion of merge rights outlined above is the default process when a nursery crate is upstreamed.
+Like always, the project lead may choose to hand out (or revoke) additional permissions on a case-by-case basis where warranted,
+but the expansion of merge rights outlined above is the default process when a nursery crate is upstreamed.
+
+Nursery crate maintainers will be added as [`CODEOWNERS`](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners) to the areas that cover their now-upstreamed crates.
+This will be used for automatically soliciting reviews, but will not be [used to require reviews](https://bors.tech/rfcs/0357-bors-support-for-codeowners.html).
 
 ## Drawbacks
 
@@ -178,14 +182,6 @@ If we do not:
 2. Maintainers of the core engine may become overloaded with work as the scope of the engine grows.
 
 The maintainers of nursery crates have shown their ability to identify, create and lead a high-value project: they're natural candidates for additional responsibility in the core engine.
-
-### Why not use GitHub's Code Owners feature to help scope merge rights?
-
-While [bors has code owners integration](https://bors.tech/rfcs/0357-bors-support-for-codeowners.html),
-it's not clear that it's a useful tool over simple social contract.
-
-Setting up (and maintaining) these lists is tedious bureaucracy.
-This approach would also encourage a less-integrated architecture for organizational reasons, rather than technical ones.
 
 ## Prior art
 
