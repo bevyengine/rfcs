@@ -58,9 +58,23 @@ Very small or uncontroversial crates may be suitable for a direct PR via the ord
 
 ### Setting up a nursery crate
 
-Once accepted, the repository will be transferred to the Bevy organization under the same name and `crates.io` identity.
+Once accepted, the repository will be transferred to the Bevy organization.
+The name, version and `crates.io` identity may change at this time on a case-by-case basis.
 
-The existing crate maintainers will have complete admin permissions over the new crate,
+There are three strategies here:
+
+1. Keep the existing crate name and versioning, then synchronize at the final step.
+   1. Avoids breaking end users, very simple.
+   2. Well-suited to crates that are likely to be absorbed into other existing `bevy` crates during the integration process to avoid any renaming at all.
+2. Change to a temporary `bevy_nursery_*` name, retaining the original versioning and then synchronize at the final step.
+   1. Ensures consistent branding and communicates intent to users.
+   2. Allows for breaking changes without being synchronized with Bevy's own release schedule.
+3. Change directly to the final name and synchronize with Bevy's latest version.
+   1. This will limit breaking changes to Bevy's release schedule.
+   2. Avoids another rename.
+   3. Should only be used for extremely mature crates.
+
+In this repo, the existing crate maintainers will have complete admin permissions over the new crate,
 and any other Bevy maintainers will be granted write permissions (or the `bors` equivalent).
 
 A new milestone will be created, called `upstreaming`, which will track the work that needs to be completed before the crate can be submitted as a PR to `bevy` itself.
@@ -81,6 +95,7 @@ This checklist may be helpful when considering issues for the `upstreaming` mile
 - [ ] do all features work as intended?
 - [ ] is the code quality acceptable?
 - [ ] is there any urgent highly-experimental work that should be completed before attempting to integrate more closely with the rest of the engine?
+- [ ] does the crate need to be renamed / re-versioned as part of the integration process?
 
 Crates **do not have to be complete** to be merged into Bevy itself: merely polished and clearly useful.
 
