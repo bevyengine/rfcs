@@ -98,7 +98,8 @@ the core maintainer team of the nursery crate will be offered (but do not need t
 Nursery crate maintainers have shown themselves to have the judgement and reliability needed to manage part of the core engine:
 upstreaming a crate should not impose any additional barriers to the crate's development and maintenance.
 Following the standard rules for community reviews, they will be able to merge PRs that affect their nursery crate and directly related areas of the engine.
-Controversial PRs in their area will require either the sign-off of the project lead *or* the nursery crate maintainer, although like always, consulting experts is always wise!
+Controversial PRs in their area will still require following the standard `bevy` protocol.
+At the time of writing, this means sign-off from the project lead.
 
 Like always, the project lead may choose to hand out (or revoke) additional permissions on a case-by-case basis where warranted, but the expansion of merge rights outlined above is the default process when a nursery crate is upstreamed.
 
