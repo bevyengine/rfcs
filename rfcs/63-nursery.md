@@ -165,6 +165,8 @@ This approach would also encourage a less-integrated architecture for organizati
 
 The [rust-nursery](https://github.com/rust-lang-nursery) exists for similar reasons, although there is a greater emphasis on stability.
 
+[Druid](https://github.com/linebender/druid) has a similar [widget nursery](https://github.com/linebender/druid-widget-nursery), and explicitly follows a policy of [optimistic merging](http://hintjens.com/blog:106) within that repo.
+
 Unity has a long history of buying out important ecosystem tools,
 which are then often left to rot.
 By bringing on the existing maintainer team and allowing for direct community contributions we can hopefully avoid this fate.
