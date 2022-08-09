@@ -6,7 +6,6 @@ Work done within the [broader Bevy ecosystem](https://bevyengine.org/assets/) is
 These crates should live in a **nursery** owned by the Bevy org for a period of time,
 where they can be polished and refined by the broader community,
 before eventually being merged in completely.
-When this occurs, nursery crate maintainers will be granted scoped merge rights to the main engine.
 
 ## Motivation
 
@@ -112,37 +111,21 @@ If you are an interested community member, raise issues and submit fixes on the 
 
 Once the upstreaming PR is merged, the nursery crate's repo will be archived and any still-relevant issues will be migrated to the main Bevy repo.
 
-### Maintaining upstreamed crates
-
-When a nursery crate is upstreamed into the main engine,
-the core maintainer team of the nursery crate will be offered (but do not need to accept)
-**scoped merge rights** for the Bevy project.
-
-Nursery crate maintainers have shown themselves to have the judgement and reliability needed to manage part of the core engine:
-upstreaming a crate should not impose serious additional barriers to the crate's development and maintenance.
-Following the standard rules for community reviews, they will be able to merge PRs that affect their nursery crate and directly related areas of the engine.
-Controversial PRs in their area will still require following the standard `bevy` protocol.
-At the time of writing, this means sign-off from the project lead.
-
-Like always, the project lead may choose to hand out (or revoke) additional permissions on a case-by-case basis where warranted,
-but the expansion of merge rights outlined above is the default process when a nursery crate is upstreamed.
-
-Nursery crate maintainers will be added as [`CODEOWNERS`](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners) to the areas that cover their now-upstreamed crates.
-This will be used for automatically soliciting reviews, but will not be [used to require reviews](https://bors.tech/rfcs/0357-bors-support-for-codeowners.html).
-
 ## Drawbacks
 
 1. Clearly picks winners within the crate ecosystem.
    1. These winners typically already exist, but it's hard for beginners to discover that critical information.
    2. Competing crates may end up being merged as part of the nursery process.
-2. Hands out additional merge rights to the engine.
-   1. May increase chaos and dilute product direction.
-   2. Tracking areas of expertise may get onerous.
-   3. Marginally increases security risks (2FA + only write permissions reduce this risk substantially).
-3. Might increase the scope of the core engine.
+2. Might increase the scope of the core engine.
    1. Nursery crates should never expand the planned scope of the engine; merely avoid reimplementation of planned work.
    2. Feature flags, template games and plugin sets help ensure users only compile and ship the features they care about.
-   3. Adding maintainers ensures that the workload does not increase significantly.
+3. Upstreaming additional parts of the engine without adding more maintainers will increase the workload and may slow down progress.
+   1. This can be addressed independently.
+   2. PR contributors and nursery contributors should be treated equally.
+4. The authors of upstreamed crates will lose some creative control over their crates.
+   1. They will still be able to make PRs to the core engine, and their opinion will be weighed heavily.
+   2. Nursery crate authors may eventually become maintainers in their own right, in no small part due to their work creating and refining the nursery crate.
+   3. This is ultimately no worse than a hard fork or reimplementation, which is the direct alternative.
 
 ## Rationale and alternatives
 
@@ -173,15 +156,6 @@ Finally, as Bevy stabilizes, nursery crates can be rapidly iterated on without f
 
 This results in significant bureaucratic work (transferring issues and PRs), risks user confusion and adds pointless migration pain.
 The discoverability issue can be tackled via the Discord channel and the prominent label on Bevy Assets.
-
-### Why do we need to grant merge rights to nursery crate maintainers?
-
-If we do not:
-
-1. Maintainers of popular ecosystem crates are reluctant to submit their crates to the nursery due to the reduced ability to iterate on and fix their projects.
-2. Maintainers of the core engine may become overloaded with work as the scope of the engine grows.
-
-The maintainers of nursery crates have shown their ability to identify, create and lead a high-value project: they're natural candidates for additional responsibility in the core engine.
 
 ## Prior art
 
