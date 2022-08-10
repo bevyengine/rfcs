@@ -291,7 +291,7 @@ The default `App` runner itself actually uses these methods to run the startup s
 fn example_run_schedule_system(world: &mut World) {
     // take ownership of the schedule
     let mut systems = world.resource_mut::<Systems>();
-    let schedule = systems.checkout_schedule(MySystemSetLabel);
+    let mut schedule = systems.checkout_schedule(MySystemSetLabel);
 
     // run it on the world
     schedule.run(world);
