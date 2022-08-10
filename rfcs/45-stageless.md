@@ -808,10 +808,10 @@ When the executor is presented with a ready system, it does the following:
 - If all those conditions returned `true`, now evaluate the system's conditions.
   - If any of these return `false`, mark the system as completed.
 - If all the system's conditions returned `true`, run the system.
-  - "Lock" the world data access required by the system.
-  - Spawn a task for it.
-  - Run that task.
-  - Release the "lock" when the task completes.
+  - Mark access to the data required by the system as unavailable.
+  - Create a task for the system.
+  - Spawn and run that task.
+  - When the task completes, mark access as available again.
 
 Each condition is evaluated at most once.
 Since most of these functions are probably simple tests, we don't spawn tasks for them, which avoids locking other systems out of the data they access.
