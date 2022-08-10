@@ -261,22 +261,29 @@ If one system depends on the effects of commands from another, make sure an `app
 ```rust
 use bevy::prelude::*;
 
+#[derive(SystemLabel)]
+enum MySystems {
+    /* ... */
+    FlushProjectiles,
+    /* ... */
+}
+
 struct ProjectilePlugin;
 
 impl Plugin for ProjectilePlugin {
     fn build(app: &mut App) {
         app
-        .add_system(spawn_projectiles.before(CoreSystem::FlushPostUpdate))
+        .add_system(spawn_projectiles.before(CoreSystems::FlushPostUpdate))
         .add_systems(
             chain![
                 check_if_projectiles_hit,
                 despawn_projectiles_that_hit,
                 // wherever you want commands to be applied, insert an instance of `apply_system_buffers`
-                apply_system_buffers.named("FlushProjectiles")
+                apply_system_buffers.named(MySystems::FlushProjectiles)
                 fork_projectiles,
             ]
-            .after(CoreSystem::FlushPostUpdate)
-            .before(CoreSystem::FlushLast)
+            .after(CoreSystems::FlushPostUpdate)
+            .before(CoreSystems::FlushLast)
         )
     }
 }
@@ -471,7 +478,8 @@ If this RFC is merged, to expedite upstreaming while easing the burden on Bevy m
 
 ### What's a good convention for naming system label types?
 
-- What convention would we have for labeling internal systems and system sets?
+What convention would we have for labeling internal systems and system sets?
+
 - Would we have one enum for systems and another for system sets, or generally one enum for both?
   - If one enum for both, how would we typically name it? e.g. `CoreLabel`, `CoreSystems`, etc.
 
