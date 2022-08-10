@@ -27,12 +27,13 @@ Some highlights are, in no particular order:
 
 Unfortunately, these issues remain deeply ingrained and intertwined, despite our best efforts to surface and untangle them.
 
-To give you an idea of the challenges.
-If we remove stages, all places where it'd be natural to apply commands and evaluate run criteria are lost, except the beginning and end of each frame.
-If we required immutable access and `bool` output from run criteria to enable simple combinations, states would break because their implementation relies on run criteria mutating a resource.
+To give you an idea of the challenge.
+If we remove stages, all "natural" occurrences of spots to evaluate run criteria and apply commands would be lost, except the beginning and end of each frame.
+If we required immutable access and `bool` output from run criteria to enable basic composition, states would break because their implementation relies on run criteria mutating a resource.
 Likewise, if we just took away stages and `ShouldRun::*AndCheckAgain`, there could be no inner frame loops (e.g. fixed timestep).
 
-It's hard to do anything without breaking changes, and tip-toeing with incremental tweaks brings risk of adding even more technical debt.
+Addressing even one problem involves major breaking changes.
+Ideally, we update everything in one go, as trying to spread the breaking changes over a longer period of time brings risk of adding even more technical debt.
 
 ## User-facing explanation
 
