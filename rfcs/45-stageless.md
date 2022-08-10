@@ -752,7 +752,7 @@ So what are the errors?
 7. (Optional) You have at least one pair of ambiguously-ordered systems with conflicting data access.
 
 (5), (6), and (7) don't inherently make a graph unsolvable, so they can be configured as ignore, warn, or error.
-By default, they are all configured to warn.
+By default, they are all configured as warn.
 (7) has additional configuration options.
 See [bevyengine/bevy#4299](https://github.com/bevyengine/bevy/pull/4299) for more details.
 
@@ -771,7 +771,7 @@ where
 }
 ```
 
-Any system that satisfies these constraints can be used as a condition:
+Any function that satisfies these constraints can be used as a condition:
 
 - It must return a `bool`.
 - It cannot have system params that grant mutable access to data.
