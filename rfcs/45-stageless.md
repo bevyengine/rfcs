@@ -18,7 +18,7 @@ It can summarized as:
 
 ## Motivation
 
-There are [many standing issues](https://github.com/bevyengine/bevy/discussions/2801) with the current stage-centered scheduling model.
+There are [many standing issues](https://github.com/bevyengine/bevy/discussions/2801#discussioncomment-1304027) with the current stage-centered scheduling model.
 Some highlights are, in no particular order:
 
 - Users often have a hard time just deciding what stages to put systems in.
