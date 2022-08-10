@@ -2,7 +2,7 @@
 
 ## Summary
 
-This RFC describes the data model and API that the Editor uses in memory, and the basis for communicating with the Game process and for serializing that data to disk (although the serialization format to disk is outside of the scope of this RFC). The data model is largely inspired by the one of [Our Machinery](https://ourmachinery.com/), as described in [this blog post](https://ourmachinery.com/post/the-story-behind-the-truth-designing-a-data-model/).
+This RFC describes the data model and API that the Editor uses in memory, and the basis for communicating with the Game process and for serializing that data to disk (although the serialization format to disk is outside of the scope of this RFC). The data model is largely inspired by the one of [Our Machinery](https://ourmachinery.com/), as described in [this blog post](https://web.archive.org/web/20220727114600/https://ourmachinery.com/post/the-story-behind-the-truth-designing-a-data-model/).
 
 ## Glossary
 
@@ -513,7 +513,7 @@ Unity notably supports hot-reloading user code (C# assemblies) during editing an
 
 [Our Machinery](https://ourmachinery.com/) has a few interesting blog posts about the architecture of the engine. Notably, a very detailed and insightful blog post about their data model.
 
-<https://ourmachinery.com/post/the-story-behind-the-truth-designing-a-data-model/>
+<https://web.archive.org/web/20220727114600/https://ourmachinery.com/post/the-story-behind-the-truth-designing-a-data-model/>
 
 The data model is heavily data-oriented using dynamic types:
 
