@@ -378,7 +378,7 @@ This design can be broken down into the following steps:
 ## Drawbacks
 
 1. Migration: These will be major breaking changes for every Bevy user.
-    - Every app will need to migrate to the new API and it doesn't share much with the old API.
+    - Every app and plugin will need to migrate to the new API and it doesn't share much with the old API.
 2. Letting exclusive systems out of their designated insertion points makes it easier to accidentally divide large groups of parallel systems.
 3. A simple state machine is a reduction in functionality compared to the state stack.
     - The proposed `apply_state_transition::<S>` system performs one transition, not an unbounded cycle.
