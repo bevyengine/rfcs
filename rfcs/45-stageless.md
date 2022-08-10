@@ -730,7 +730,7 @@ There are two kinds of graphs the internal builder checks.
 The first kind consists of the `.in_set` relationships.
 These form a graph describing the hierachy of all your system sets.
 The second kind consists of the `.before` and `.after` relationships.
-Those form a dependency graph (each set/schedule is one of these, conceptually).
+Those form one or more dependency graphs (one for each set/schedule).
 Dependencies involving system sets will also be flattened into dependencies on the systems in those sets.
 
 So what are the errors?
@@ -748,11 +748,11 @@ So what are the errors?
     ```
 4. You called `.in_set` with a label that belongs to a system, rather than a system set.
 5. (Optional) You have a dependency between two things that aren't siblings in a common set. That edge will not appear in either set's dependency graph, only in the flattened graph of an overarching set. This can lead to unwanted implicit ordering between systems in different sets.
-6. (Optional) You referenced an "unknown" label. e.g. `.after(label)` references a label doesn't belong to any known system or system set.
+6. (Optional) You referenced an "unknown" label. e.g. `.after(label)` references a label that doesn't belong to any known system or system set.
 7. (Optional) You have at least one pair of ambiguously-ordered systems with conflicting data access.
 
 (5), (6), and (7) don't inherently make a graph unsolvable, so they can be configured as ignore, warn, or error.
-By default they all warn.
+By default, they are all configured to warn.
 (7) has additional configuration options.
 See [bevyengine/bevy#4299](https://github.com/bevyengine/bevy/pull/4299) for more details.
 
