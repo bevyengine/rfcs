@@ -11,9 +11,9 @@ This RFC proposes a holistic redesign that neatly fixes these problems, with cle
 It can summarized as:
 
 - Remove stages.
-- Make "system set" Not-A-Container™ and include them in the descriptor API.
 - Store systems in a central resource.
-- Make exclusive systems "normal" and use them for high-level flow control. (e.g. commands, state transitions, fixed timestep, turn queues, etc.)
+- Make system sets "loose" graph nodes instead of containers and include them in the descriptor API.
+- Make exclusive systems normal and use them for high-level flow control. (commands, state transitions, fixed timestep, turn queues, etc.)
 - Replace run criteria with immutable, `bool`-returning conditions.
 
 ## Motivation
