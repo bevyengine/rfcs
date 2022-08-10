@@ -312,7 +312,7 @@ This pattern is your go-to when your scheduling needs grow beyond "each system r
 As long as you have `&mut World`, like in an exclusive system or command, you can extract anything available in the `Systems` resource and run it however you want.
 
 Unlike in previous versions of Bevy, states and the fixed timestep no longer involve run criteria.
-Instead, the relevant systems just go in their respective system sets to be retrived and run by exclusive systems.
+Instead, those systems just go in a corresponding system set to be retrieved and run by an exclusive system.
 No conflicts. You can transition states inside the fixed timestep without issue.
 
 ### Fixed timestep
