@@ -412,7 +412,7 @@ And if their public API is relatively stable, plugins could even make large inte
 
 ### Why did you change states from a stack to a basic FSM? Where is `OnUpdate(X)`?
 
-If this RFC merged and this design is implemented, we expect most of the problems that encouraged it to vanish.
+If this RFC is merged and this design is implemented, we expect most of the problems that encouraged it to vanish.
 So rather than port pieces of the existing API, we think it's better to start fresh with a basic state machine and see what patterns emerge and what their limits are.
 If, after migration, a significant number of users are still turning towards a plugin to get the lost stack functionality, we can consider upstreaming it again.
 
