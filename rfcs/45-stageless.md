@@ -42,13 +42,13 @@ Ideally, we update everything in one go, as trying to spread the breaking change
 Let's define some terms.
 
 - **system**: stateful instance of a function that can access data stored in a world
-- **system set**: logical group of systems and other system sets
+- **system set**: logical group of systems (can include other system sets)
 - **condition**: a function used to guard the execution of a system (set)
-- **dependency**: system (set) that must complete before the system (set) of interest can run
+- **dependency**: system (set) that must complete before another system (set) can run
 - **schedule** (noun): the executable form of a system set
 - **schedule** (verb): specify when and under what conditions systems run
 - **scheduler**: the programmer, who is attempting to specify when and under what conditions systems run
-- **executor**: executes a schedule on a world
+- **executor**: runs the systems in a schedule on a world
 - **"ready"**: when a system is no longer waiting for dependencies to complete
 
 To write a Bevy app, users have to specify when their systems run.
