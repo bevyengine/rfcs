@@ -4,7 +4,7 @@
 
 Users often have a hard time working with Bevy's system scheduling API.
 Core building blocks—stages, run criteria, and states—are presented as independent but actually have tons of hidden internal coupling.
-All this coupling frequently comes to bite users in the form of surprising limitations, unexpected side effects, and indecipherable errors.
+This coupling frequently comes to bite users in the form of surprising limitations, unexpected side effects, and indecipherable errors.
 
 This RFC proposes a holistic redesign that neatly fixes these problems, with clear boundaries between system configuration, storage, execution, and flow control.
 
@@ -12,8 +12,8 @@ It can summarized as:
 
 - Remove stages.
 - Store systems in a central resource.
-- Make system sets "loose" graph nodes instead of containers and include them in the descriptor API.
-- Make exclusive systems normal and use them for high-level flow control. (commands, state transitions, fixed timestep, turn queues, etc.)
+- Make system sets (sub)graph nodes instead of containers and include them in the descriptor API.
+- Make exclusive systems "normal" and use them for high-level flow control. (commands, state transitions, fixed timestep, turn queues, etc.)
 - Replace run criteria with immutable, `bool`-returning conditions.
 
 ## Motivation
