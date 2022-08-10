@@ -54,7 +54,7 @@ To write a Bevy app, users have to specify when their systems run.
 By default, systems have neither strict execution order nor any conditions for execution.
 **Scheduling** is the process of supplying those properties.
 To make things more ergonomic, systems can be grouped under **system sets**, which can be ordered and conditioned in the same manner as individual systems.
-This allows users to easily refer to many systems and give properties to many systems.
+This allows users to easily refer to many systems and (indirectly) give properties to many systems.
 Furthermore, systems and system sets can be ordered together and even grouped together *within larger sets*, so you can really layer those properties.
 
 In short, for any system or system set, users can:
