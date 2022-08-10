@@ -419,8 +419,8 @@ If, after migration, a significant number of users are still turning towards a p
 
 A stack-based state machine should be trivial to implement though (i.e. with a loop inside the exclusive system).
 
-As for `OnUpdate(X)`... it's interaction with `OnEnter(X)` was non-intuitive.
-Users often just wanted systems to run in their normal spots, but just when a certain state was active. That is very simple to do now (see example below), so having a system set for this that you can only put in one spot seemed pointless.
+As for `OnUpdate(X)`... its interaction with `OnEnter(X)` was non-intuitive.
+Users often just wanted systems to run in their designated spots, but only when a certain state was active. That is much simpler to do now (see example below), so having a system set for this that you can only put in one spot seemed pointless.
 
 ```rust
 fn main() {
