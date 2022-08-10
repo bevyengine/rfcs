@@ -355,7 +355,7 @@ This design can be broken down into the following steps:
   - Deal with the fact that archetypes can now change in between systems.
     - Defer tasks borrowing a system until just before that system runs (so we can update archetype component access).
       - Funnel `&Scope` into spawned tasks so a task can spawn other tasks. ([bevyengine/bevy#4466](https://github.com/bevyengine/bevy/pull/4466))
-      - **Alternative**: Keep spawning tasks upfront but use channels to send systems into them and back.
+      - **Alternative**: Keep spawning tasks upfront but use channels to send systems into them and back (or cancel if skipped).
     - **Alternative**: Iterate the topsorted list of systems and use e.g. [`partition_point`](https://doc.rust-lang.org/std/primitive.slice.html#method.partition_point) to identify and execute slices of parallel systems.
 - Introduce conditions.
   - Define a trait and blanket implement it for compatible functions.
@@ -445,9 +445,9 @@ fn main() {
 
 Whatever the changes, migration will be a big challenge.
 The proposed changes would affect the `App` and `Plugin` methods that all engine plugins and examples use, which will be a lot to review.
-At the same time, a large number of users are eagerly awaiting these changes making it into the engine.
+At the same time, a large number of users are eagerly awaiting changes of this nature making it into the engine.
 
-To expedite upstreaming while easing the burden on Bevy maintainers, we propose the following migration path:
+If this RFC is merged, to expedite upstreaming while easing the burden on Bevy maintainers, we propose the following migration path:
 
 - Add all this new stuff in a new module (i.e. `bevy_ecs::stageless`) that will live alongside an unchanged `bevy_ecs::schedule`, unused (and not in the prelude).
 - Implement a trait (i.e. `StagelessAppExt`) for `App` that can hook into the new module. Ultimately temporary.
