@@ -14,7 +14,7 @@ There are [many standing issues](https://github.com/bevyengine/bevy/discussions/
 Some highlights are, in no particular order:
 
 - Plugins often export systems wrapped in stages, but users can't control where those imported stages go.
-- Run criteria can't be composed in any appreciable way.
+- Run criteria can't be composed in any appreciable way except "piping".
   - A system can't have multiple run criteria.
   - A system can't have a single run criteria if it belongs to a `SystemSet` that has one.
   - Users can't add a state-related `SystemSet` to multiple stages because its run criteria driver will think it's finished after the first one.
@@ -273,7 +273,7 @@ impl Plugin for ProjectilePlugin {
 
 ### Running other systems on-demand with exclusive systems
 
-Exclusives systems have other uses.
+Exclusive systems have other uses.
 
 All systems and system sets added to an `App` are stored within a resource called `Systems`.
 If you want to run a system or system set, you have to extract it from `Systems`.
