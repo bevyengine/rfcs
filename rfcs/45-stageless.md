@@ -42,7 +42,7 @@ Let's define some terms.
 
 - **system**: stateful instance of a function that can access data stored in a world
 - **system set**: logical group of systems and other system sets
-- **condition**: special kind of system used to guard the execution of another system (or set)
+- **condition**: a function used to guard the execution of a system (set)
 - **dependency**: system (set) that must complete before the system (set) of interest can run
 - **schedule** (noun): the executable form of a system set
 - **schedule** (verb): specify when and under what conditions systems run
