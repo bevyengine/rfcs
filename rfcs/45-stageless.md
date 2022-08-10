@@ -458,6 +458,12 @@ If this RFC is merged, to expedite upstreaming while easing the burden on Bevy m
 - Deprecate the old module.
 - Replace the old module with the new module (and give the extension trait methods back their normal names).
 
+### What's a good convention for naming system label types?
+
+- What convention would we have for labeling internal systems and system sets?
+- Would we have one enum for systems and another for system sets, or generally one enum for both?
+  - If one enum for both, how would we typically name it? e.g. `CoreLabel`, `CoreSystems`, etc.
+
 ### What sugar should we use for adding multiple systems at once?
 
 Convenience methods like `add_systems` are important for reducing boilerplate. For these methods, we need to be able to refer to collections of systems and system sets.
