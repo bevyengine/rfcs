@@ -625,10 +625,10 @@ Those changes will only be propagated up to flag the system sets whose dependenc
 A rebuild will remain pending until something tries to check out the `Schedule`.
 This way users only incur costs for schedules they use.
 
-Schedule extraction essentially moves the required systems and conditions from their `Option`s into the selected `Schedule` container and returns it.
+Schedule extraction moves the required systems and conditions from their long-term storage (`Option`) into the selected `Schedule` container and returns it.
 
-Even after systems or schedules have been extracted, all the graph data remains with `Systems`, so you can still add and remove things.
-You have to return extracted schedules to `Systems` in order to update them (since that process needs the systems), and if you've removed any of those systems, they'll just be safely dropped at that time.
+Even after systems or schedules have been extracted, all the graph data remains in `Systems`, so you can still add and remove things.
+You still have to return extracted schedules to `Systems` in order to update them (since that process needs the systems), but if you had removed any of those systems, they will be safely dropped.
 
 ```rust
 enum NodeId {
