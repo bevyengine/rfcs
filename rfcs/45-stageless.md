@@ -185,14 +185,14 @@ impl Plugin for PhysicsPlugin {
 ### Deciding if systems run with conditions
 
 While dependencies determine *when* systems runs, **conditions** determine *if* they run at all.
-Conditions are systems with immutable data access that return `bool`.
-Conditions are not shared between systems (and thus have no need for labels), each one is a unique instance.
-A system or system set can have any number of conditions, but will only run if all of them return `true`.
+Functions with compatible signatures (immutable `World` data access and `bool` output) can be attached to systems and system sets as conditions.
+A system or system set may have any number of conditions attached, but will only run if all of them return `true`.
 If a condition returns `false`, the system (or members of the system set) it guards will be skipped.
 
-Conditions are each evaluated *at most once* during a single pass of a schedule.
+To be clear, conditions are not shared between systems.
+Each instance is unique and will be evaluated *at most once* during a single pass of a schedule.
 Evaluation will happen right before the guarded system (or the first system in the guarded system set that's able to run) would be run, so results are guaranteed to be up-to-date.
-The data read by the conditions will not change before the guarded system starts.
+The data read by conditions will not change before the system it guards starts.
 
 ```rust
 // This is just an ordinary system: timers need to be ticked!
