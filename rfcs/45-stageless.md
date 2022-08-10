@@ -89,12 +89,13 @@ enum GameState {
 
 #[derive(SystemLabel)]
 enum MySystemSets {
+    Update,
     Menu,
     SubMenu,
 }
 
 #[derive(SystemLabel)]
-enum MyLabels {
+enum MySystems {
     FlushMenu,
 }
 
@@ -105,7 +106,7 @@ fn main() {
             // Use the same builder API for scheduling systems and system sets.
             MySystemSets::Menu
                 // Put sets in other sets.
-                .in_set(CoreSet::Update)
+                .in_set(MySystemSets::Update)
                 // Attach conditions to system sets.
                 // (If this fails, all systems in the set will be skipped.)
                 .run_if(state_equals(GameState::Paused))
@@ -123,10 +124,10 @@ fn main() {
           chain![
             MySystemSets::SubMenu,
             // Choose when to process commands with instances of this dedicated system.
-            apply_system_buffers.named(MyLabels::FlushMenu),
+            apply_system_buffers.named(MySystems::FlushMenu),
           ]
           // Configure these together.
-          .in_set(GameSet::Menu)
+          .in_set(MySystemSets::Menu)
           .after(some_system)
         )
         /* ... */
