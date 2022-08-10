@@ -188,7 +188,7 @@ impl Plugin for PhysicsPlugin {
 While dependencies determine *when* systems runs, **conditions** determine *if* they run at all.
 Functions with compatible signatures (immutable `World` data access and `bool` output) can be attached to systems and system sets as conditions.
 A system or system set will only run if all of its conditions return `true`.
-If one of its conditions returns `false`, the system (or members of the system set) being guarded will be skipped.
+If one of its conditions returns `false`, the system (or members of the system set) will be skipped.
 
 To be clear, systems can have multiple conditions, and those conditions are not shared with others.
 Each condition instance is unique and will be evaluated *at most once* per run of a schedule.
@@ -274,15 +274,15 @@ impl Plugin for ProjectilePlugin {
 
 ### Running other systems on-demand with exclusive systems
 
-Exclusive systems have other uses.
+Exclusive systems have other uses as well.
 
 All systems and system sets added to an `App` are stored within a resource called `Systems`.
-If you want to run a system or system set, you have to extract it from `Systems`.
+If you want to run a system or system set, you have to extract it from `Systems` first.
 (This lets `Systems` remain accessible when those systems are running).
 
-`Systems` has methods to export a system or schedule given its label.
-A **schedule** is an efficient, executable version of the system set you configured, containing all its systems and conditions, along with instructions to run them in the correct order.
-After running a schedule, you can return it to `Systems`.
+`Systems` has methods to export a system or schedule if you know their label.
+A **schedule** is the executable version of a system set you configured, containing all its systems and conditions, along with instructions to run them in the correct order efficiently.
+After running a schedule, you can return it and the systems to `Systems`.
 
 The default `App` runner itself actually uses these methods to run the startup sequence and main update loop, so if you retrieve and run a single system somewhere, you'll effectively have written a very basic executor!
 
@@ -302,8 +302,7 @@ fn example_run_schedule_system(world: &mut World) {
 }
 ```
 
-This pattern is your go-to when your scheduling needs grow beyond "each system runs once per app update".
-That comes in handy when you want to:
+This pattern is your go-to when your scheduling needs grow beyond "each system runs once per app update", i.e. when you want to:
 
 - repeatedly loop over a sequence of game logic several times in a single app update (e.g. fixed timestep)
 - have complex branches in your schedule (e.g. state transitions)
@@ -313,15 +312,15 @@ That comes in handy when you want to:
 As long as you have `&mut World`, like in an exclusive system or command, you can extract anything available in the `Systems` resource and run it however you want.
 
 Unlike in previous versions of Bevy, states and the fixed timestep no longer involve run criteria.
-Instead, the relevant systems just go in their respective system sets that an exclusive system retrieves and runs.
-There are no conflicts between them. You can transition states inside the fixed timestep without issue.
+Instead, the relevant systems just go in their respective system sets to be retrived and run by exclusive systems.
+No conflicts. You can transition states inside the fixed timestep without issue.
 
 ### Fixed timestep
 
 A **fixed timestep** advances a fixed number of times each second.
 
 It's implemented as an exclusive system that runs a schedule zero or more times in a row (depending on how long the previous frame took to complete).
-When you supply a constant delta time value (the literal fixed timestep) inside the encapsulated systems, you get consistent and repeatable behavior regardless of framerate (or even the presence of a GPU).
+When you supply a constant delta time value (the literal fixed timestep) inside the encapsulated systems, the result is consistent and repeatable behavior regardless of framerate (or even the presence of a GPU).
 
 ### States
 
@@ -332,7 +331,7 @@ It's common to see enums used for state types.
 
 The current state can be read from the `CurrentState<S: State>` resource.
 
-Bevy provides some simple but convenient abstractions to link system sets with the transitions of a state `X`, specifically an `OnEnter(X)` system set for when it's entered, and an `OnExit(X)` system set for when it's exited. An exclusive system called `apply_state_transition<S: State>` can be added to your logic, which will run those schedules as appropriate when a transition is queued in the `NextState<S: State>` resource.
+Bevy provides a simple but convenient abstraction to link the transitions of a state `X` with system sets, specifically an `OnEnter(X)` system set and an `OnExit(X)` system set. An exclusive system called `apply_state_transition<S: State>` can be scheduled, which will retrieve and run their schedules as appropriate when a transition is queued in the `NextState<S: State>` resource.
 
 ```rust
 fn main() {
