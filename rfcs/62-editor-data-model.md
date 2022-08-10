@@ -12,7 +12,7 @@ In this RFC, the following terms are used:
 - **Author** refers to any person (including non-technical) building the Game with the intent of shipping it to end users.
 - **Editor** refers to the software used to edit Game data and prepare them for runtime consumption.
 - **Runtime** refers to the Game process running time, as opposed to compiling or building time. In general it's synonymouns of a process running, and is opposed to _build time_ or _compile time_.
-- **Project** refers to the Editor's representation of the Game that data is being created/edited for, and all the assets, metadata, settings, or any other data the Editor needs and which is associated to that specific Game. There's a 1:1 mapping between a Game and an Editor project.
+- **Project** refers to the Editor's representation of the Game that data is being created/edited for, and all the assets, metadata, settings, or any other data the Editor needs and which is associated to that specific Game.
 
 ## Motivation
 
@@ -53,16 +53,26 @@ When writing the Game code, the Author(s) define new Rust types to represent com
 
 In contrast, we want to enable the Editor to observe changes in the Game code without rebuilding or even restarting the Editor process, in order to enable fast iteration for the Authors. This feature, referred to as _hot-reloading_, requires the Editor to support type changes, which is not possible with static types like the Game uses. Therefore, to allow this flexibility, the Editor data model is based on _dynamic types_ defined exclusively during Editor execution. The data model defines an API to instantiate objects from dynamic types, manipulates the data of those instances, but also modify the types themselves while objects are instantiated. This latter case is made possible through a set of migration rules allowing to transform an object instance from a version of a type to another modified version of that type.
 
-The data model supports various intrinsic types: boolean, integral, floating-point, strings, arrays, dictionaries, enums and flags, and objects (references to other types). Objects can be references to entities or to components. Dynamic types extend those by composition; they define a series of _properties_, defined by their name and a type themselves. Conceptually, a property can look like (illustrative pseudo-code):
+The data model supports various intrinsic types: boolean, integral, floating-point, strings, arrays, dictionaries, enums and flags, and objects (references to other types). Objects can be references to entities or components or resources. Dynamic types extend those by composition; they define a series of _properties_, defined by their name and a type themselves. Conceptually, a property can look like (illustrative pseudo-code):
 
 ```txt
+type "MyVec2" {
+  property x : float32,
+  property y : float32,
+}
+
 type "MyPlayerComponent" {
-  property "name"  : string
-  property "health": float32
-  property "target": entity
-  property "weapon": type "MyWeaponComponent"
+  // owned data
+  property "name"   : string
+  property "health" : float32
+  property "forward": type "MyVec2"
+  // references to other objects
+  property "target" : entity          // reference to another Entity
+  property "text"   : ref type "Text" // reference to a Text component
 }
 ```
+
+_Note:_ An `Entity` in Bevy is just an index, so is conceptually already a reference. The `Entity` type doesn't store the entity itself and its component; it stores the index (reference) to it. This is why the pseudo-code above doesn't read `ref entity`, which would be redundant.
 
 The data model offers an API (the _object API_) to manipulate object instances:
 
