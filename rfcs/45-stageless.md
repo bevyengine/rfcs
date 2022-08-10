@@ -680,8 +680,9 @@ pub struct Schedule {
     set_ids: Vec<NodeId>,
     // for obeying dependencies
     system_deps: Vec<(usize, Vec<usize>)>,
-    // for applying set conditions and skipping systems
+    // for evaluating set conditions and skipping systems
     sets_of_systems: Vec<FixedBitSet>,
+    sets_of_sets: Vec<FixedBitSet>,
     systems_of_sets: Vec<FixedBitSet>,
 }
 ```
@@ -812,7 +813,7 @@ When the executor is presented with a ready system, it does the following:
   - Mark access to the data required by the system as unavailable.
   - Create a task for the system.
   - Spawn and run that task.
-  - When the task completes, mark access as available again.
+- When the system task completes, refresh the available access.
 
 Each condition is evaluated at most once.
 Since most of these functions are probably simple tests, we don't spawn tasks for them, which avoids locking other systems out of the data they access.
