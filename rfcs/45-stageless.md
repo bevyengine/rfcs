@@ -233,10 +233,12 @@ fn main() {
         .add_system(mitigate_meltdown.run_if(too_many_enemies))
         // We can use closures for simple one-off conditions.
         .add_system(spawn_more_enemies.run_if(|difficulty: Res<Difficulty>| difficulty >= 9000))
-        // `resource_exists` and `resource_equals` are helper functions that capture
-        // variables in simple closures that can be converted into conditions.
+        // `resource_exists` and `resource_equals` are helper functions which produce
+        // new closures that can be used as run conditions.
+
         .add_system(gravity.run_if(resource_exists(Gravity)))
-        // Conditions can be attached to system sets, so you can skip every the whole set.
+        // Conditions can be attached to system sets, so you can skip the whole set.
+
         .add_set(GameSet::Physics.run_if(resource_equals(Paused(false))))
         .run();
 }
@@ -269,7 +271,8 @@ impl Plugin for ProjectilePlugin {
             chain![
                 check_if_projectiles_hit,
                 despawn_projectiles_that_hit,
-                // wherever you want to commands to be applied, insert an instance of `apply_system_buffers`
+                // wherever you want commands to be applied, insert an instance of `apply_system_buffers`
+
                 apply_system_buffers.named("FlushProjectiles")
                 fork_projectiles,
             ]
