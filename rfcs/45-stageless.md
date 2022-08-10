@@ -2,37 +2,37 @@
 
 ## Summary
 
-Users often have a hard time with Bevy's system scheduling API.
+Users often have a hard time working with Bevy's system scheduling API.
 Core building blocks—stages, run criteria, and states—are presented as independent but actually have tons of hidden internal coupling.
-All that hidden coupling frequently confronts users in the form of surprising side effects and indecipherable errors.
+All this coupling frequently comes to bite users in the form of surprising limitations, unexpected side effects, and indecipherable errors.
 
-This is a holistic redesign that should neatly fix those problems by drawing clear boundaries between configuration, storage, execution, and flow control.
+This is a holistic redesign that seeks to neatly fix these problems, with clear boundaries between system configuration, storage, execution, and flow control.
 
 ## Motivation
 
 There are [many standing issues](https://github.com/bevyengine/bevy/discussions/2801) with the current stage-centered scheduling model.
 Some highlights are, in no particular order:
 
+- Users often have a hard time just deciding what stages to put systems in.
+  - Can't just think about when commands should be applied, you also have to consider run criteria and if the stage loops.
 - Plugins often export systems wrapped in stages, but users can't control where those imported stages go.
 - Run criteria can't be composed in any appreciable way except "piping".
   - A system can't have multiple run criteria.
   - A system can't have a single run criteria if it belongs to a `SystemSet` that has one.
   - Users can't add a state-related `SystemSet` to multiple stages because its run criteria driver will think it's finished after the first one.
   - Users can't (really) mix a fixed timestep and state transitions (unless they involve a nested schedule, but more on that later).
-- Users often have a hard time just deciding what stages to put systems in.
-  - Can't just think about when commands should be applied, you also have to consider run criteria and if the stage loops.
 - Users can't identify clear patterns for implementing "turn-based" game logic.
 - Users don't (or can't) really take advantage of the capabilities that the extra complexity of our stack-based state model enables.
 - There's just too much API. (e.g. "`.add_system_set_to_startup_stage`")
 
-Unfortunately, these problems remain deeply ingrained and intertwined, despite our best efforts to surface and untangle them.
+Unfortunately, these issues remain deeply ingrained and intertwined, despite our best efforts to surface and untangle them.
 
-To give you an idea of the struggle.
-If we remove stages, we'd lose every "naturally occuring" point to apply commands and evaluate run criteria except the beginning and end of each frame.
+To give you an idea of the challenges.
+If we remove stages, all places where it'd be natural to apply commands and evaluate run criteria are lost, except the beginning and end of each frame.
 If we required immutable access and `bool` output from run criteria to enable simple combinations, states would break because their implementation relies on run criteria mutating a resource.
 Likewise, if we just took away stages and `ShouldRun::*AndCheckAgain`, there could be no inner frame loops (e.g. fixed timestep).
 
-So it's hard to do anything without breaking changes, and tip-toeing with incremental tweaks brings risk of adding even more technical debt.
+It's hard to do anything without breaking changes, and tip-toeing with incremental tweaks brings risk of adding even more technical debt.
 
 ## User-facing explanation
 
