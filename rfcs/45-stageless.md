@@ -309,28 +309,29 @@ That comes in handy when you want to:
 - change to a different threading model for some portion of your systems
 - integrate an external service with arbitrary side effects, like scripting or a web server
 
-As long as you have `&mut World`, like in an exclusive system or command, you can extract anything available in the `Systems` resource and run it however you wish.
+As long as you have `&mut World`, like in an exclusive system or command, you can extract anything available in the `Systems` resource and run it however you want.
 
 Unlike in previous versions of Bevy, states and the fixed timestep no longer involve run criteria.
-Instead, the relevant systems just go in their respective system sets that an associated exclusive system retrieves and runs.
-There are no more conflicts between them. You can transition states inside the fixed timestep without issue.
+Instead, the relevant systems just go in their respective system sets that an exclusive system retrieves and runs.
+There are no conflicts between them. You can transition states inside the fixed timestep without issue.
 
 ### Fixed timestep
 
-A **fixed timestep** simulation advances a fixed number of times each second.
+A **fixed timestep** advances a fixed number of times each second.
 
-It's implemented as a conditional loop that runs zero or more times in a frame (depending on how long the previous frame took to complete).
-When you supply a constant delta time value (the literal fixed timestep) inside the affected systems, you get consistent and repeatable behavior regardless of framerate (or even the presence of a GPU).
+It's implemented as an exclusive system that runs a schedule zero or more times in a row (depending on how long the previous frame took to complete).
+When you supply a constant delta time value (the literal fixed timestep) inside the encapsulated systems, you get consistent and repeatable behavior regardless of framerate (or even the presence of a GPU).
 
 ### States
 
 **State machines** allow for ad-hoc execution of complex logic in response to state transitions.
 They're often used for relatively high-level facets of app behavior like pausing, opening menus, and loading assets.
-State machines are stored as individual resources and their state types must implement the `State` trait. Enums are extremely common.
+State machines are stored as individual resources and their state types must implement the `State` trait.
+It's common to see enums used for state types.
 
 The current state can be read from the `CurrentState<S: State>` resource.
 
-As a convenience, Bevy provides some simple abstractions to associate two system sets with the transitions of a state `X`: an `OnEnter(X)` system set for when it's entered, and an `OnExit(X)` system set for when it's exited. Another exclusive system called `apply_state_transition<S: State>` can be inserted into your logic that will run those schedules as appropriate when a transition is queued in the `NextState<S: State>` resource.
+Bevy provides some simple but convenient abstractions to link system sets with the transitions of a state `X`, specifically an `OnEnter(X)` system set for when it's entered, and an `OnExit(X)` system set for when it's exited. An exclusive system called `apply_state_transition<S: State>` can be added to your logic, which will run those schedules as appropriate when a transition is queued in the `NextState<S: State>` resource.
 
 ```rust
 fn main() {
@@ -389,13 +390,13 @@ This design can be broken down into the following steps:
       - etc.
 4. It may become harder for users to understand their app at a glance.
     - Particularly when commands are processed and when systems belong to multiple system sets.
-    - Clear, concise error messages and graph visualization tools will become more important.
+    - Clear, concise error messages and graph visualization tools will become even more important than now.
 
 ## Rationale and alternatives
 
 ### Why did you call them "system sets" instead of "labels" (or some other term)?
 
-"Label" sounds really abstract, while "system set" still has a stronger group association, which more closely matches how they're interpreted during dependency graph solving.
+"Label" sounds really abstract, while "system set" more closely matches how it's interpreted during dependency graph solving.
 Formally, a system set is a subgraph embedded somewhere in the graph of its parent set(s) (unless it's a root).
 It's like a "super node" that encapsulates everything inside it.
 
@@ -414,12 +415,12 @@ And if their public API is relatively stable, plugins could even make large inte
 
 If this RFC is merged and this design is implemented, we expect most of the problems that encouraged it to vanish.
 So rather than port pieces of the existing API, we think it's better to start fresh with a basic state machine and see what patterns emerge and what their limits are.
-If, after migration, a significant number of users are still turning towards a plugin to get the lost stack functionality, we can consider upstreaming it again.
+If, after migration, a significant number of users are still turning towards a plugin to recover the lost stack functionality, we can consider upstreaming it again.
 
-We think a stack-based state machine would be trivial to implement though (i.e. a loop inside an exclusive system).
+A stack-based state machine should be trivial to implement though (i.e. with a loop inside the exclusive system).
 
-As for `OnUpdate(X)`... it's interactions with `OnEnter(X)` were non-intuitive.
-Users often just wanted to condition systems to only run at their scheduled spots if a certain state was active. That is very simple to do now (see example below), so having a system set for this that you can only put in one spot seemed pointless.
+As for `OnUpdate(X)`... it's interaction with `OnEnter(X)` was non-intuitive.
+Users often just wanted systems to run in their normal spots, but just when a certain state was active. That is very simple to do now (see example below), so having a system set for this that you can only put in one spot seemed pointless.
 
 ```rust
 fn main() {
@@ -598,22 +599,22 @@ Moved all these implementation ideas/details here because it was cluttering the 
 
 As command queues are owned by their systems, an exclusive system won't be able to drain their buffers by itself.
 This one just signals the executor to do it.
-The caveat to handling it that way is that the executor only knows about the systems in the schedule it's running, so we should probably still have one "courtesy flush" after all the systems complete, so users can't forget to.
+The caveat to handling it this way is that the executor is only aware of the systems in the schedule it's running, so we should probably still have one "courtesy flush" after all the systems complete, so users can't forget to.
 
 ### `Systems`
 
 `Systems` is a resource on the `World`.
-In order to run systems and schedules, you have to take them out of `Systems`.
 
-To keep `Systems` accessible, insertion and removal will not immediately cause schedules to be rebuilt.
+To keep `Systems` accessible, you have to take systems and schedules out of `Systems` in order to run them.
+Likewise, system insertion and removal will not immediately cause schedules to be rebuilt.
+Those changes will only be propagated up to flag the system sets whose dependency graphs need to be updated (topologically sorted again).
+A rebuild will remain pending until something tries to check out the `Schedule`.
+This way users only incur costs for schedules they use.
 
-Those changes will only be propagated up to flag the system sets whose dependency graphs need to be rebuilt (top-sorted again).
-The function to check out a `Schedule` will apply a pending rebuild if the schedule has one, then move all the required systems and conditions from their `Option`s into it, and then return the schedule.
+Schedule extraction essentially moves the required systems and conditions from their `Option`s into the selected `Schedule` container and returns it.
 
-Thus, users will only incur build costs for the schedules they use.
-
-All the graphs remain with `Systems`, so you can still "remove" systems by label while they're checked out.
-You have to return extracted schedules to `Systems` in order to update them (since that process needs the systems), but if you've removed any of those systems, they'll just be cleanly dropped at that time.
+Even after systems or schedules have been extracted, all the graph data remains with `Systems`, so you can still add and remove things.
+You have to return extracted schedules to `Systems` in order to update them (since that process needs the systems), and if you've removed any of those systems, they'll just be safely dropped at that time.
 
 ```rust
 enum NodeId {
