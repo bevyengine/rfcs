@@ -675,7 +675,7 @@ pub struct Schedule {
 
 It's fairly straightforward to register pure labels as system sets using the same API.
 
-As a bonus, schedule construction will become completely order-independent as everything deferred until the end.
+As a bonus, schedule construction will become completely order-independent as everything will be deferred until the end.
 
 ```rust
 pub trait IntoConfiguredSystem<Params> {
@@ -729,7 +729,7 @@ That can happen along two axes.
 The first axis is consists of the `.in_set` relationships.
 These form a graph that describes the hierachy of system sets.
 The other axis consists of the `.before` and `.after` relationships.
-Those form dependency graphs (conceptually, each set/schedule is one).
+Those form dependency graphs (conceptually, each set/schedule is one of these).
 Dependencies involving system sets become flattened into dependencies on the systems in those sets.
 
 These are the errors:
