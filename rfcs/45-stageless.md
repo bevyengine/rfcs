@@ -351,10 +351,10 @@ This design can be broken down into the following steps:
 
 - Normalize exclusive systems.
   - Enable scheduling exclusive systems together with other systems.
-    - Make `&mut World` a system param, so all systems can be handled together as `System` trait objects. (bevyengine/bevy#4166)
+    - Make `&mut World` a system param, so all systems can be handled together as `System` trait objects. ([#4166](https://github.com/bevyengine/bevy/pull/4166))
   - Deal with the fact that archetypes can now change in between systems.
     - Defer tasks borrowing a system until just before that system runs (so we can update archetype component access).
-      - Funnel `&Scope` into spawned tasks so a task can spawn other tasks. (bevyengine/bevy#4466)
+      - Funnel `&Scope` into spawned tasks so a task can spawn other tasks. ([#4466](https://github.com/bevyengine/bevy/pull/4466))
       - **Alternative**: Keep spawning tasks upfront but use channels to send systems into them and back.
     - **Alternative**: Iterate the topsorted list of systems and use e.g. [`partition_point`](https://doc.rust-lang.org/std/primitive.slice.html#method.partition_point) to identify and execute slices of parallel systems.
 - Introduce conditions.
