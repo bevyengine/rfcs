@@ -281,8 +281,8 @@ If you want to run a system or system set, you have to extract it from `Systems`
 (This lets `Systems` remain accessible when those systems are running).
 
 `Systems` has methods to export a system or schedule if you know its label.
-A **schedule** is the executable version of a system set you configured, containing all its systems and conditions, along with instructions to run them in the correct order efficiently.
-After running a schedule, you can return it and the systems to `Systems`.
+A **schedule** is the frozen, executable version of a system set, containing all its systems and conditions, along with instructions to run them in the correct order efficiently.
+After running a schedule, you can return it and its systems to `Systems`.
 
 The default `App` runner itself actually uses these methods to run the startup sequence and main update loop, so if you retrieve and run a single system somewhere, you'll effectively have written a very basic executor!
 
