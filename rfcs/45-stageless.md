@@ -722,17 +722,18 @@ struct ConfiguredSystemSet {
 
 ### Schedule building errors
 
-There are several reasons a schedule might not build.
-Most errors will be caused by some graph being unsolvable.
-That can happen along two axes.
+When prototyping, you'll likely encounter schedule build errors.
+Most of these will point out a reason why some graph is unsolvable.
 
-The first axis is consists of the `.in_set` relationships.
-These form a graph that describes the hierachy of system sets.
-The other axis consists of the `.before` and `.after` relationships.
-Those form dependency graphs (conceptually, each set/schedule is one of these).
-Dependencies involving system sets become flattened into dependencies on the systems in those sets.
+There are two kinds of graphs the internal builder checks.
 
-These are the errors:
+The first kind consists of the `.in_set` relationships.
+These form a graph describing the hierachy of all your system sets.
+The second kind consists of the `.before` and `.after` relationships.
+Those form a dependency graph (each set/schedule is one of these, conceptually).
+Dependencies involving system sets will also be flattened into dependencies on the systems in those sets.
+
+So what are the errors?
 
 1. A dependency graph contains a loop or cycle.
 2. The hierarchical graph contains a loop or cycle.
@@ -746,12 +747,12 @@ These are the errors:
         .add_set(C.in_set(B).in_set(A))
     ```
 4. You called `.in_set` with a label that belongs to a system, rather than a system set.
-5. (Optional) You have a dependency between two things that aren't siblings in a common set. This creates an edge that doesn't appear in the dependency graph of either set, only in the flattened graph of an overarching set. This can lead to unwanted implicit ordering between systems in different sets.
-6. (Optional) You referenced an "unknown" label. e.g. `.after()` references a label that was never added to a system or system set.
+5. (Optional) You have a dependency between two things that aren't siblings in a common set. That edge will not appear in either set's dependency graph, only in the flattened graph of an overarching set. This can lead to unwanted implicit ordering between systems in different sets.
+6. (Optional) You referenced an "unknown" label. e.g. `.after(label)` references a label doesn't belong to any known system or system set.
 7. (Optional) You have at least one pair of ambiguously-ordered systems with conflicting data access.
 
-(5), (6), and (7) do not inherently make a graph unsolvable, so they can be configured as warn, error, or ignore.
-By default they're all warnings.
+(5), (6), and (7) don't inherently make a graph unsolvable, so they can be configured as ignore, warn, or error.
+By default they all warn.
 (7) has additional configuration options.
 See [bevyengine/bevy#4299](https://github.com/bevyengine/bevy/pull/4299) for more details.
 
@@ -783,7 +784,7 @@ The following is also strongly-recommended:
 
 ### Evaluating conditions in the proper order
 
-When the executor is presented with a ready system, we do the following:
+When the executor is presented with a ready system, it does the following:
 
 - Check if access to all the data needed by the system, its conditions, and the conditions of the sets it's under (that haven't been evaluated yet) is available.
   - If no, leave the system in the ready queue and move onto the next one.
@@ -798,8 +799,8 @@ When the executor is presented with a ready system, we do the following:
   - Run that task.
   - Release the "lock" when the task completes.
 
-Each condition is evaluated at most once during a single schedule pass.
-As these functions are likely to be simple tests and we don't spawn tasks for them, we avoid locking other systems out of the data they access.
+Each condition is evaluated at most once.
+Since most of these functions are probably simple tests, we don't spawn tasks for them, which avoids locking other systems out of the data they access.
 Likewise, we don't spawn tasks for systems that get skipped. This lightweight approach minimizes task overhead.
 
 ### States
