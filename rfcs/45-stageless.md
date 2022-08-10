@@ -83,7 +83,7 @@ use bevy::prelude::*;
 
 #[derive(State)]
 enum GameState {
-    Playing,
+    Running,
     Paused
 }
 
@@ -233,14 +233,12 @@ fn main() {
             systems![tick_construction_timer, update_construction_progress]
                 .in_set(GameSet::Construction))
         .add_system(mitigate_meltdown.run_if(too_many_enemies))
-        // We can use closures for simple one-off conditions.
+        // You can use closures for simple one-off conditions.
         .add_system(spawn_more_enemies.run_if(|difficulty: Res<Difficulty>| difficulty >= 9000))
-        // `resource_exists` and `resource_equals` are helper functions which produce
-        // new closures that can be used as run conditions.
-
+        // `resource_exists` and `resource_equals` are helper functions that produce
+        // new closures that can be used as conditions.
         .add_system(gravity.run_if(resource_exists(Gravity)))
-        // Conditions can be attached to system sets, so you can skip the whole set.
-
+        // The systems in this set won't run if `Paused` is `true`.
         .add_set(GameSet::Physics.run_if(resource_equals(Paused(false))))
         .run();
 }
@@ -274,7 +272,6 @@ impl Plugin for ProjectilePlugin {
                 check_if_projectiles_hit,
                 despawn_projectiles_that_hit,
                 // wherever you want commands to be applied, insert an instance of `apply_system_buffers`
-
                 apply_system_buffers.named("FlushProjectiles")
                 fork_projectiles,
             ]
