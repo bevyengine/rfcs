@@ -127,8 +127,8 @@ fn main() {
 
 ### Deciding when systems run with dependencies
 
-The main way users can configure systems is to say *when* they should run using the `.before`, `.after`, and `.in_set` methods.
-These properties determine execution order relative to other systems and system sets and are called *dependencies*.
+The main way users can configure systems is to say *when* they should run, using the `.before`, `.after`, and `.in_set` methods.
+These properties, called *dependencies*, determine execution order relative to other systems and system sets.
 These dependencies are collected and assembled to produce dependency graphs, which, along with the signature of each system, tells Bevy which systems can run in parallel.
 Dependencies involving system sets are later flattened into dependencies between individual pairs of systems.
 
@@ -187,13 +187,13 @@ impl Plugin for PhysicsPlugin {
 
 While dependencies determine *when* systems runs, **conditions** determine *if* they run at all.
 Functions with compatible signatures (immutable `World` data access and `bool` output) can be attached to systems and system sets as conditions.
-A system or system set may have any number of conditions attached, but will only run if all of them return `true`.
-If a condition returns `false`, the system (or members of the system set) it guards will be skipped.
+A system or system set will only run if all of its conditions return `true`.
+If one of its conditions returns `false`, the system (or members of the system set) being guarded will be skipped.
 
-To be clear, conditions are not shared between systems.
-Each instance is unique and will be evaluated *at most once* during a single pass of a schedule.
-Evaluation will happen right before the guarded system (or the first system in the guarded system set that's able to run) would be run, so results are guaranteed to be up-to-date.
-The data read by conditions will not change before the system it guards starts.
+To be clear, systems can have multiple conditions, and those conditions are not shared with others.
+Each condition instance is unique and will be evaluated *at most once* per run of a schedule.
+Conditions are evaluated right before their guarded system (or the first system in their guarded system set that's able to run) would be run, so their results are guaranteed to be up-to-date.
+The data read by conditions will not change before the guarded system starts.
 
 ```rust
 // This is just an ordinary system: timers need to be ticked!
@@ -237,7 +237,7 @@ fn main() {
 ### Exclusive systems
 
 As much as everyone loves to see systems running in parallel, sometimes a little `&mut World` is necessary.
-Previous versions of Bevy treated these "exclusive" systems as a different animal.
+Previous versions of Bevy treated these "exclusive" systems as a separate concept, with their own set of types and traits.
 They couldn't have `Local` params and could only be inserted at specific points in a frame.
 
 That is no longer the case.
