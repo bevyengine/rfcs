@@ -389,7 +389,7 @@ This design can be broken down into the following steps:
       - `on_resume`
       - etc.
 4. It may become harder for users to understand their app at a glance.
-    - Particularly when commands are processed and when systems belong to multiple system sets.
+    - Particularly understanding when commands are processed and understanding what conditions guard a system when it belongs to multiple system sets.
     - Clear, concise error messages and graph visualization tools will become even more important than now.
 
 ## Rationale and alternatives
