@@ -351,10 +351,10 @@ This design can be broken down into the following steps:
 
 - Normalize exclusive systems.
   - Enable scheduling exclusive systems together with other systems.
-    - Make `&mut World` a system param, so all systems can be handled together as `System` trait objects. ([#4166](https://github.com/bevyengine/bevy/pull/4166))
+    - Make `&mut World` a system param, so all systems can be handled together as `System` trait objects. ([bevyengine/bevy#4166](https://github.com/bevyengine/bevy/pull/4166))
   - Deal with the fact that archetypes can now change in between systems.
     - Defer tasks borrowing a system until just before that system runs (so we can update archetype component access).
-      - Funnel `&Scope` into spawned tasks so a task can spawn other tasks. ([#4466](https://github.com/bevyengine/bevy/pull/4466))
+      - Funnel `&Scope` into spawned tasks so a task can spawn other tasks. ([bevyengine/bevy#4466](https://github.com/bevyengine/bevy/pull/4466))
       - **Alternative**: Keep spawning tasks upfront but use channels to send systems into them and back.
     - **Alternative**: Iterate the topsorted list of systems and use e.g. [`partition_point`](https://doc.rust-lang.org/std/primitive.slice.html#method.partition_point) to identify and execute slices of parallel systems.
 - Introduce conditions.
@@ -733,7 +733,7 @@ Dependencies involving system sets become flattened into dependencies on the sys
 
 These are the errors:
 
-1. A dependency graph contain a loop or cycle.
+1. A dependency graph contains a loop or cycle.
 2. The hierarchical graph contains a loop or cycle.
 3. The hierarchical graph has a transitive edge. Example:
     ```rust
@@ -745,14 +745,14 @@ These are the errors:
         .add_set(C.in_set(B).in_set(A))
     ```
 4. You called `.in_set` with a label that belongs to a system, rather than a system set.
-5. (Optional) You have a dependency between two things that aren't siblings in a common set.This creates an edge that doesn't appears until graphs are flattened, which can lead to unwanted implicit ordering between systems in different sets.
+5. (Optional) You have a dependency between two things that aren't siblings in a common set. This creates an edge that doesn't appear in the dependency graph of either set, only in the flattened graph of an overarching set. This can lead to unwanted implicit ordering between systems in different sets.
 6. (Optional) You referenced an "unknown" label. e.g. `.after()` references a label that was never added to a system or system set.
 7. (Optional) You have at least one pair of ambiguously-ordered systems with conflicting data access.
 
 (5), (6), and (7) do not inherently make a graph unsolvable, so they can be configured as warn, error, or ignore.
 By default they're all warnings.
 (7) has additional configuration options.
-See bevyengine/bevy#4299 for more details.
+See [bevyengine/bevy#4299](https://github.com/bevyengine/bevy/pull/4299) for more details.
 
 ### `IntoRunCondition`
 
@@ -797,7 +797,9 @@ When the executor is presented with a ready system, we do the following:
   - Run that task.
   - Release the "lock" when the task completes.
 
-Each condition is evaluated at most once during a single schedule pass. As these functions are likely to be simple tests and we don't spawn tasks for them, we avoid locking other systems out of the data they access. Likewise, we don't spawn tasks for systems that get skipped. This lightweight approach minimizes task overhead.
+Each condition is evaluated at most once during a single schedule pass.
+As these functions are likely to be simple tests and we don't spawn tasks for them, we avoid locking other systems out of the data they access.
+Likewise, we don't spawn tasks for systems that get skipped. This lightweight approach minimizes task overhead.
 
 ### States
 
@@ -838,7 +840,9 @@ pub fn apply_state_transition<S: State>(world: &mut World) {
 
 ### Change detection
 
-Change detection requires a periodic (but very, *very* infrequent) clamping process to stay reliable. Prior versions of Bevy check if it's time to clamp at the end of each stage. With stages gone, we'll have to check somewhere else, most likely in the executor, at the beginning of each schedule.
+Change detection requires a periodic (but very, *very* infrequent) clamping process to stay reliable.
+Prior versions of Bevy check if it's time to clamp at the end of each stage.
+With stages gone, we'll have to check somewhere else, most likely in the executor, at the beginning of each schedule.
 
 ### Convenience functions
 
