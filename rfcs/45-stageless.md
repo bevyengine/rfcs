@@ -159,7 +159,7 @@ enum Physics {
 impl Plugin for PhysicsPlugin {
     fn build(app: &mut App){
         // configs are reusable
-        let mut shared_config = Config::new()
+        let mut common_config = Config::new()
             // built-in fixed timestep system set
             .in_set(CoreSet::FixedUpdate)
             .after(InputSet::ReadInputHandling);
@@ -167,13 +167,13 @@ impl Plugin for PhysicsPlugin {
         app
             .add_set(
                 Physics::ComputeForces
-                    .configure_with(shared_config)
+                    .configure_with(common_config)
                     .before(Physics::DetectCollisions))
             .add_set(
                 Physics::DetectCollisions
-                    .configure_with(shared_config)
+                    .configure_with(common_config)
                     .before(Physics::HandleCollisions))
-            .add_set(Physics::HandleCollisions.configure_with(shared_config))
+            .add_set(Physics::HandleCollisions.configure_with(common_config))
             .add_system(gravity.in_set(Physics::ComputeForces))
             .add_systems(
                 chain![broad_pass, narrow_pass, solve_constraints]
