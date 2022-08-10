@@ -102,29 +102,30 @@ fn main() {
     App::new()
         /* ... */
         .add_set(
-            // use the same builder API for scheduling systems and system sets
+            // Use the same builder API for scheduling systems and system sets.
             MySystemSets::Menu
-                // put sets in other sets
+                // Put sets in other sets.
                 .in_set(CoreSet::Update)
-                // give sets conditions (if one fails, all systems in the set will be skipped)
+                // Attach conditions to system sets.
+                // (If this fails, all systems in the set will be skipped.)
                 .run_if(state_equals(GameState::Paused))
         )
         .add_system(
             some_system
                 .in_set(MySystemSets::Menu)
-                // things can have multiple conditions! (they must all return true)
-                // while being in a set! (there are no conflicts)
+                // Attach multiple conditions to this system, and they won't conflict with Menu's conditions.
+                // (All of these must return true or this system will be skipped.)
                 .run_if(some_condition_system)
                 .run_if(|value: Res<Value>| value > 9000)
         )
-        // bulk-add systems and system sets with some convenience macros
+        // Bulk-add systems and system sets with some convenience macros.
         .add_systems(
           chain![
             MySystemSets::SubMenu,
-            // choose when to process commands with instances of this dedicated system
+            // Choose when to process commands with instances of this dedicated system.
             apply_system_buffers.named(MyLabels::FlushMenu),
           ]
-          // configure them all together
+          // Configure these together.
           .in_set(GameSet::Menu)
           .after(some_system)
         )
