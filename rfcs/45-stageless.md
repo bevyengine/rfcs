@@ -3,12 +3,13 @@
 ## Summary
 
 Users often have a hard time working with Bevy's system scheduling API.
-Core building blocks—stages, run criteria, and states—are presented as independent but actually have tons of hidden internal coupling.
+Core building blocks — stages, run criteria, and states — are presented as independent but actually have tons of hidden internal coupling.
+
 This coupling frequently comes to bite users in the form of surprising limitations, unexpected side effects, and indecipherable errors.
 
 This RFC proposes a holistic redesign that neatly fixes these problems, with clear boundaries between system configuration, storage, execution, and flow control.
 
-It can summarized as:
+In summary:
 
 - Store systems in a central resource.
 - Make system sets (sub)graph nodes instead of containers and include them in the descriptor API.
@@ -408,7 +409,7 @@ This design can be broken down into the following steps:
       - etc.
 4. It may become harder for users to understand their app at a glance.
     - Particularly understanding when commands are processed and understanding what conditions guard a system when it belongs to multiple system sets.
-    - Clear, concise error messages and graph visualization tools will become even more important than now.
+    - Clear, concise error messages and graph visualization tools will become even more important.
 
 ## Rationale and alternatives
 
@@ -619,7 +620,8 @@ There are also lots of related but non-urgent areas for follow-up research:
 
 ## Appendix
 
-Moved all these implementation ideas/details here because it was cluttering the RFC.
+These implementation ideas/details are here to avoid cluttering the RFC.
+
 
 ### `apply_system_buffers`
 
