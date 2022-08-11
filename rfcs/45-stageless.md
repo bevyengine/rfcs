@@ -348,7 +348,7 @@ It's common to see enums used for state types.
 
 The current state can be read from the `CurrentState<S: State>` resource.
 
-Bevy provides a simple but convenient abstraction to link the transitions of a state `X` with system sets, specifically an `OnEnter(X)` system set and an `OnExit(X)` system set. An exclusive system called `apply_state_transition<S: State>` can be scheduled, which will retrieve and run their schedules as appropriate when a transition is queued in the `NextState<S: State>` resource.
+Bevy provides a simple but convenient abstraction to link the transitions of a state `X` with system sets, specifically an `OnEnter(X)` system set and an `OnExit(X)` system set. An exclusive system called `apply_state_transition<S: State>` can be scheduled, which will retrieve and run these schedules as appropriate when a transition is queued in the `NextState<S: State>` resource.
 
 ```rust
 fn main() {
