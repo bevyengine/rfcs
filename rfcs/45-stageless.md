@@ -299,7 +299,7 @@ If you want to run a system or system set, you have to extract it from `Systems`
 
 `Systems` has methods to extract a system or system set given its label.
 When you extract a system set, you actually receive a **schedule**.
-This is a "frozen", executable version of a system set, containing all its systems and conditions, along with instructions to run them in the correct order.
+This is a "frozen", executable version of the set, containing all its systems and conditions, along with instructions to run them in the correct order.
 After running a schedule, you can return it and its systems to `Systems`.
 
 The default `App` runner itself actually uses these methods to run the startup sequence and main update loop, so if you retrieve and run a single system somewhere, you'll effectively have written a very basic executor!
