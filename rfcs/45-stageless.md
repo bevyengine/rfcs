@@ -13,7 +13,7 @@ It can summarized as:
 - Remove stages.
 - Store systems in a central resource.
 - Make system sets (sub)graph nodes instead of containers and include them in the descriptor API.
-- Make exclusive systems "normal" and use them for high-level flow control. (commands, state transitions, fixed timestep, turn queues, etc.)
+- Make exclusive systems "normal" and use them for high-level flow control. (command application, state transitions, fixed timestep, turn queues, etc.)
 - Replace run criteria with immutable, `bool`-returning conditions.
 
 ## Motivation
@@ -251,7 +251,7 @@ Previous versions of Bevy treated these "exclusive" systems as a separate concep
 They couldn't have `Local` params and could only be inserted at specific points in a frame.
 
 That is no longer the case.
-Exclusive systems are now just systems.
+Exclusive systems are now just regular systems.
 They can have `Local` params and be scheduled wherever you want.
 
 Command application is now conducted through an exclusive system called `apply_system_buffers`.
@@ -297,7 +297,7 @@ All systems and system sets added to an `App` are stored within a resource calle
 If you want to run a system or system set, you have to extract it from `Systems` first.
 (This lets `Systems` remain accessible when those systems are running).
 
-`Systems` has methods to export a system or schedule if you know its label.
+`Systems` has methods to extract a system or schedule given its label.
 A **schedule** is the frozen, executable version of a system set, containing all its systems and conditions, along with instructions to run them in the correct order efficiently.
 After running a schedule, you can return it and its systems to `Systems`.
 
@@ -321,15 +321,15 @@ fn example_run_schedule_system(world: &mut World) {
 
 This pattern is your go-to when your scheduling needs grow beyond "each system runs once per app update", i.e. when you want to:
 
-- repeatedly loop over a sequence of game logic several times in a single app update (e.g. fixed timestep)
+- repeatedly loop over a sequence of game logic several times in a single app update (e.g. fixed timestep, action queue)
 - have complex branches in your schedule (e.g. state transitions)
 - change to a different threading model for some portion of your systems
 - integrate an external service with arbitrary side effects, like scripting or a web server
 
-As long as you have `&mut World`, like in an exclusive system or command, you can extract anything available in the `Systems` resource and run it however you want.
+As long as you have `&mut World`, from an exclusive system or command, you can extract anything available in the `Systems` resource and run it.
 
-Unlike in previous versions of Bevy, states and the fixed timestep no longer involve run criteria.
-Instead, those systems just go in a corresponding system set to be retrieved and run by an exclusive system.
+Unlike in previous versions of Bevy, states and the fixed timestep no longer depend on run criteria.
+Instead, systems are simply added under a separate system set that will be retrieved and ran by an exclusive system.
 No conflicts. You can transition states inside the fixed timestep without issue.
 
 ### Fixed timestep
@@ -375,19 +375,19 @@ This design can be broken down into the following steps:
       - Funnel `&Scope` into spawned tasks so a task can spawn other tasks. ([bevyengine/bevy#4466](https://github.com/bevyengine/bevy/pull/4466))
       - **Alternative**: Keep spawning tasks upfront but use channels to send systems into them and back (or cancel if skipped).
     - **Alternative**: Iterate the topsorted list of systems and use e.g. [`partition_point`](https://doc.rust-lang.org/std/primitive.slice.html#method.partition_point) to identify and execute slices of parallel systems.
-- Introduce conditions.
-  - Define a trait and blanket implement it for compatible functions.
-- Normalize using conditions.
+- Implement conditions.
+  - Define the trait and blanket implement it for compatible functions.
   - Implement `.run_if` descriptor method.
   - Include condition accesses when doing ambuigity checks.
   - Include condition accesses when executor checks if systems can run.
-  - Add condition evaluation step to the executor.
-- Normalize storing and retrieving systems (and schedules) from a resource.
+  - Add condition evaluation step in the executor.
+- Implement storing and retrieving systems (and schedules) from a resource.
   - Implement a descriptor coercion trait for `L: SystemLabel` types.
   - Implement the `Systems` type as described. (See **Appendix** or [this comment](https://github.com/bevyengine/bevy/pull/4090#issuecomment-1206585499) or [prototype PR impl](https://github.com/maniwani/bevy/blob/f5f80cd195b15d3912b4d90aade8750d8d1adc2e/crates/bevy_ecs/src/schedule_v3/mod.rs).)
 - Remove internal uses of "looping run criteria".
   - Convert fixed timestep and state transitions into exclusive systems that each retrieve and run a schedule.
 - **Port over the rest of the engine and examples to the new API.**
+- Remove stages and run criteria.
 - Misc.
   - Implement bulk scheduling capabilities (`.add_systems`, descriptor wrapper enum, and convenience macros like `chain!`)
     - Rebrand "system chaining" (e.g. `ChainSystem`) into something else, like "system piping".
@@ -468,7 +468,7 @@ At the same time, a large number of users are eagerly awaiting changes of this n
 
 If this RFC is merged, to expedite upstreaming while easing the burden on Bevy maintainers, we propose the following migration path:
 
-- Add all this new stuff in a new module (i.e. `bevy_ecs::stageless`) that will live alongside an unchanged `bevy_ecs::schedule`, unused (and not in the prelude).
+- Add all the new stuff in a new module (i.e. `bevy_ecs::stageless`) that will live alongside an unchanged `bevy_ecs::schedule`, unused (and not in the prelude).
 - Implement a trait (i.e. `StagelessAppExt`) for `App` that can hook into the new module. Ultimately temporary.
 - Upstream these to `main`.
 - Publish a migration guide for the new API.
@@ -480,7 +480,7 @@ If this RFC is merged, to expedite upstreaming while easing the burden on Bevy m
 
 What convention would we have for labeling internal systems and system sets?
 
-- Would we have one enum for systems and another for system sets, or generally one enum for both?
+- Would a plugin have one enum type for systems and another for system sets, or generally one enum for both?
   - If one enum for both, how would we typically name it? e.g. `CoreLabel`, `CoreSystems`, etc.
 
 ### What sugar should we use for adding multiple systems at once?
