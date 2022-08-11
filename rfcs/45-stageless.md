@@ -423,7 +423,7 @@ To some extent, yes.
 
 Not being able to schedule plugin systems is a source of [significant user pain](https://github.com/bevyengine/bevy/issues/2160).
 We thought plugins exporting system set labels and users deciding where to position them in their schedules makes for a better balance.
-A popular physics plugin [has already implemented something like this](https://github.com/dimforge/bevy_rapier/pull/169).
+A popular physics plugin [has already implemented something like this](https://github.com/dimforge/bevy_rapier/pull/169) (partly [inspired](https://discord.com/channels/691052431525675048/742569353878437978/970075559679893594) by this effort).
 
 As you can put sets in sets, plugin authors can choose whatever level of logical granularity they want to expose to you *and* still ensure that important logical invariants hold.
 Users will only be able schedule things at the level the plugin makes public.
