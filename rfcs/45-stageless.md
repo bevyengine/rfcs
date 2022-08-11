@@ -60,14 +60,14 @@ Let's define some terms.
 - **executor**: runs the systems in a schedule on a world
 - **"ready"**: when a system is no longer waiting for dependencies to complete
 
-To write a Bevy app, users have to specify when their systems run.
+To write a Bevy app, you have to specify when your systems run.
 By default, systems have neither strict execution order nor any conditions for execution.
 **Scheduling** is the process of supplying those properties.
 To make things more ergonomic, systems can be grouped under **system sets**, which can be ordered and conditioned in the same manner as individual systems.
-This allows users to easily refer to many systems and (indirectly) give properties to many systems.
-Furthermore, systems and system sets can be ordered together and even grouped together *within larger sets*, so you can really layer those properties.
+This allows you to easily refer to many systems and (indirectly) give properties to many systems.
+Furthermore, systems and system sets can be ordered together and even grouped together *within larger sets*, meaning you can layer those properties.
 
-In short, for any system or system set, users can:
+In short, for any system or system set, you can:
 
 - define execution order relative to other systems or sets (e.g. "this system runs before A")
 - define conditions that must be true for it to run (e.g. "this system only runs if a player has full health")
@@ -138,7 +138,7 @@ fn main() {
 
 ### Deciding when systems run with dependencies
 
-The main way users can configure systems is to say *when* they should run, using the `.before`, `.after`, and `.in_set` methods.
+The main way you can configure systems is to say *when* they should run, using the `.before`, `.after`, and `.in_set` methods.
 These properties, called *dependencies*, determine execution order relative to other systems and system sets.
 These dependencies are collected and assembled to produce dependency graphs, which, along with the signature of each system, tells Bevy which systems can run in parallel.
 Dependencies involving system sets are later flattened into dependencies between individual pairs of systems.
