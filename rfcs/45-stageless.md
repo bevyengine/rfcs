@@ -255,7 +255,7 @@ That is no longer the case.
 Exclusive systems are now just regular systems.
 They can have `Local` params and be scheduled wherever you want.
 
-Command application is now conducted through an exclusive system called `apply_system_buffers`.
+Command application is now signaled through an exclusive system called `apply_system_buffers`.
 You can add instances of this system anywhere in your schedule.
 If one system depends on the effects of commands from another, make sure an `apply_system_buffers` appears somewhere between them.
 
