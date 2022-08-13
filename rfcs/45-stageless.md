@@ -51,8 +51,8 @@ Ideally, we update everything in one go, as trying to spread the breaking change
 Let's define some terms.
 
 - **system**: stateful instance of a function that can access data stored in a world
-- **system set**: logical group of systems (can include other system sets)
-- **condition**: a function used to guard the execution of a system (set)
+- **system set**: logical group (subgraph) of systems (can include other system sets)
+- **condition**: function that must evaluate to `true` for a system (or systems in a set) to run
 - **dependency**: system (set) that must complete before another system (set) can run
 - **schedule** (noun): the executable form of a system set
 - **schedule** (verb): specify when and under what conditions systems run
@@ -69,10 +69,10 @@ Furthermore, systems and system sets can be ordered together and even grouped to
 
 In short, for any system or system set, you can:
 
-- define execution order relative to other systems or sets (e.g. "this system runs before A")
-- define conditions that must be true for it to run (e.g. "this system only runs if a player has full health")
-- define which set(s) it belongs to (which define common properties for everything underneath)
-  - if left unspecified, the system or set will be added under a (configureable) default set
+- define its execution order relative to other systems or sets (e.g. "this system runs before A")
+- define any conditions that must be true for it to run (e.g. "this system only runs if a player has full health")
+- define which set(s) it belongs to (which define properties that affect all systems underneath)
+  - if left unspecified, the system or set will be added under a default one (configureable)
 
 These properties are all additive.
 Adding another does not replace an existing one, and they cannot be removed.
