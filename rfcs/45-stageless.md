@@ -37,7 +37,7 @@ Some highlights are, in no particular order:
 Unfortunately, these issues remain deeply ingrained and intertwined, despite our best efforts to surface and untangle them.
 
 To give you an idea of the challenge.
-If we removed stages, all places to evaluate run criteria and apply commands would be lost, except the beginning and end of each frame.
+If we removed stages, all places to evaluate run criteria and apply commands would be lost, except the beginning and end of each schedule execution.
 If we required immutable access and `bool` output from run criteria to enable basic composition, states would break because their implementation relies on run criteria that mutate a resource.
 Likewise, if we just took away stages and `ShouldRun::*AndCheckAgain`, there could be no inner frame loops (e.g. fixed timestep).
 
@@ -56,7 +56,6 @@ Let's define some terms.
 - **dependency**: system (set) that must complete before another system (set) can run
 - **schedule** (noun): the executable form of a system set
 - **schedule** (verb): specify when and under what conditions systems run
-- **scheduler**: the programmer, who is attempting to specify when and under what conditions systems run
 - **executor**: runs the systems in a schedule on a world
 - **"ready"**: when a system is no longer waiting for dependencies to complete
 
@@ -72,7 +71,8 @@ In short, for any system or system set, you can define:
 - its execution order relative to other systems or sets (e.g. "this system runs before A")
 - any conditions that must be true for it to run (e.g. "this system only runs if a player has full health")
 - which set(s) it belongs to (which define properties that affect all systems underneath)
-  - if left unspecified, the system or set will be added under a default one (configureable)
+  - if left unspecified, the system or set will be added under a default one (configurable)
+
 
 These properties are all additive.
 Adding another does not replace an existing one, and they cannot be removed.
@@ -140,7 +140,8 @@ fn main() {
 
 The main way you can configure systems is to say *when* they should run, using the `.before`, `.after`, and `.in_set` methods.
 These properties, called *dependencies*, determine execution order relative to other systems and system sets.
-These dependencies are collected and assembled to produce dependency graphs, which, along with the signature of each system, tells Bevy which systems can run in parallel.
+These dependencies are collected and assembled to produce dependency graphs, which, along with the signature of each system, tells the executor which systems can run in parallel.
+
 Dependencies involving system sets are later flattened into dependencies between individual pairs of systems.
 
 If a combination of constraints cannot be satisfied (e.g. you say A has to come both before and after B), a dependency graph will be found to be **unsolvable** and return an error. However, that error should clearly explain how to fix whatever problem was detected.
@@ -171,7 +172,7 @@ enum Physics {
 impl Plugin for PhysicsPlugin {
     fn build(app: &mut App){
         // configs are reusable
-        let mut common_config = Config::new()
+        let mut fixed_after_input = Config::new()
             // built-in fixed timestep system set
             .in_set(CoreSet::FixedUpdate)
             .after(InputSet::ReadInputHandling);
@@ -179,13 +180,13 @@ impl Plugin for PhysicsPlugin {
         app
             .add_set(
                 Physics::ComputeForces
-                    .configure_with(common_config)
+                    .configure_with(fixed_after_input)
                     .before(Physics::DetectCollisions))
             .add_set(
                 Physics::DetectCollisions
-                    .configure_with(common_config)
+                    .configure_with(fixed_after_input)
                     .before(Physics::HandleCollisions))
-            .add_set(Physics::HandleCollisions.configure_with(common_config))
+            .add_set(Physics::HandleCollisions.configure_with(fixed_after_input))
             .add_system(gravity.in_set(Physics::ComputeForces))
             .add_systems(
                 chain![broad_pass, narrow_pass, solve_constraints]
