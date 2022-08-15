@@ -337,7 +337,7 @@ As a result, you can transition states inside the fixed timestep without issue.
 
 A **fixed timestep** advances a fixed number of times each second.
 
-It's implemented as an exclusive system that runs a schedule zero or more times in a row (depending on how long the previous schedule execution took to complete).
+It's implemented as an exclusive system that runs a schedule zero or more times in a row (depending on how long the previous app update took to complete).
 
 When you supply a constant delta time value (the literal fixed timestep) inside the encapsulated systems, the result is consistent and repeatable behavior regardless of framerate (or even the presence of a GPU).
 
