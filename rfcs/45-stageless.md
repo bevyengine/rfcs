@@ -67,11 +67,11 @@ To make things more ergonomic, systems can be grouped under **system sets**, whi
 This allows you to easily refer to many systems and (indirectly) give properties to many systems.
 Furthermore, systems and system sets can be ordered together and even grouped together *within larger sets*, meaning you can layer those properties.
 
-In short, for any system or system set, you can:
+In short, for any system or system set, you can define:
 
-- define its execution order relative to other systems or sets (e.g. "this system runs before A")
-- define any conditions that must be true for it to run (e.g. "this system only runs if a player has full health")
-- define which set(s) it belongs to (which define properties that affect all systems underneath)
+- its execution order relative to other systems or sets (e.g. "this system runs before A")
+- any conditions that must be true for it to run (e.g. "this system only runs if a player has full health")
+- which set(s) it belongs to (which define properties that affect all systems underneath)
   - if left unspecified, the system or set will be added under a default one (configureable)
 
 These properties are all additive.
@@ -145,9 +145,10 @@ Dependencies involving system sets are later flattened into dependencies between
 
 If a combination of constraints cannot be satisfied (e.g. you say A has to come both before and after B), a dependency graph will be found to be **unsolvable** and return an error. However, that error should clearly explain how to fix whatever problem was detected.
 
-Bevy even provides an `add_systems` method and convenience macros as another means to add properties in bulk.
+An `add_systems` method and convenience macros are provided as another means to add properties in bulk.
 For example, using `systems![a, b, c, ...].chain()` (or the `chain![a, b, c, ...]` shortcut) will create dependencies between the successive elements.
-(Note: This is different from the "system chaining" in previous versions of Bevy. That has been renamed to "system piping" to avoid overlap.)
+
+*Note: This is different from the "system chaining" in previous versions of Bevy. That has been renamed to "system piping" to avoid overlap.*
 
 Bevy's `MinimalPlugins` and `DefaultPlugins` plugin groups include several built-in system sets.
 
@@ -249,7 +250,8 @@ fn main() {
 
 As much as everyone loves to see systems running in parallel, sometimes a little `&mut World` is necessary.
 Previous versions of Bevy treated these "exclusive" systems as a separate concept, with their own set of types and traits.
-They couldn't have `Local` params and could only be inserted at specific points in a frame.
+They couldn't have `Local` params and could only be inserted at specific points of a stage.
+
 
 That is no longer the case.
 Exclusive systems are now just regular systems.
@@ -306,7 +308,6 @@ After running a schedule, you can return it and its systems to `Systems`.
 The default `App` runner itself actually uses these methods to run the startup sequence and main update loop, so if you retrieve and run a single system somewhere, you'll effectively have written a very basic executor!
 
 ```rust
-
 fn example_run_schedule_system(world: &mut World) {
     // take ownership of the schedule
     let mut systems = world.resource_mut::<Systems>();
@@ -321,7 +322,7 @@ fn example_run_schedule_system(world: &mut World) {
 }
 ```
 
-This pattern is your go-to when your scheduling needs grow beyond "each system runs once per app update", i.e. when you want to:
+This pattern is your go-to when your scheduling needs grow beyond "each system runs once per app update", e.g. when you want to:
 
 - repeatedly loop over a sequence of game logic several times in a single app update (e.g. fixed timestep, action queue)
 - have complex branches in your schedule (e.g. state transitions)
@@ -338,7 +339,8 @@ No conflicts. You can transition states inside the fixed timestep without issue.
 
 A **fixed timestep** advances a fixed number of times each second.
 
-It's implemented as an exclusive system that runs a schedule zero or more times in a row (depending on how long the previous frame took to complete).
+It's implemented as an exclusive system that runs a schedule zero or more times in a row (depending on how long the previous schedule execution took to complete).
+
 When you supply a constant delta time value (the literal fixed timestep) inside the encapsulated systems, the result is consistent and repeatable behavior regardless of framerate (or even the presence of a GPU).
 
 ### States
@@ -380,7 +382,8 @@ This design can be broken down into the following steps:
 - Implement conditions.
   - Define the trait (i.e. `IntoRunCondition`) and blanket implement it for compatible functions.
   - Implement `.run_if` descriptor method.
-  - Include condition accesses when doing ambuigity checks.
+  - Include condition accesses when doing ambiguity checks.
+
   - Include condition accesses when executor checks if systems can run.
   - Add inlined condition evaluation step in the executor.
 - Implement storing and retrieving systems (and schedules) from a resource.
@@ -435,9 +438,9 @@ And if their public API is relatively stable, plugins could even make large inte
 
 You *will* have to be more careful once exclusive systems can go anywhere.
 
-That said, Bevy won't fail to detect pairs of conflicting + ambiguously-ordered things.
+That said, the executor won't fail to detect pairs of conflicting + ambiguously-ordered things.
 The checker can point out what's ambiguous before *and* after flattening dependency graphs.
-(i.e. Bevy can report that system A conflicts with system set X before reporting the specific pairs of conflicting systems).
+(i.e. the executor can report that system A conflicts with system set X before reporting the specific pairs of conflicting systems).
 
 We hope system sets will help reduce the cognitive burden here and naturally lead users to patterns with fewer errors.
 Likewise, if users also become responsible for scheduling sets exported by plugins, it will be within their power to resolve any errors.
@@ -504,7 +507,7 @@ If this RFC is merged, to expedite upstreaming while easing the burden on Bevy m
 - Implement a trait (i.e. `StagelessAppExt`) for `App` that can hook into the new module. Ultimately temporary.
 - Upstream these to `main`.
 - Publish a migration guide for the new API.
-- Slowly port over our engine plugins to the new methods provided through `StagelessAppExt` (or whatever we call it).
+- Slowly port over our engine plugins to the new methods provided through `StagelessAppExt`.
 - Deprecate the old module.
 - Replace the old module with the new module (and give the extension trait methods back their normal names).
 
@@ -643,7 +646,8 @@ There are also lots of related but non-urgent areas for follow-up research:
 3. Cloning registered systems. (This probably warrants its own RFC, but it fits with the multiple worlds discussion.)
 4. Add [manual dependency graph construction](https://github.com/bevyengine/bevy/pull/2381) methods.
 5. Support forcing system execution orders: useful for debugging system order bugs and optimization work.
-6. Move command queues into the `World` so that exclusive systems can drain them directly (i.e. in some user-defined order).
+6. Move command queues into the `World` so that exclusive systems can drain them directly (e.g. in some user-defined order).
+
 7. Enable conditions in arbitrary boolean expressions.
 8. Support automatic insertion and removal of systems to reduce schedule clutter and support other forms of one-off logic.
 9. Run schedules without `&mut World`, inferring access based on the systems inside.
