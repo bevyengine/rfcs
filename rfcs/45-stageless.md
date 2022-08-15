@@ -331,7 +331,7 @@ Unlike in previous versions of Bevy, states and the fixed timestep are no longer
 
 Instead, systems that are part of states or fixed time steps are simply added under a separate system set that will be retrieved and ran by an exclusive system.
 
-As a result, you can transition states or add additional run criteria inside the fixed timestep without issue.
+As a result, you can transition states inside the fixed timestep without issue.
 
 ### Fixed timestep
 
