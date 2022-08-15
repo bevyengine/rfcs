@@ -316,7 +316,9 @@ fn example_run_schedule_system(world: &mut World) {
 }
 ```
 
-This pattern is your go-to when your scheduling needs grow beyond "each system runs once per app update", e.g. when you want to:
+This pattern is your go-to when your scheduling needs grow beyond "each system runs once per app update".
+You might want to:
+
 
 - repeatedly loop over a sequence of game logic several times in a single app update (e.g. fixed timestep, action queue)
 - have complex branches in your schedule (e.g. state transitions)
@@ -325,9 +327,11 @@ This pattern is your go-to when your scheduling needs grow beyond "each system r
 
 As long as you have `&mut World`, from an exclusive system or command, you can extract anything available in the `Systems` resource and run it.
 
-Unlike in previous versions of Bevy, states and the fixed timestep no longer depend on run criteria.
-Instead, systems are simply added under a separate system set that will be retrieved and ran by an exclusive system.
-No conflicts. You can transition states inside the fixed timestep without issue.
+Unlike in previous versions of Bevy, states and the fixed timestep are no longer powered by run criteria.
+
+Instead, systems that are part of states or fixed time steps are simply added under a separate system set that will be retrieved and ran by an exclusive system.
+
+As a result, you can transition states or add additional run criteria inside the fixed timestep without issue.
 
 ### Fixed timestep
 
@@ -344,9 +348,11 @@ They're often used for relatively high-level facets of app behavior like pausing
 State machines are stored as individual resources and their state types must implement the `State` trait.
 It's common to see enums used for state types.
 
-The current state can be read from the `CurrentState<S: State>` resource.
+You can have multiple independently controlled states, or defined nested states with enums.
+The current state of type `S` can be read from the `CurrentState<S: State>` resource.
 
-Bevy provides a simple but convenient abstraction to link the transitions of a state `X` with system sets, specifically an `OnEnter(X)` system set and an `OnExit(X)` system set. An exclusive system called `apply_state_transition<S: State>` can be scheduled, which will retrieve and run these schedules as appropriate when a transition is queued in the `NextState<S: State>` resource.
+Bevy provides a simple but convenient abstraction to link the transitions of a state `S::Variant` with system sets, specifically an `OnEnter(S::Variant)` system set and an `OnExit(S::Variant)` system set. An exclusive system called `apply_state_transition<S: State>` can be scheduled, which will retrieve and run these schedules as appropriate when a transition is queued in the `NextState<S: State>` resource.
+
 
 ```rust
 fn main() {
@@ -361,7 +367,6 @@ fn main() {
 
 ## Implementation strategy
 
-Prototype implementation: bevyengine/bevy#4391 (See **Appendix** for specific snippets)
 
 This design can be broken down into the following steps:
 
@@ -405,7 +410,8 @@ This design can be broken down into the following steps:
       - `on_resume`
       - etc.
 4. It may become harder for users to understand their app at a glance.
-    - Particularly understanding when commands are processed and understanding what conditions guard a system when it belongs to multiple system sets.
+    - Commands processing is more explicit but less structured.
+    - The conditions that guard a system can become more complex when it belongs to multiple system sets (via nesting or intersection).
     - Clear, concise error messages and graph visualization tools will become even more important.
 
 ## Rationale and alternatives
@@ -446,7 +452,6 @@ If you have two ambiguously-ordered system sets that conflict, you probably won'
 
 ### Why is command application scheduled with an exclusive system?
 
-What users would like best is an open question.
 
 Several earlier RFCs talked about expressing more exact dependencies, e.g. `B.after_buffers_of(A)`, where such graph edges could hypothetically be used to automatically determine when to apply commands, at a minimal number of points. We don't know how to achieve that hypothetical (graph problems are difficult).
 However, if contributors find a solution later, they will be able to build on top of this design.
@@ -639,17 +644,16 @@ There are also lots of related but non-urgent areas for follow-up research:
 2. Revisit plugin definition and plugin configuration.
 3. Cloning registered systems. (This probably warrants its own RFC, but it fits with the multiple worlds discussion.)
 4. Add [manual dependency graph construction](https://github.com/bevyengine/bevy/pull/2381) methods.
-5. Support forcing system execution orders: useful for debugging system order bugs and optimization work.
+5. Seeded, fully deterministic system execution orders: useful for debugging system order bugs and optimization work.
 6. Move command queues into the `World` so that exclusive systems can drain them directly (e.g. in some user-defined order).
 
-7. Enable conditions in arbitrary boolean expressions.
+7. Compose conditions via arbitrary boolean expressions.
 8. Support automatic insertion and removal of systems to reduce schedule clutter and support other forms of one-off logic.
 9. Run schedules without `&mut World`, inferring access based on the systems inside.
 
 ## Appendix
 
 These implementation ideas/details are here to avoid cluttering the RFC.
-
 
 ### `apply_system_buffers`
 
