@@ -153,13 +153,6 @@ For example, using `systems![a, b, c, ...].chain()` (or the `chain![a, b, c, ...
 
 Bevy's `MinimalPlugins` and `DefaultPlugins` plugin groups include several built-in system sets.
 
-```rust
-fn main() {
-    App::new()
-        .add_systems(chain![compute_damage, deal_damage, check_for_death].in_set(GameSet::Combat))
-        .run()
-}
-```
 
 ```rust
 #[derive(SystemLabel)]
