@@ -141,7 +141,6 @@ fn main() {
 The main way you can configure systems is to say *when* they should run, using the `.before`, `.after`, and `.in_set` methods.
 These properties, called *dependencies*, determine execution order relative to other systems and system sets.
 These dependencies are collected and assembled to produce dependency graphs, which, along with the signature of each system, tells the executor which systems can run in parallel.
-
 Dependencies involving system sets are later flattened into dependencies between individual pairs of systems.
 
 If a combination of constraints cannot be satisfied (e.g. you say A has to come both before and after B), a dependency graph will be found to be **unsolvable** and return an error. However, that error should clearly explain how to fix whatever problem was detected.
