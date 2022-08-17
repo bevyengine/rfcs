@@ -356,7 +356,6 @@ fn main() {
 
 ## Implementation strategy
 
-
 This design can be broken down into the following steps:
 
 - Normalize exclusive systems.
@@ -383,6 +382,8 @@ This design can be broken down into the following steps:
 - Misc.
   - Implement bulk scheduling capabilities (`.add_systems`, descriptor wrapper enum, and convenience macros like `chain!`)
     - Rebrand "system chaining" (e.g. `ChainSystem`) into something else, like "system piping".
+
+There is a prototype implementation of these changes (in a separate module) here: bevyengine/bevy#4391 (The **Appendix** shows several snippets from this.)
 
 ## Drawbacks
 
