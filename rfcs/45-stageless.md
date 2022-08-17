@@ -440,9 +440,9 @@ And if their public API is relatively stable, plugins could even make large inte
 
 You *will* have to be more careful once exclusive systems can go anywhere.
 
-That said, the executor won't fail to detect pairs of conflicting + ambiguously-ordered things.
+That said, the dependency graph checker won't fail to detect pairs of conflicting + ambiguously-ordered things.
 The checker can point out what's ambiguous before *and* after flattening dependency graphs.
-(i.e. the executor can report that system A conflicts with system set X before reporting the specific pairs of conflicting systems).
+(i.e. the checker can report that system A conflicts with system set X before reporting the specific pairs of conflicting systems).
 
 We hope system sets will help reduce the cognitive burden here and naturally lead users to patterns with fewer errors.
 Likewise, if users also become responsible for scheduling sets exported by plugins, it will be within their power to resolve any errors.
@@ -454,7 +454,8 @@ If you have two ambiguously-ordered system sets that conflict, you probably won'
 
 ### Why is command application scheduled with an exclusive system?
 
-Several earlier RFCs talked about expressing more exact dependencies, e.g. `B.after_buffers_of(A)`, where such graph edges could hypothetically be used to automatically determine when to apply commands, at a minimal number of points. We don't know how to achieve that hypothetical (graph problems are difficult).
+Several earlier RFCs talked about expressing more exact dependencies, e.g. `B.after_buffers_of(A)`, where such graph edges could hypothetically be used to automatically determine when to apply commands, at a minimal number of points.
+We don't know how to achieve that hypothetical (graph problems are difficult).
 However, if contributors find a solution later, they will be able to build on top of this design.
 
 Therefore, although `apply_system_buffers` might not be the best way to handle this, it will let users decide when commands are applied and ensure other systems aren't running when that happens.
