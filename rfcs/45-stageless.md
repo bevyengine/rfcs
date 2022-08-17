@@ -189,7 +189,8 @@ impl Plugin for PhysicsPlugin {
 
 ### Deciding if systems run with conditions
 
-While dependencies determine *when* systems runs, **conditions** determine *if* they run at all.
+While dependencies determine *when* systems run, **conditions** determine *if* they run at all.
+
 Functions with compatible signatures (immutable `World` data access and `bool` output) can be attached to systems and system sets as conditions.
 A system or system set will only run if all of its conditions return `true`.
 If one of its conditions returns `false`, the system (or members of the system set) will be skipped.
