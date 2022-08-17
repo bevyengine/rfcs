@@ -318,7 +318,6 @@ fn example_run_schedule_system(world: &mut World) {
 This pattern is your go-to when your scheduling needs grow beyond "each system runs once per app update".
 You might want to:
 
-
 - repeatedly loop over a sequence of game logic several times in a single app update (e.g. fixed timestep, action queue)
 - have complex branches in your schedule (e.g. state transitions)
 - change to a different threading model for some portion of your systems
@@ -327,9 +326,7 @@ You might want to:
 As long as you have `&mut World`, from an exclusive system or command, you can extract anything available in the `Systems` resource and run it.
 
 Unlike in previous versions of Bevy, states and the fixed timestep are no longer powered by run criteria.
-
 Instead, systems that are part of states or fixed time steps are simply added under a separate system set that will be retrieved and ran by an exclusive system.
-
 As a result, you can transition states inside the fixed timestep without issue.
 
 ### Fixed timestep
@@ -337,7 +334,6 @@ As a result, you can transition states inside the fixed timestep without issue.
 A **fixed timestep** advances a fixed number of times each second.
 
 It's implemented as an exclusive system that runs a schedule zero or more times in a row (depending on how long the previous app update took to complete).
-
 When you supply a constant delta time value (the literal fixed timestep) inside the encapsulated systems, the result is consistent and repeatable behavior regardless of framerate (or even the presence of a GPU).
 
 ### States
@@ -350,7 +346,8 @@ It's common to see enums used for state types.
 You can have multiple independently controlled states, or defined nested states with enums.
 The current state of type `S` can be read from the `CurrentState<S: State>` resource.
 
-Bevy provides a simple but convenient abstraction to link the transitions of a state `S::Variant` with system sets, specifically an `OnEnter(S::Variant)` system set and an `OnExit(S::Variant)` system set. An exclusive system called `apply_state_transition<S: State>` can be scheduled, which will retrieve and run these schedules as appropriate when a transition is queued in the `NextState<S: State>` resource.
+Bevy provides a simple but convenient abstraction to link the transitions of a state `S::Variant` with system sets, specifically an `OnEnter(S::Variant)` system set and an `OnExit(S::Variant)` system set.
+An exclusive system called `apply_state_transition<S: State>` can be scheduled, which will retrieve and run these schedules as appropriate when a transition is queued in the `NextState<S: State>` resource.
 
 
 ```rust
@@ -381,7 +378,6 @@ This design can be broken down into the following steps:
   - Define the trait (i.e. `IntoRunCondition`) and blanket implement it for compatible functions.
   - Implement `.run_if` descriptor method.
   - Include condition accesses when doing ambiguity checks.
-
   - Include condition accesses when executor checks if systems can run.
   - Add inlined condition evaluation step in the executor.
 - Implement storing and retrieving systems (and schedules) from a resource.
@@ -645,7 +641,6 @@ There are also lots of related but non-urgent areas for follow-up research:
 4. Add [manual dependency graph construction](https://github.com/bevyengine/bevy/pull/2381) methods.
 5. Seeded, fully deterministic system execution orders: useful for debugging system order bugs and optimization work.
 6. Move command queues into the `World` so that exclusive systems can drain them directly (e.g. in some user-defined order).
-
 7. Compose conditions via arbitrary boolean expressions.
 8. Support automatic insertion and removal of systems to reduce schedule clutter and support other forms of one-off logic.
 9. Run schedules without `&mut World`, inferring access based on the systems inside.
