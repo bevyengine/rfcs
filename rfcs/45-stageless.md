@@ -405,11 +405,21 @@ There is a prototype implementation of these changes (in a separate module) here
 
 ## Rationale and alternatives
 
-### Why did you call them "system sets" instead of "labels" (or some other term)?
+### How are system sets any different from labels?
 
-"Label" sounds really abstract, while "system set" more closely matches how it's interpreted during dependency graph solving.
-Formally, a system set is a subgraph embedded somewhere in the graph of its parent set(s) (unless it's a root).
-It's like a "super node" that encapsulates everything inside it.
+Formally speaking, a system set is a subgraph.
+It's a node in the graph of its parent set(s) (unless it's a root).
+
+We wanted to make it clear that labels are *names* for things and not *tags*.
+You can name systems and system sets.
+
+Today, if you add multiple labels to a system, the expectation is that each label is involved in at least one dependency, so you're actually positioning things, not categorizing them.
+We have made this explicit.
+You position things within sets (and because sets can be "nested", we've added depth).
+
+Although users don't normally add labels and leave them "unconstrained", such a thing does have a direct analogue in this design.
+You can simply include systems in additional sets that are decoupled from the ones you'd normally execute.
+In that case, you'd be using "set" as a simple abstract group instead of a scoped dependency graph.
 
 ### If users can configure system sets, can they control where systems from third-party plugins are added?
 
