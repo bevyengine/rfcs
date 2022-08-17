@@ -245,7 +245,6 @@ As much as everyone loves to see systems running in parallel, sometimes a little
 Previous versions of Bevy treated these "exclusive" systems as a separate concept, with their own set of types and traits.
 They couldn't have `Local` params and could only be inserted at specific points of a stage.
 
-
 That is no longer the case.
 Exclusive systems are now just regular systems.
 They can have `Local` params and be scheduled wherever you want.
