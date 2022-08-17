@@ -274,6 +274,8 @@ impl Plugin for ProjectilePlugin {
                 check_if_projectiles_hit,
                 despawn_projectiles_that_hit,
                 // wherever you want commands to be applied, insert an instance of `apply_system_buffers`
+                // and when you add the same function multiple times, you have to use .named() to give
+                // each instance a unique name
                 apply_system_buffers.named(MySystems::FlushProjectiles)
                 fork_projectiles,
             ]
