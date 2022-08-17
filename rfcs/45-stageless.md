@@ -71,8 +71,7 @@ In short, for any system or system set, you can define:
 - its execution order relative to other systems or sets (e.g. "this system runs before A")
 - any conditions that must be true for it to run (e.g. "this system only runs if a player has full health")
 - which set(s) it belongs to (which define properties that affect all systems underneath)
-  - if left unspecified, the system or set will be added under a default one (configurable)
-
+  - if left unspecified, the system or set will be added under a default one (this is configurable)
 
 These properties are all additive.
 Adding another does not replace an existing one, and they cannot be removed.
@@ -123,6 +122,7 @@ fn main() {
         // Bulk-add systems and system sets with some convenience macros.
         .add_systems(
           chain![
+            // Macros can also accept system sets.
             MySystemSets::SubMenu,
             // Choose when to process commands with instances of this dedicated system.
             apply_system_buffers.named(MySystems::FlushMenu),
@@ -151,7 +151,6 @@ For example, using `systems![a, b, c, ...].chain()` (or the `chain![a, b, c, ...
 *Note: This is different from the "system chaining" in previous versions of Bevy. That has been renamed to "system piping" to avoid overlap.*
 
 Bevy's `MinimalPlugins` and `DefaultPlugins` plugin groups include several built-in system sets.
-
 
 ```rust
 #[derive(SystemLabel)]
@@ -294,23 +293,18 @@ If you want to run a system or system set, you have to extract it from `Systems`
 
 `Systems` has methods to extract a system or system set given its label.
 When you extract a system set, you actually receive a **schedule**.
-This is a "frozen", executable version of the set, containing all its systems and conditions, along with instructions to run them in the correct order.
-After running a schedule, you can return it and its systems to `Systems`.
+This is the executable version of the set, containing all its systems and conditions, along with instructions to run them in the correct order.
+After running a schedule, you can return it to `Systems`.
+A `World::schedule_scope` method is provided for this common "extract-run-return" case.
 
 The default `App` runner itself actually uses these methods to run the startup sequence and main update loop, so if you retrieve and run a single system somewhere, you'll effectively have written a very basic executor!
 
 ```rust
-fn example_run_schedule_system(world: &mut World) {
-    // take ownership of the schedule
-    let mut systems = world.resource_mut::<Systems>();
-    let mut schedule = systems.checkout_schedule(MySystemSetLabel);
-
-    // run it on the world
-    schedule.run(world);
-    
-    // return it
-    let mut systems = world.resource_mut::<Systems>();
-    systems.checkin_schedule(schedule);
+fn fancy_exclusive_system(world: &mut World) {
+    // removes schedule from Systems, executes fn with it, then returns it to Systems
+    world.schedule_scope(ExampleLabel, |world, mut schedule| {
+        schedule.run(world);
+    });
 }
 ```
 
@@ -445,7 +439,6 @@ If you have two ambiguously-ordered system sets that conflict, you probably won'
 [RFC #46](https://github.com/bevyengine/rfcs/pull/46) (which spun out of this one) aims to give system sets configurable atomicity to prevent this mixing from happening, although the ambiguity would still exist.
 
 ### Why is command application scheduled with an exclusive system?
-
 
 Several earlier RFCs talked about expressing more exact dependencies, e.g. `B.after_buffers_of(A)`, where such graph edges could hypothetically be used to automatically determine when to apply commands, at a minimal number of points. We don't know how to achieve that hypothetical (graph problems are difficult).
 However, if contributors find a solution later, they will be able to build on top of this design.
@@ -887,8 +880,12 @@ pub fn apply_state_transition<S: State>(world: &mut World) {
             let new = world.resource_mut::<NextState<S>>().take().unwrap();
             let old = current_state.replace(new);
             // and run the transitions
-            retrieve_and_run_schedule(OnExit(old), world);
-            retrieve_and_run_schedule(OnEnter(new), world);
+            world.schedule_scope(OnExit(old), |world, mut schedule| {
+                schedule.run(world);
+            });
+            world.schedule_scope(OnEnter(new), |world, mut schedule| {
+                schedule.run(world);
+            });
         }
     });
 }
