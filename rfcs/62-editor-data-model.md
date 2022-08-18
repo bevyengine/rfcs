@@ -482,8 +482,6 @@ Properties themselves are defined by a name and the type of their value.
 The type also stores the byte offset of that property from the beginning of a struct instance,
 which allows packing property values for a struct into a single byte stream,
 and enables various optimizations regarding diff'ing/patching and serialization.
-Modifying any of the `name`, `value_type`, or `byte_offset` constitute a type change,
-which mandates migrating all existing instances.
 
 ```rust
 struct Property {
@@ -508,13 +506,13 @@ nor any equality operator (`PartialEq` and `Eq` in Rust).
 It also enables efficient copy and serialization via direct memory reads and writes,
 instead of relying on getter/setter methods.
 
-The `Property` struct contains also an optional validation function
+The `Property` type contains also an optional validation function
 used to validate the value of a property for things like range and bounds check, nullability, _etc._
 which is used both when the user (via the Editor UI) attempts to set a value,
 and when a value is set automatically (_e.g._ during deserialization).
 
 ```rust
-trait Validate {
+trait ValidateProperty {
     /// Check if a value is valid for the property.
     fn is_valid(&self, property: &Property, value: &[u8]) -> bool;
 
@@ -525,7 +523,7 @@ trait Validate {
 
 ### Game objects
 
-Instances of any type are represented by the `GameObject` component:
+Instances of any type of the Game are represented by the `GameObject` component:
 
 ```rust
 #[derive(Component)]
