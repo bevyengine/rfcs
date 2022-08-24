@@ -579,7 +579,8 @@ This was the strategy we used for `SystemSet`.
 
 - looks pretty
 - no limit to number of elements
-- doesn't work (different functions are different types, arrays must be homogoneous)
+- doesn't work (different functions are different types, arrays must be homogeneous)
+
 
 #### Tuples
 
