@@ -20,7 +20,7 @@ pub struct Circle {
 }
 ```
 
-Note that a `Circle` does not contain any information about the position of the circle. This is due to how shapes are composed to add more complex functionality. Consider the following common use cases of primitives shapes, as well as the the information (Translation and Rotation) that are needed to fully define the shapes for these cases:
+Note that a `Circle` does not contain any information about the position of the circle. This is due to how shapes are composed to add more complex functionality. Consider the following common use cases of primitives shapes, as well as the information (Translation and Rotation) that are needed to fully define the shapes for these cases:
 
 | Shape     | Mesh | Bounding | Collision |
 |-----------|----|------------------|---|
