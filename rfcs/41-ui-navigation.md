@@ -918,6 +918,27 @@ and it would be a mistake to "not panic at all cost."
 A panic is an opportunity to teach the user a better way of doing things.
 Not panicking might result in making ui-navigation harder to use.
 
+### SystemParams for better ergonomics
+
+Previously, [`bevy-ui-navigation`] had a [`event_helpers`] module,
+to help smooth out usage, it adds two `SystemParam` to simplify
+combining focus events with ECS state.
+
+The proposed design replaces the module by a single trait
+implemented on `EventReader<NavEvent>`: [`NavEventReaderExt`].
+
+However, it's not clear which design to chose. 
+
+`SystemParam`:
+- Difficult to discover, you need to know about the types
+- Add more API surface
+- Hides the internals of handling events
+
+`NavEventReaderExt` extension trait:
+- Not fluent rust
+- Need to use an additional method in the body of the system `.nav_iter()`
+- Even more difficult to discover.
+- Can easily go from a specialized method to just calling `EventReader::iter`
 
 ## Drawbacks and design limitations
 
@@ -1010,7 +1031,7 @@ the implementation might in fact be resilient to hierarchy changes.
 [mouse picking]: https://github.com/aevyrie/bevy_mod_picking/
 [`bevy-ui-navigation`]: https://github.com/nicopap/ui-navigation
 [ui-nav-arch]: https://github.com/nicopap/ui-navigation/blob/30c828a465f9d4c440d0ce6e97051a5f7fafa425/src/resolve.rs#L1-L33
-[`event_helpers`]: https://docs.rs/bevy-ui-navigation/latest/bevy_ui_navigation/event_helpers/index.html
+[`event_helpers`]: https://docs.rs/bevy-ui-navigation/0.18.0/bevy_ui_navigation/event_helpers/index.html
 [gambit-slider]: https://github.com/team-plover/warlocks-gambit/blob/3f8132fbbd6cce124a1cd102755dad228035b2dc/src/ui/main_menu.rs#L59-L95
 [`NavRequest`]: https://docs.rs/bevy-ui-navigation/latest/bevy_ui_navigation/events/enum.NavRequest.html
 [`NavEvent`]: https://docs.rs/bevy-ui-navigation/latest/bevy_ui_navigation/events/enum.NavEvent.html
@@ -1021,3 +1042,4 @@ the implementation might in fact be resilient to hierarchy changes.
 [`UiProjectionQuery`]: https://github.com/nicopap/ui-navigation/blob/17c771b7f752cfd604f21056f9d4ca6772529c6f/src/resolve.rs#L378-L429
 [`TreeMenu`]: https://github.com/nicopap/ui-navigation/blob/30c828a465f9d4c440d0ce6e97051a5f7fafa425/src/resolve.rs#L201-L216
 [this RFC's PR]: https://github.com/bevyengine/bevy/pull/5378
+[`NavEventReaderExt`]: https://docs.rs/bevy-ui-navigation/latest/bevy_ui_navigation/events/trait.NavEventReaderExt.html
