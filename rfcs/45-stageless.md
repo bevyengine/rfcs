@@ -396,6 +396,8 @@ This design can be broken down into the following steps:
   - Include condition accesses when executor checks if systems can run.
   - Add inlined condition evaluation step in the executor.
 - Implement storing and retrieving systems (and schedules) from a resource.
+  - `Schedules` is effectively `Hashmap<ScheduleLabel, Schedule>`
+  - Each `Schedule` owns the graph data, and cross-schedule dependencies are impossible
   - Implement a descriptor coercion trait for `L: SystemLabel` types.
   - Implement the `Systems` type as described. (See **Appendix** or [this comment](https://github.com/bevyengine/bevy/pull/4090#issuecomment-1206585499) or [prototype PR impl](https://github.com/maniwani/bevy/blob/f5f80cd195b15d3912b4d90aade8750d8d1adc2e/crates/bevy_ecs/src/schedule_v3/mod.rs).)
 - Remove internal uses of "looping run criteria".
