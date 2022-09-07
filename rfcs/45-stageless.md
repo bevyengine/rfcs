@@ -73,8 +73,9 @@ In short, for any system or system set, you can define:
 - which set(s) it belongs to (which define properties that affect all systems underneath)
   - if left unspecified, the system or set will be added under a default one (this is configurable)
 
-These properties are all additive.
+These properties are all additive, and properties can be added to existing sets.
 Adding another does not replace an existing one, and they cannot be removed.
+If incompatible properties are added, the schedule will panic at startup.
 
 ### Sample
 
@@ -102,7 +103,9 @@ enum MySystems {
 fn main() {
     App::new()
         /* ... */
-        .add_set(
+        // If a set does not exist when `configure_set` is called,
+        // it will be implicitly created.
+        .configure_set(
             // Use the same builder API for scheduling systems and system sets.
             MySystemSets::Menu
                 // Put sets in other sets.
@@ -169,15 +172,15 @@ impl Plugin for PhysicsPlugin {
             .after(InputSet::ReadInputHandling);
 
         app
-            .add_set(
+            .configure_set(
                 Physics::ComputeForces
                     .configure_with(fixed_after_input)
                     .before(Physics::DetectCollisions))
-            .add_set(
+            .configure_set(
                 Physics::DetectCollisions
                     .configure_with(fixed_after_input)
                     .before(Physics::HandleCollisions))
-            .add_set(Physics::HandleCollisions.configure_with(fixed_after_input))
+            .configure_set(Physics::HandleCollisions.configure_with(fixed_after_input))
             .add_system(gravity.in_set(Physics::ComputeForces))
             .add_systems(
                 chain![broad_pass, narrow_pass, solve_constraints]
@@ -223,7 +226,7 @@ fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         // You can add functions with read-only system parameters as conditions.
-        .add_set(GameSet::Construction.run_if(construction_timer_not_finished))
+        .configure_set(GameSet::Construction.run_if(construction_timer_not_finished))
         .add_systems(
             systems![tick_construction_timer, update_construction_progress]
                 .in_set(GameSet::Construction))
@@ -234,7 +237,7 @@ fn main() {
         // new closures that can be used as conditions.
         .add_system(gravity.run_if(resource_exists(Gravity)))
         // The systems in this set won't run if `Paused` is `true`.
-        .add_set(GameSet::Physics.run_if(resource_equals(Paused(false))))
+        .configure_set(GameSet::Physics.run_if(resource_equals(Paused(false))))
         .run();
 }
 ```
@@ -533,6 +536,18 @@ fn main() {
 }
 ```
 
+### Why were the rules for system configuration chosen?
+
+There are three key rules for system configuration:
+
+1. You can always add configuration (for any publically labeled set).
+2. You can never remove configuration.
+3. Contradictory configuration is invalid, even if it's locally consistent.
+
+The first rule ensures that plugins can export flexible, reusable functionality, which can be adapted to fit into the user's app.
+The second rule allows plugins to enforce critical internal invariants, even in the face of additional tweaking.
+The final rule is a resolution mechanism: rather than trying to guess which rule should take priority, Bevy will fail quickly, clearly and early to allow programmers to detect and fix the underlying problem.
+
 ## Unresolved questions
 
 ### What's a good convention for naming system label types?
@@ -674,6 +689,7 @@ There are also lots of related but non-urgent areas for follow-up research:
 7. Compose conditions via arbitrary boolean expressions.
 8. Support automatic insertion and removal of systems to reduce schedule clutter and support other forms of one-off logic.
 9. Run schedules without `&mut World`, inferring access based on the systems inside.
+10. [One-shot systems](https://github.com/bevyengine/bevy/pulls?q=is%3Apr+is%3Aopen+one-shot+system), where systems are evaluated one-at-a-time on an ad hoc basis.
 
 ## Appendix
 
@@ -826,11 +842,11 @@ So what are the errors?
 
     ```rust
     app
-        .add_set(A);
-        .add_set(B.in_set(A));
+        .configure_set(A);
+        .configure_set(B.in_set(A));
         // The next line causes a panic during graph solving.
         // `A` cannot be a parent and grandparent to `C` at same time. 
-        .add_set(C.in_set(B).in_set(A))
+        .configure_set(C.in_set(B).in_set(A))
     ```
 
 4. You called `.in_set` with a label that belongs to a system, rather than a system set.
