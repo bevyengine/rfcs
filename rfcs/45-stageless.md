@@ -501,15 +501,21 @@ Whatever the changes, migration will be a big challenge.
 The proposed changes would affect the `App` and `Plugin` methods that all engine plugins and examples use, which will be a lot to review.
 At the same time, a large number of users are eagerly awaiting changes of this nature making it into the engine.
 
-If this RFC is merged, to expedite upstreaming while easing the burden on Bevy maintainers, we propose the following migration path:
+If this RFC is merged, to expedite upstreaming while easing the burden on Bevy maintainers, we propose the following migration path with 3 phases:
 
-- Add all the new stuff in a new module (i.e. `bevy_ecs::stageless`) that will live alongside an unchanged `bevy_ecs::schedule`, unused (and not in the prelude).
-- Implement a trait (i.e. `StagelessAppExt`) for `App` that can hook into the new module. Ultimately temporary.
-- Upstream these to `main`.
-- Publish a migration guide for the new API.
-- Slowly port over our engine plugins to the new methods provided through `StagelessAppExt`.
-- Deprecate the old module.
-- Replace the old module with the new module (and give the extension trait methods back their normal names).
+1. Add all the new stuff in a new module (i.e. `bevy_ecs::stageless`) that will live alongside an unchanged `bevy_ecs::schedule`, unused (and not in the prelude).
+   1. Implement a trait (i.e. `StagelessAppExt`) for `App` that can hook into the new module. Ultimately temporary.
+   2. Publish a migration guide for the new API.
+2. Port over our engine plugins to the new methods provided through `StagelessAppExt`.
+   1. Deprecate the old module to make sure everything has been migrated.
+3. Replace the old module with the new module.
+   1. Remove the extension trait.
+   2. Give the extension trait methods back their normal names.
+   3. Verify migration guide.
+
+Phase 1 will involve the bulk of the technical effort, and needs the closest reviews.
+Phase 2 and 3 will be tedious and trivial and involve very large numbers of lines changed.
+We will use a global code freeze during those steps to avoid merge conflicts, and merge Phase 2 and 3 ASAP.
 
 ### What's a good convention for naming system label types?
 
