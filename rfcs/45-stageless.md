@@ -345,7 +345,6 @@ The current state of type `S` can be read from the `CurrentState<S: State>` reso
 Bevy provides a simple but convenient abstraction to link the transitions of a state `S::Variant` with system sets, specifically an `OnEnter(S::Variant)` system set and an `OnExit(S::Variant)` system set.
 An exclusive system called `apply_state_transition<S: State>` can be scheduled, which will retrieve and run these schedules as appropriate when a transition is queued in the `NextState<S: State>` resource.
 
-
 ```rust
 fn main() {
     App::new()
@@ -581,7 +580,6 @@ This was the strategy we used for `SystemSet`.
 - no limit to number of elements
 - doesn't work (different functions are different types, arrays must be homogeneous)
 
-
 #### Tuples
 
 ```rust
@@ -801,6 +799,7 @@ So what are the errors?
 1. A dependency graph contains a loop or cycle.
 2. The hierarchical graph contains a loop or cycle.
 3. The hierarchical graph has a transitive edge. Example:
+
     ```rust
     app
         .add_set(A);
@@ -809,6 +808,7 @@ So what are the errors?
         // `A` cannot be a parent and grandparent to `C` at same time. 
         .add_set(C.in_set(B).in_set(A))
     ```
+
 4. You called `.in_set` with a label that belongs to a system, rather than a system set.
 5. (Optional) You have a dependency between two things that aren't siblings in a common set. That edge will not appear in either set's dependency graph, only in the flattened graph of an overarching set. This can lead to unwanted implicit ordering between systems in different sets.
 6. (Optional) You referenced an "unknown" label. e.g. `.after(label)` references a label that doesn't belong to any known system or system set.
@@ -866,7 +866,7 @@ Each condition is evaluated at most once.
 Since most of these functions are probably simple tests, we don't spawn tasks for them, which avoids locking other systems out of the data they access.
 Likewise, we don't spawn tasks for systems that get skipped. This lightweight approach minimizes task overhead.
 
-### States
+### Implementing states
 
 The implementation of a basic state machine can be very simple in this new scheme.
 
