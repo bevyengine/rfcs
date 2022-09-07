@@ -332,6 +332,24 @@ A **fixed timestep** advances a fixed number of times each second.
 It's implemented as an exclusive system that runs a schedule zero or more times in a row (depending on how long the previous app update took to complete).
 When you supply a constant delta time value (the literal fixed timestep) inside the encapsulated systems, the result is consistent and repeatable behavior regardless of framerate (or even the presence of a GPU).
 
+```rust
+fn main() {
+    App::new()
+        .add_systems(
+            // Conveneniently ordering these systems relative to each other
+            chain!([
+               apply_forces,
+               apply_acceleration,
+               apply_velocity
+            ])
+            // Ensuring they run on a fixed timestep
+            // as part of the `FixedTimestep` set
+            .in_set(FixedTimestep)
+         )
+        .run();
+}
+```
+
 ### States
 
 **State machines** allow for ad-hoc execution of complex logic in response to state transitions.
