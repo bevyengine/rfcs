@@ -369,13 +369,22 @@ An exclusive system called `apply_state_transition<S: State>` can be scheduled, 
 ```rust
 fn main() {
     App::new()
+        .add_state::<GameState>()
         /* ... */
+        // These systems only run as part of the state transition logic
         .add_system(load_map.in_set(OnEnter(GameState::Playing)))
         .add_system(autosave.in_set(OnExit(GameState::Playing)))
+        // This system will be added under the `OnUpdate(GameState::Playing)` set
+        .add_system(run.in_set(OnUpdate(GameState::Playing)))
+        // This system will not be part of the set above, but will otherwise follow the same rules
+        .add_system(jump.run_if(state_equals(GameState::Playing)))
         /* ... */
         .run();
 }
 ```
+
+By default, all state transitions are evaluated just before `CoreSystems::Update`, in a `CoreSystems::ApplyStateTransitions` set.
+Calling `App::add_state` adds the corresponding `CurrentState` and `NextState` resources, and registers a `apply_state_transition<S>` system.
 
 ## Implementation strategy
 
