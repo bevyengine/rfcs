@@ -87,14 +87,14 @@ enum GameState {
     Paused
 }
 
-#[derive(SystemLabel)]
+#[derive(SetLabel)]
 enum MySystemSets {
     Update,
     Menu,
     SubMenu,
 }
 
-#[derive(SystemLabel)]
+#[derive(SetLabel)]
 enum MySystems {
     FlushMenu,
 }
@@ -153,7 +153,7 @@ For example, using `systems![a, b, c, ...].chain()` (or the `chain![a, b, c, ...
 Bevy's `MinimalPlugins` and `DefaultPlugins` plugin groups include several built-in system sets.
 
 ```rust
-#[derive(SystemLabel)]
+#[derive(SetLabel)]
 enum Physics {
     ComputeForces,
     DetectCollisions,
@@ -256,7 +256,7 @@ If one system depends on the effects of commands from another, make sure an `app
 ```rust
 use bevy::prelude::*;
 
-#[derive(SystemLabel)]
+#[derive(SetLabel)]
 enum MySystems {
     /* ... */
     FlushProjectiles,
@@ -393,7 +393,7 @@ This design can be broken down into the following steps:
   - Include condition accesses when executor checks if systems can run.
   - Add inlined condition evaluation step in the executor.
 - Implement storing and retrieving systems (and schedules) from a resource.
-  - Implement a descriptor coercion trait for `L: SystemLabel` types.
+  - Implement a descriptor coercion trait for `L: SetLabel` types.
   - Implement the `Systems` type as described. (See **Appendix** or [this comment](https://github.com/bevyengine/bevy/pull/4090#issuecomment-1206585499) or [prototype PR impl](https://github.com/maniwani/bevy/blob/f5f80cd195b15d3912b4d90aade8750d8d1adc2e/crates/bevy_ecs/src/schedule_v3/mod.rs).)
 - Remove internal uses of "looping run criteria".
   - Convert fixed timestep and state transitions into exclusive systems that each retrieve and run a schedule.
@@ -709,7 +709,7 @@ enum NodeId {
 #[derive(Resource)]
 pub struct Systems {
     // `NodeId` is unique identifier, generated on insertion
-    index: HashMap<SystemLabelId, NodeId>,
+    index: HashMap<SetLabelId, NodeId>,
     next_id: u64,
 
     // long-term storage
@@ -766,19 +766,19 @@ As a bonus, schedule construction will become completely order-independent as ev
 pub trait IntoConfiguredSystem<Params> {
     fn configure(self) -> ConfiguredSystem;
     fn configure_with(self, config: Config) -> ConfiguredSystem;
-    fn before<M>(self, label: impl AsSystemLabel<M>) -> ConfiguredSystem;
-    fn after<M>(self, label: impl AsSystemLabel<M>) -> ConfiguredSystem;
-    fn in_set(self, set: impl SystemLabel) -> ConfiguredSystem;
+    fn before<M>(self, label: impl AsSetLabel<M>) -> ConfiguredSystem;
+    fn after<M>(self, label: impl AsSetLabel<M>) -> ConfiguredSystem;
+    fn in_set(self, set: impl SetLabel) -> ConfiguredSystem;
     fn run_if<P>(self, condition: impl IntoRunCondition<P>) -> ConfiguredSystem;
-    fn named(self, name: impl SystemLabel) -> ConfiguredSystem;
+    fn named(self, name: impl SetLabel) -> ConfiguredSystem;
 }
 
 pub trait IntoConfiguredSystemSet {
     fn configure(self) -> ConfiguredSystemSet;
     fn configure_with(self, config: Config) -> ConfiguredSystemSet;
-    fn before<M>(self, label: impl AsSystemLabel<M>) -> ConfiguredSystemSet;
-    fn after<M>(self, label: impl AsSystemLabel<M>) -> ConfiguredSystemSet;
-    fn in_set(self, set: impl SystemLabel) -> ConfiguredSystemSet;
+    fn before<M>(self, label: impl AsSetLabel<M>) -> ConfiguredSystemSet;
+    fn after<M>(self, label: impl AsSetLabel<M>) -> ConfiguredSystemSet;
+    fn in_set(self, set: impl SetLabel) -> ConfiguredSystemSet;
     fn run_if<P>(self, condition: impl IntoRunCondition<P>) -> ConfiguredSystemSet;
 }
 
@@ -788,19 +788,19 @@ enum Order {
 }
 
 struct Config {
-    sets: HashSet<SystemLabelId>,
-    dependencies: Vec<(Order, SystemLabelId)>,
+    sets: HashSet<SetLabelId>,
+    dependencies: Vec<(Order, SetLabelId)>,
     conditions: Vec<BoxedRunCondition>,
 }
 
 struct ConfiguredSystem {
     system: BoxedSystem,
     config: Config,
-    instance_name: SystemLabelId,
+    instance_name: SetLabelId,
 }
 
 struct ConfiguredSystemSet {
-    set: SystemLabelId,
+    set: SetLabelId,
     config: Config,
 }
 ```
@@ -905,10 +905,10 @@ pub struct NextState<S: State>(pub Option<S>);
 
 impl<S: State> NextState<S> { /* ... */ }
 
-#[derive(SystemLabel)]
+#[derive(SetLabel)]
 pub struct OnEnter<S: State>(S);
 
-#[derive(SystemLabel)]
+#[derive(SetLabel)]
 pub struct OnExit<S: State>(S);
 
 // add (multiple instances of) this system to your schedule
