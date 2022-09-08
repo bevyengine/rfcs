@@ -485,8 +485,18 @@ Not being able to schedule plugin systems is a source of [significant user pain]
 We thought plugins exporting system set labels and users deciding where to position them in their schedules makes for a better balance.
 A popular physics plugin [has already implemented something like this](https://github.com/dimforge/bevy_rapier/pull/169) (partly [inspired](https://discord.com/channels/691052431525675048/742569353878437978/970075559679893594) by this effort).
 
-As you can put sets in sets, plugin authors can choose whatever level of logical granularity they want to expose to you *and* still ensure that important logical invariants hold.
-Users will only be able schedule things at the level the plugin makes public.
+There are three key rules for system configuration:
+
+1. You can always add configuration (for any publically labeled set).
+2. You can never remove configuration.
+3. Contradictory configuration is invalid, even if it's locally consistent.
+
+The first rule ensures that plugins can export flexible, reusable functionality, which can be adapted to fit into the user's app.
+The second rule allows plugins to enforce critical internal invariants, even in the face of additional tweaking.
+The final rule is a resolution mechanism: rather than trying to guess which rule should take priority, Bevy will fail quickly, clearly and early to allow programmers to detect and fix the underlying problem.
+
+Plugin authors can choose whatever level of logical granularity they want to expose to you *and* still ensure that important logical invariants hold.
+Users will only be able schedule systems (and sets of systems) at the level the plugin makes public.
 And if their public API is relatively stable, plugins could even make large internal changes without breaking user apps.
 
 ### If exclusive systems can go anywhere, won't users have a harder time resolving ambiguity errors?
@@ -525,18 +535,6 @@ So rather than port pieces of the existing API, we think it's better to start fr
 If, after migration, a significant number of users are still turning towards a plugin to recover the lost stack functionality, we can consider upstreaming it again.
 
 A stack-based state machine should be trivial to implement though (i.e. with a loop inside the exclusive system).
-
-### Why were the rules for system configuration chosen?
-
-There are three key rules for system configuration:
-
-1. You can always add configuration (for any publically labeled set).
-2. You can never remove configuration.
-3. Contradictory configuration is invalid, even if it's locally consistent.
-
-The first rule ensures that plugins can export flexible, reusable functionality, which can be adapted to fit into the user's app.
-The second rule allows plugins to enforce critical internal invariants, even in the face of additional tweaking.
-The final rule is a resolution mechanism: rather than trying to guess which rule should take priority, Bevy will fail quickly, clearly and early to allow programmers to detect and fix the underlying problem.
 
 ## Unresolved questions
 
