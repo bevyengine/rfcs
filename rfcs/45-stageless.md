@@ -538,39 +538,66 @@ If, after migration, a significant number of users are still turning towards a p
 
 A stack-based state machine should be trivial to implement though (i.e. with a loop inside the exclusive system).
 
-### Why is the use of type-derived labels forbidden in the case of duplicate systems?
+### Why is using type-derived labels (`AsSystemLabel`) forbidden when there are duplicate instances of systems?
 
-When systems are added to the schedule, they are automatically assigned a label, generated via their type (generally, their function name).
-These are very convenient and wildly popular, but in the rare case that multiple systems with the same type (read: function signature) exist in the schedule, the behavior is unintuitive.
+If you schedule multiple instances of a system, the one thing we *never* want to do is group them together without your explicit say-so.
+To explain why, let's consider one common and significant case: `apply_system_buffers`.
 
-Duplicate systems in the same schedule will generally be very unusual, so let's consider the most common and significant case: `apply_system_buffers`.
-Suppose a user has two systems: `generates_commands` and `relies_on_commands`.
-Naively, they specify `generate_commands.before(apply_system_buffers)` and `relies_on_commands.after(apply_system_buffers)`.
+Suppose a user has written the following:
 
-If the `apply_system_buffers` auto-label is taken to mean "the set of all systems with this type",
-this invocation *kind of* does what they want.
-`generate_commands` runs before `relies_on_commands`, and commands are applied between them.
+```rust
+fn main() {
+    app
+        .add_system(apply_system_buffers)
+        .add_system(generates_commands.before(apply_system_buffers))
+        .add_system(relies_on_commands.after(apply_system_buffers))
+        .run()
+}
+```
 
-Later, the user decides that they want to add more complex logic, and have three systems `A`, `B` and `C`, all of which are seperated by `apply_system_buffers`.
-They use the same strategy as above, and are suddenly confronted with an error about an unresolvable graph! What went wrong?
+The user has added three systems and, naively, created dependencies using the `apply_system_buffers` type label.
 
-`.before` / `.after` means "before/after all members of the set", whereas the user wanted different logic:
-"at least one intervening copy of this system runs between these pairs".
-`generate_commands` was running at the very start of the schedule, before commands were flushed at all,
-while `relies_on_commands` was at the very end!
+Since there's only one instance of `apply_system_buffers`, this app works like you'd expect.
+But now suppose that the user adds more anonymous instances of `apply_system_buffers` or imports plugin logic that does.
 
-Promoting type-derived labels to system sets is the natural and consistent behavior:
-however when more than one copy of a system exist, it is very likely to result in delayed-action footguns.
+Let's say the user imports a system set `X` from some plugin and `X` has another anonymous instance of `apply_system_buffers`.
+If the user schedules `X` to run before (or after) their logic, their program will panic over an unsolvable dependency graph.
 
-So if we can't reasonably treat type-derived labels as system sets for the purpose of ordering, what's the right behavior?
-There are a few options:
+```rust
+fn main() {
+    app
+        .configure_set(X.before(generates_commands))
+        .add_system(apply_system_buffers)
+        .add_system(generates_commands.before(apply_system_buffers))
+        .add_system(relies_on_commands.after(apply_system_buffers))
+        // This will panic.
+        .run()
+}
+```
 
-1. Use the first / last / a random element of the set.
-   1. NO: arbitrary and confusing and implicit.
-2. Force users to rename duplicate systems using a `.named(impl SystemLabel)` API.
-   1. NO: adds pointless burden to users, cannot be done when two plugins independently add the same system.
-3. Warn / error / panic when type-derived labels are used for ordering when more than one copy exists.
-   1. YES: highlights the actual problem, and points to a simple and standard workaround (just label which system you actually want).
+What happened here?
+
+Well, if interpreted as a system set, a type-derived label represents "the set of all anonymous systems of this type".
+Therefore, `before(apply_system_buffers)` meant "before all anonymous instances of `apply_system_buffers`" even though the user was most likely only thinking about the one they added themselves.
+Totally obvious, right? (/s)
+
+Their program panicked because it saw a contradiction: `generate_commands` had to run before all `apply_system_buffers` instances and run after the one inside `X` at the same time.
+The only (reliable) solution here is for the user to give their instance of `apply_system_buffers` a unique name and use that name for ordering.
+
+So while it's natural to think of systems as "sets of one", treating their type-derived labels as system set names is subtly different and doing so would virtually guarantee errors when multiple copies exist, so we won't allow it.
+
+Now, we came up with three options to actually enforce that as an invariant:
+
+1. Require users to name duplicate systems.
+2. Leave duplicate systems completely anonymous. Only give the type-derived name to the first copy.
+3. Error when multiple anonymous copies of a system exist and their type-derived label is used for ordering.
+
+(1) ensures correctness and an easier debugging experience, but is too inconvenient.
+(2) drops the naming requirement without losing correctness, but makes things too unclear.
+(3) just makes doing the wrong thing an error.
+
+We like (3) because it doesn't put undue burden on the user or introduce unclear implicit behavior.
+Likewise, resolving the error is very simple: just name the systems.
 
 ## Unresolved questions
 
