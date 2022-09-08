@@ -89,15 +89,10 @@ enum GameState {
 }
 
 #[derive(SystemLabel)]
-enum MySystemSets {
+enum MySystems {
     Update,
     Menu,
     SubMenu,
-}
-
-#[derive(SystemLabel)]
-enum MySystems {
-    FlushMenu,
 }
 
 fn main() {
@@ -107,16 +102,16 @@ fn main() {
         // it will be implicitly created.
         .configure_set(
             // Use the same builder API for scheduling systems and system sets.
-            MySystemSets::Menu
+            MySystems::Menu
                 // Put sets in other sets.
-                .in_set(MySystemSets::Update)
+                .in_set(MySystems::Update)
                 // Attach conditions to system sets.
                 // (If this fails, all systems in the set will be skipped.)
                 .run_if(state_equals(GameState::Paused))
         )
         .add_system(
             some_system
-                .in_set(MySystemSets::Menu)
+                .in_set(MySystems::Menu)
                 // Attach multiple conditions to this system, and they won't conflict with Menu's conditions.
                 // (All of these must return true or this system will be skipped.)
                 .run_if(some_condition_system)
@@ -126,12 +121,12 @@ fn main() {
         .add_systems(
           chain![
             // Macros can also accept system sets.
-            MySystemSets::SubMenu,
+            MySystems::SubMenu,
             // Choose when to process commands with instances of this dedicated system.
-            apply_system_buffers.named(MySystems::FlushMenu),
+            apply_system_buffers,
           ]
           // Configure these together.
-          .in_set(MySystemSets::Menu)
+          .in_set(MySystems::Menu)
           .after(some_system)
         )
         /* ... */
@@ -168,8 +163,8 @@ impl Plugin for PhysicsPlugin {
         // configs are reusable
         let mut fixed_after_input = Config::new()
             // built-in fixed timestep system set
-            .in_set(CoreSet::FixedUpdate)
-            .after(InputSet::ReadInputHandling);
+            .in_set(CoreSystems::FixedUpdate)
+            .after(InputSystems::ReadInputHandling);
 
         app
             .configure_set(
@@ -226,10 +221,10 @@ fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         // You can add functions with read-only system parameters as conditions.
-        .configure_set(GameSet::Construction.run_if(construction_timer_not_finished))
+        .configure_set(GameSystems::Construction.run_if(construction_timer_not_finished))
         .add_systems(
             systems![tick_construction_timer, update_construction_progress]
-                .in_set(GameSet::Construction))
+                .in_set(GameSystems::Construction))
         .add_system(mitigate_meltdown.run_if(too_many_enemies))
         // You can use closures for simple one-off conditions.
         .add_system(spawn_more_enemies.run_if(|difficulty: Res<Difficulty>| difficulty >= 9000))
@@ -237,7 +232,7 @@ fn main() {
         // new closures that can be used as conditions.
         .add_system(gravity.run_if(resource_exists(Gravity)))
         // The systems in this set won't run if `Paused` is `true`.
-        .configure_set(GameSet::Physics.run_if(resource_equals(Paused(false))))
+        .configure_set(GameSystems::Physics.run_if(resource_equals(Paused(false))))
         .run();
 }
 ```
@@ -346,8 +341,8 @@ fn main() {
                apply_velocity
             ])
             // Ensuring they run on a fixed timestep
-            // as part of the `FixedTimestep` set
-            .in_set(FixedTimestep)
+            // as part of the `CoreSystems::FixedUpdate` set
+            .in_set(CoreSystems::FixedUpdate)
          )
         .run();
 }
