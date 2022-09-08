@@ -518,34 +518,13 @@ We think that's good enough for now.
 It's debatable whether that would increase or reduce cognitive burden.
 That can be revisited later too.)
 
-### Why did you change states from a stack to a basic FSM? Where is `OnUpdate(X)`?
+### Why did you change states from a stack to a basic FSM?
 
 If this RFC is merged and this design is implemented, we expect most of the problems that encouraged it to vanish.
 So rather than port pieces of the existing API, we think it's better to start fresh with a basic state machine and see what patterns emerge and what their limits are.
 If, after migration, a significant number of users are still turning towards a plugin to recover the lost stack functionality, we can consider upstreaming it again.
 
 A stack-based state machine should be trivial to implement though (i.e. with a loop inside the exclusive system).
-
-As for `OnUpdate(X)`... its interaction with `OnEnter(X)` was non-intuitive.
-Users often just wanted systems to run in their designated spots, but only when a certain state was active. That is much simpler to do now (see example below), so having a system set for this that you can only put in one spot seemed pointless.
-
-```rust
-fn main() {
-    App::new()
-        /* ... */
-        .add_system(
-            my_system
-            // A state being active has no inherent position in the schedule.
-            // Any system anywhere can be told to only run if a certain state is active.
-            .in_set(CoreSet::PostUpdate)
-            // This helper generates a condition that returns `true` if the state is currently `GameState::Playing`.
-            .run_if(state_equals(GameState::Playing))
-        )
-        /* ... */
-        .run();
-    )
-}
-```
 
 ### Why were the rules for system configuration chosen?
 
