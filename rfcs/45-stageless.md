@@ -570,14 +570,14 @@ fn main() {
 
 What happened here?
 
-Well, if interpreted as a system set, a type-derived label represents "the set of all anonymous systems of this type".
-Therefore, `before(apply_system_buffers)` meant "before all anonymous instances of `apply_system_buffers`" even though the user was most likely only thinking about the one they added themselves.
+Well, the problem is a type-derived label will name *all* anonymous systems of that type.
+Therefore, `before(apply_system_buffers)` means "before all anonymous instances of `apply_system_buffers`" even though the user was most likely only thinking about the one they added themselves.
 Totally obvious, right? (/s)
 
 Their program panicked because it saw a contradiction: `generate_commands` had to run before all `apply_system_buffers` instances and run after the one inside `X` at the same time.
 The only (reliable) solution here is for the user to give their instance of `apply_system_buffers` a unique name and use that name for ordering.
 
-So while it's natural to think of systems as "sets of one", treating their type-derived labels as system set names is subtly different and doing so would virtually guarantee errors when multiple copies exist, so we won't allow it.
+So while it's natural to think of systems as "sets of one", treating their type-derived labels as system set names is subtly different and doing so would virtually guarantee errors when multiple copies exist, so we just won't allow it.
 
 Now, we came up with three options to actually enforce that as an invariant:
 
