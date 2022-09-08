@@ -128,7 +128,7 @@ fn main() {
             // Macros can also accept system sets.
             MySystemSets::SubMenu,
             // Choose when to process commands with instances of this dedicated system.
-            apply_system_buffers.label(MySystems::FlushMenu),
+            apply_system_buffers.named(MySystems::FlushMenu),
           ]
           // Configure these together.
           .in_set(MySystemSets::Menu)
@@ -277,11 +277,9 @@ impl Plugin for ProjectilePlugin {
                 check_if_projectiles_hit,
                 despawn_projectiles_that_hit,
                 // Wherever you want commands to be applied, insert an instance of `apply_system_buffers`
-                // Systems with more than one copy in the schedule cannot be referred to
-                // via their type-derived automatic label, as this will result in confusing ambiguity
-                // or unintentional dependencies upon *all* copies of the system.
-                // Instead, label these systems
-                apply_system_buffers.label(MySystems::FlushProjectiles)
+                // Note: You cannot use type-derived labels for ordering if duplicates exist,
+                // so give this system a name if you want to order relative to it elsewhere.
+                apply_system_buffers.named(MySystems::FlushProjectiles)
                 fork_projectiles,
             ]
             .after(CoreSystems::FlushPostUpdate)
