@@ -128,7 +128,7 @@ fn main() {
             // Macros can also accept system sets.
             MySystemSets::SubMenu,
             // Choose when to process commands with instances of this dedicated system.
-            apply_system_buffers.named(MySystems::FlushMenu),
+            apply_system_buffers.label(MySystems::FlushMenu),
           ]
           // Configure these together.
           .in_set(MySystemSets::Menu)
@@ -276,10 +276,12 @@ impl Plugin for ProjectilePlugin {
             chain![
                 check_if_projectiles_hit,
                 despawn_projectiles_that_hit,
-                // wherever you want commands to be applied, insert an instance of `apply_system_buffers`
-                // and when you add the same function multiple times, you have to use .named() to give
-                // each instance a unique name
-                apply_system_buffers.named(MySystems::FlushProjectiles)
+                // Wherever you want commands to be applied, insert an instance of `apply_system_buffers`
+                // Systems with more than one copy in the schedule cannot be referred to
+                // via their type-derived automatic label, as this will result in confusing ambiguity
+                // or unintentional dependencies upon *all* copies of the system.
+                // Instead, label these systems
+                apply_system_buffers.label(MySystems::FlushProjectiles)
                 fork_projectiles,
             ]
             .after(CoreSystems::FlushPostUpdate)
@@ -536,6 +538,40 @@ If, after migration, a significant number of users are still turning towards a p
 
 A stack-based state machine should be trivial to implement though (i.e. with a loop inside the exclusive system).
 
+### Why is the use of type-derived labels forbidden in the case of duplicate systems?
+
+When systems are added to the schedule, they are automatically assigned a label, generated via their type (generally, their function name).
+These are very convenient and wildly popular, but in the rare case that multiple systems with the same type (read: function signature) exist in the schedule, the behavior is unintuitive.
+
+Duplicate systems in the same schedule will generally be very unusual, so let's consider the most common and significant case: `apply_system_buffers`.
+Suppose a user has two systems: `generates_commands` and `relies_on_commands`.
+Naively, they specify `generate_commands.before(apply_system_buffers)` and `relies_on_commands.after(apply_system_buffers)`.
+
+If the `apply_system_buffers` auto-label is taken to mean "the set of all systems with this type",
+this invocation *kind of* does what they want.
+`generate_commands` runs before `relies_on_commands`, and commands are applied between them.
+
+Later, the user decides that they want to add more complex logic, and have three systems `A`, `B` and `C`, all of which are seperated by `apply_system_buffers`.
+They use the same strategy as above, and are suddenly confronted with an error about an unresolvable graph! What went wrong?
+
+`.before` / `.after` means "before/after all members of the set", whereas the user wanted different logic:
+"at least one intervening copy of this system runs between these pairs".
+`generate_commands` was running at the very start of the schedule, before commands were flushed at all,
+while `relies_on_commands` was at the very end!
+
+Promoting type-derived labels to system sets is the natural and consistent behavior:
+however when more than one copy of a system exist, it is very likely to result in delayed-action footguns.
+
+So if we can't reasonably treat type-derived labels as system sets for the purpose of ordering, what's the right behavior?
+There are a few options:
+
+1. Use the first / last / a random element of the set.
+   1. NO: arbitrary and confusing and implicit.
+2. Force users to rename duplicate systems using a `.named(impl SystemLabel)` API.
+   1. NO: adds pointless burden to users, cannot be done when two plugins independently add the same system.
+3. Warn / error / panic when type-derived labels are used for ordering when more than one copy exists.
+   1. YES: highlights the actual problem, and points to a simple and standard workaround (just label which system you actually want).
+
 ## Unresolved questions
 
 ### What's a good convention for naming system label types?
@@ -774,7 +810,6 @@ pub trait IntoConfiguredSystem<Params> {
     fn after<M>(self, label: impl AsSystemLabel<M>) -> ConfiguredSystem;
     fn in_set(self, set: impl SystemLabel) -> ConfiguredSystem;
     fn run_if<P>(self, condition: impl IntoRunCondition<P>) -> ConfiguredSystem;
-    fn named(self, name: impl SystemLabel) -> ConfiguredSystem;
 }
 
 pub trait IntoConfiguredSystemSet {
