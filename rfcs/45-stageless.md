@@ -11,7 +11,7 @@ This RFC proposes a holistic redesign that neatly fixes these problems, with cle
 
 In summary:
 
-- Store systems in a central resource.
+- Store schedules in a resource.
 - Make system sets (sub)graph nodes instead of containers and include them in the descriptor API.
 - Make exclusive systems "normal" and use them for high-level flow control. (command application, state transitions, fixed timestep, turn queues, etc.)
 - Replace run criteria with immutable, `bool`-returning conditions.
@@ -54,7 +54,7 @@ Let's define some terms.
 - **system set**: logical group (subgraph) of systems (can include other system sets)
 - **condition**: function that must evaluate to `true` for a system (or systems in a set) to run
 - **dependency**: system (set) that must complete before another system (set) can run
-- **schedule** (noun): the executable form of a system set
+- **schedule** (noun): an executable system graph
 - **schedule** (verb): specify when and under what conditions systems run
 - **executor**: runs the systems in a schedule on a world
 - **"ready"**: when a system is no longer waiting for dependencies to complete
@@ -284,10 +284,10 @@ impl Plugin for ProjectilePlugin {
 }
 ```
 
-### Running other systems on-demand with exclusive systems
+### Running other schedules on-demand with exclusive systems
 
-Exclusive systems can be used to run arbitrary systems in an on-demand fashion.
-Each system is stored within a `Schedule`, which themselves live within a common `Schedules` resource.
+Exclusive systems can be used to run other schedules in an on-demand fashion.
+Each system is stored within a `Schedule`, which themselves live within a public `Schedules` resource.
 
 ```rust
 fn fancy_exclusive_system(world: &mut World) {
@@ -312,10 +312,10 @@ You might want to:
 - change to a different threading model for some portion of your systems
 - integrate an external service with arbitrary side effects, like scripting or a web server
 
-As long as you have `&mut World`, from an exclusive system or command, you can access the list of schedules, then run systems.
+As long as you have `&mut World`, from an exclusive system or command, you can retrieve and run an available schedule.
 
 Unlike in previous versions of Bevy, states and the fixed timestep are no longer powered by run criteria.
-Instead, systems that are part of states or fixed time steps are simply added under a separate system set that will be retrieved and ran by an exclusive system.
+Instead, systems that are part of states or fixed time steps are simply added under a separate schedule that will be retrieved and ran by an exclusive system.
 As a result, you can transition states inside the fixed timestep without issue.
 
 ### Fixed timestep
@@ -392,16 +392,16 @@ This design can be broken down into the following steps:
     - Defer tasks borrowing a system until just before that system runs (so we can update archetype component access last second).
       - Funnel `&Scope` into spawned tasks so a task can spawn other tasks. ([bevyengine/bevy#4466](https://github.com/bevyengine/bevy/pull/4466))
       - **Alternative**: Keep spawning tasks upfront but use channels to send systems into them and back (or cancel if skipped).
-    - **Alternative**: Iterate the topsorted list of systems and use e.g. [`partition_point`](https://doc.rust-lang.org/std/primitive.slice.html#method.partition_point) to identify and execute slices of parallel systems.
+    - **Alternative**: Iterate the topsorted list of systems, finding and execute slices of parallel systems.
 - Implement conditions.
   - Define the trait (i.e. `IntoRunCondition`) and blanket implement it for compatible functions.
   - Implement `.run_if` descriptor method.
   - Include condition accesses when doing ambiguity checks.
   - Include condition accesses when executor checks if systems can run.
   - Add inlined condition evaluation step in the executor.
-- Implement storing and retrieving systems (and schedules) from a resource.
+- Implement storing and retrieving schedules from a resource.
   - `Schedules` is effectively `Hashmap<ScheduleLabel, Schedule>`
-  - Each `Schedule` owns the graph data, and cross-schedule dependencies are impossible
+  - Each `Schedule` owns the graph data, and cross-schedule dependencies are impossible.
   - Implement a descriptor coercion trait for `L: SystemLabel` types.
 - Remove internal uses of "looping run criteria".
   - Convert fixed timestep and state transitions into exclusive systems that each retrieve and run a schedule.
