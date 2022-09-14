@@ -286,25 +286,20 @@ impl Plugin for ProjectilePlugin {
 
 ### Running other systems on-demand with exclusive systems
 
-Exclusive systems have other uses as well.
-
-All systems and system sets added to an `App` are stored within a resource called `Systems`.
-If you want to run a system or system set, you have to extract it from `Systems` first.
-(This lets `Systems` remain accessible when those systems are running).
-
-`Systems` has methods to extract a system or system set given its label.
-When you extract a system set, you actually receive a **schedule**.
-This is the executable version of the set, containing all its systems and conditions, along with instructions to run them in the correct order.
-After running a schedule, you can return it to `Systems`.
-A `World::schedule_scope` method is provided for this common "extract-run-return" case.
-
-The default `App` runner itself actually uses these methods to run the startup sequence and main update loop, so if you retrieve and run a single system somewhere, you'll effectively have written a very basic executor!
+Exclusive systems can be used to run arbitrary systems in an on-demand fashion.
+Each system is stored within a `Schedule`, which themselves live within a common `Schedules` resource.
 
 ```rust
 fn fancy_exclusive_system(world: &mut World) {
-    // removes schedule from Systems, executes fn with it, then returns it to Systems
-    world.schedule_scope(ExampleLabel, |world, mut schedule| {
+    // removes the selected schedule from Schedules, executes a fn with it, then returns it to the world
+    world.schedule_scope(ScheduleLabel, |world, mut schedule| {
+        // This runs the entire schedule on the world
+        // Alternatively: world.run_schedule(ScheduleLabel)
         schedule.run(world);
+        
+        // This runs all systems with the provided label, obeying any internal ordering
+        // Alternatively: world.run_system_from_schedule(SystemLabel, ScheduleLabel)
+        schedule.run_systems(SystemLabel, world);
     });
 }
 ```
@@ -317,7 +312,7 @@ You might want to:
 - change to a different threading model for some portion of your systems
 - integrate an external service with arbitrary side effects, like scripting or a web server
 
-As long as you have `&mut World`, from an exclusive system or command, you can extract anything available in the `Systems` resource and run it.
+As long as you have `&mut World`, from an exclusive system or command, you can access the list of schedules, then run systems.
 
 Unlike in previous versions of Bevy, states and the fixed timestep are no longer powered by run criteria.
 Instead, systems that are part of states or fixed time steps are simply added under a separate system set that will be retrieved and ran by an exclusive system.
@@ -325,9 +320,9 @@ As a result, you can transition states inside the fixed timestep without issue.
 
 ### Fixed timestep
 
-A **fixed timestep** advances a fixed number of times each second.
+One built-in example of this pattern is a **fixed timestep**, which advances a fixed number of times each second.
 
-It's implemented as an exclusive system that runs a schedule zero or more times in a row (depending on how long the previous app update took to complete).
+This is implemented as an exclusive system that runs a schedule zero or more times in a row (depending on how long the previous app update took to complete).
 When you supply a constant delta time value (the literal fixed timestep) inside the encapsulated systems, the result is consistent and repeatable behavior regardless of framerate (or even the presence of a GPU).
 
 ```rust
@@ -341,8 +336,8 @@ fn main() {
                apply_velocity
             ])
             // Ensuring they run on a fixed timestep
-            // as part of the `CoreSystems::FixedUpdate` set
-            .in_set(CoreSystems::FixedUpdate)
+            // as part of the `CoreSchedule::FixedUpdate` schedule
+            .in_schedule(CoreSchedule::FixedUpdate)
          )
         .run();
 }
@@ -403,7 +398,6 @@ This design can be broken down into the following steps:
   - `Schedules` is effectively `Hashmap<ScheduleLabel, Schedule>`
   - Each `Schedule` owns the graph data, and cross-schedule dependencies are impossible
   - Implement a descriptor coercion trait for `L: SystemLabel` types.
-  - Implement the `Systems` type as described. (See **Appendix** or [this comment](https://github.com/bevyengine/bevy/pull/4090#issuecomment-1206585499) or [prototype PR impl](https://github.com/maniwani/bevy/blob/f5f80cd195b15d3912b4d90aade8750d8d1adc2e/crates/bevy_ecs/src/schedule_v3/mod.rs).)
 - Remove internal uses of "looping run criteria".
   - Convert fixed timestep and state transitions into exclusive systems that each retrieve and run a schedule.
 - **Port over the rest of the engine and examples to the new API.**
@@ -744,77 +738,6 @@ These implementation ideas/details are here to avoid cluttering the RFC.
 As command queues are owned by their systems, an exclusive system won't be able to drain their buffers by itself.
 This one just signals the executor to do it.
 The caveat to handling it this way is that the executor is only aware of the systems in the schedule it's running, so we should probably still have one "courtesy flush" after all the systems complete, so users can't forget to.
-
-### `Systems`
-
-`Systems` is a resource on the `World`.
-
-To keep `Systems` accessible, you have to take systems and schedules out of `Systems` in order to run them.
-Likewise, system insertion and removal will not immediately cause schedules to be rebuilt.
-Those changes will only be propagated up to flag the system sets whose dependency graphs need to be updated (topologically sorted again).
-A rebuild will remain pending until something tries to check out the `Schedule`.
-This way users only incur costs for schedules they use.
-
-Schedule extraction moves the required systems and conditions from their long-term storage (`Option`) into the selected `Schedule` container and returns it.
-
-Even after systems or schedules have been extracted, all the graph data remains in `Systems`, so you can still add and remove things.
-You still have to return extracted schedules to `Systems` in order to update them (since that process needs the systems), but if you had removed any of those systems, they will be safely dropped.
-
-```rust
-enum NodeId {
-    System(u64),
-    Set(u64),
-}
-
-#[derive(Resource)]
-pub struct Systems {
-    // `NodeId` is unique identifier, generated on insertion
-    index: HashMap<SystemLabelId, NodeId>,
-    next_id: u64,
-
-    // long-term storage
-    graphs: HashMap<NodeId, DependencyGraph>,
-    systems: HashMap<NodeId, Option<BoxedSystem>>,
-    conditions: HashMap<NodeId, Option<Vec<BoxedRunCondition>>>,
-    schedules: HashMap<NodeId, Option<Schedule>>,
-
-    // used for runtime modification of dependency graphs
-    hierarchy: DiGraph<NodeId>,
-    uninit_nodes: Vec<(NodeId, Config)>,
-}
-
-struct DependencyGraph {
-    // the dependency graph
-    base: DiGraph<NodeId>,
-    // recursively-flattened version of `base` (has only system nodes and system-system edges)
-    flat: DiGraph<NodeId>,
-    // cached topological ordering of `flat`
-    topsorted: Vec<NodeId>,
-    // the union of the component access of every node inside this set
-    combined_access: Access<ComponentId>,
-    // `Graph` if the graph (and schedule) need to be rebuilt
-    // `ScheduleOnly` if graph is up-to-date, but the schedule needs to be rebuilt
-    // `None` otherwise
-    rebuild: Rebuild,
-}
-
-pub struct Schedule {
-    // All vectors are sorted in topological order.
-    // NOTE: `RefCell<T>` could also be `Cell<Option<T>>`
-    systems: Vec<RefCell<BoxedSystem>>,
-    system_conditions: Vec<RefCell<Vec<BoxedRunCondition>>>,
-    set_conditions: Vec<RefCell<Vec<BoxedRunCondition>>>,
-    // for returning things back to `Systems`
-    system_ids: Vec<NodeId>,
-    set_ids: Vec<NodeId>,
-    // for obeying dependencies
-    system_deps: Vec<(usize, Vec<usize>)>,
-    // for evaluating set conditions and skipping systems
-    sets_of_systems: Vec<FixedBitSet>,
-    sets_of_sets: Vec<FixedBitSet>,
-    systems_of_sets: Vec<FixedBitSet>,
-}
-```
 
 ### Using descriptor API for both systems and system sets
 
