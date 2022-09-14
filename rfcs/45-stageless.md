@@ -351,9 +351,10 @@ State machines are stored as individual resources and their state types must imp
 It's common to see enums used for state types.
 
 You can have multiple independently controlled states, or defined nested states with enums.
-The current state of type `S` can be read from the `CurrentState<S: State>` resource.
+The current state of type `S` can be read from the `CurrentState<S: State>` resource,
+while the upcoming state can be read from `NextState<S: State>`.
 
-Bevy provides a simple but convenient abstraction to link the transitions of a state `S::Variant` with system sets, specifically an `OnEnter(S::Variant)` system set and an `OnExit(S::Variant)` system set.
+Bevy provides a simple but convenient abstraction to link the transitions of a state `S::Variant` with run-on-demand schedules, specifically an `OnEnter(S::Variant)` and `OnExit(S::Variant)` schedules.
 An exclusive system called `apply_state_transition<S: State>` can be scheduled, which will retrieve and run these schedules as appropriate when a transition is queued in the `NextState<S: State>` resource.
 
 ```rust
@@ -362,9 +363,13 @@ fn main() {
         .add_state::<GameState>()
         /* ... */
         // These systems only run as part of the state transition logic
-        .add_system(load_map.in_set(OnEnter(GameState::Playing)))
-        .add_system(autosave.in_set(OnExit(GameState::Playing)))
+        .add_system(load_map.in_schedule(OnEnter(GameState::Playing)))
+        // The .on_enter and .on_exit methods are equivalent to the pattern above
+        .add_system(autosave.on_exit(GameState::Playing))
         // This system will be added under the `OnUpdate(GameState::Playing)` set
+        // Note that this is not a schedule:
+        // it is run as part of the main game schedule,
+        // but only runs if the current state is GameState::Playing
         .add_system(run.in_set(OnUpdate(GameState::Playing)))
         // This system will not be part of the set above, but will otherwise follow the same rules
         .add_system(jump.run_if(state_equals(GameState::Playing)))
