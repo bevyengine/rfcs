@@ -296,10 +296,6 @@ fn fancy_exclusive_system(world: &mut World) {
         // This runs the entire schedule on the world
         // Alternatively: world.run_schedule(ScheduleLabel)
         schedule.run(world);
-        
-        // This runs all systems with the provided label, obeying any internal ordering
-        // Alternatively: world.run_system_from_schedule(SystemLabel, ScheduleLabel)
-        schedule.run_systems(SystemLabel, world);
     });
 }
 ```
