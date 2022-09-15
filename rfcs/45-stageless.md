@@ -710,25 +710,36 @@ This strategy is used for the `vec![1,2,3]` macro in the standard library.
 
 ## Future possibilities
 
-There are a few proposals that were directly split from this RFC:
+After this RFC is implemented, there's valuable work to be done to improve ergonomics:
 
-1. Unnecessary dependency removal ([RFC #47](https://github.com/bevyengine/rfcs/pull/47)).
-2. Configurable system set atomicity ([RFC #46](https://github.com/bevyengine/rfcs/pull/46)).
-3. Automatic (opt-in) insertion of command application and state transition systems (see discussion in [RFC #34](https://github.com/bevyengine/rfcs/pull/34)).
-4. "Command-flushed" ordering constraints (dependencies that will ensure the pair is separated by command application).
+1. Automatic (opt-in) insertion of command application and state transition systems (see discussion in [RFC #34](https://github.com/bevyengine/rfcs/pull/34)).
+2. Add [manual dependency graph construction](https://github.com/bevyengine/bevy/pull/2381) methods.
 
-There are also lots of related but non-urgent areas for follow-up research:
+Clean up related code:
+
+1. Revisit [plugin definition and plugin configuration](https://github.com/bevyengine/bevy/issues/2160).
+2. Move command queues into the `World` so that exclusive systems can drain them directly (e.g. in some user-defined order).
+3. Cloning registered systems. (This probably warrants its own RFC, but it fits with the multiple worlds discussion.)
+
+Build out solid tooling:
 
 1. Improve tools for reporting and resolving system execution order ambiguities.
-2. Revisit plugin definition and plugin configuration.
-3. Cloning registered systems. (This probably warrants its own RFC, but it fits with the multiple worlds discussion.)
-4. Add [manual dependency graph construction](https://github.com/bevyengine/bevy/pull/2381) methods.
-5. Seeded, fully deterministic system execution orders: useful for debugging system order bugs and optimization work.
-6. Move command queues into the `World` so that exclusive systems can drain them directly (e.g. in some user-defined order).
-7. Compose conditions via arbitrary boolean expressions.
-8. Support automatic insertion and removal of systems to reduce schedule clutter and support other forms of one-off logic.
-9. Run schedules without `&mut World`, inferring access based on the systems inside.
-10. [One-shot systems](https://github.com/bevyengine/bevy/pulls?q=is%3Apr+is%3Aopen+one-shot+system), where systems are evaluated one-at-a-time on an ad hoc basis.
+2. System graph visualization.
+3. Seeded, fully deterministic system execution orders: useful for debugging system order bugs and optimization work.
+
+Improve performance:
+
+1. Run schedules without `&mut World`, inferring access based on the systems inside.
+2. Assorted benchmarking and optimization of various scheduling strategies.
+
+Or increase scheduling expressivity:
+
+1. Compose conditions via arbitrary boolean expressions.
+2. Unnecessary dependency removal ([RFC #47](https://github.com/bevyengine/rfcs/pull/47)).
+3. "Command-flushed" ordering constraints (dependencies that will ensure the pair is separated by command application).
+4. Configurable system set atomicity ([RFC #46](https://github.com/bevyengine/rfcs/pull/46)), where the data that a group of systems accesses is locked until all are completed.
+5. Add [runtime insertion and removal of systems](https://github.com/bevyengine/bevy/issues/279).
+6. Support automatic insertion and removal of systems to reduce schedule clutter and support other [forms of one-off logic](https://github.com/bevyengine/bevy/pull/4090).
 
 ## Appendix
 
