@@ -292,10 +292,9 @@ Each system is stored within a `Schedule`, which themselves live within a public
 ```rust
 fn fancy_exclusive_system(world: &mut World) {
     // removes the selected schedule from Schedules, executes a fn with it, then returns it to the world
-    world.schedule_scope(ScheduleLabel, |world, mut schedule| {
+    while fancy_logic() {
         // This runs the entire schedule on the world
-        // Alternatively: world.run_schedule(ScheduleLabel)
-        schedule.run(world);
+        world.run_schedule(ScheduleLabel);
     });
 }
 ```
@@ -592,7 +591,7 @@ Likewise, resolving the error is very simple: just name the systems.
 
 Internally, systems and sets are given unique identifiers and those are used for graph construction.
 This means you can do `add_system(apply_system_buffers.after(X))` multiple times or use the `chain!` macro with multiple unnamed instances of the same function without having to name any of them.
-A system only needs a name when you want to do `before(name)` or `after(name)` somewhere else. 
+A system only needs a name when you want to do `before(name)` or `after(name)` somewhere else.
 
 *Note: In case it wasn't already clear, system chaining introduces new instances of systems. It does not reuse existing ones.*
 
@@ -925,12 +924,8 @@ pub fn apply_state_transition<S: State>(world: &mut World) {
             let new = world.resource_mut::<NextState<S>>().take().unwrap();
             let old = current_state.replace(new);
             // and run the transitions
-            world.schedule_scope(OnExit(old), |world, mut schedule| {
-                schedule.run(world);
-            });
-            world.schedule_scope(OnEnter(new), |world, mut schedule| {
-                schedule.run(world);
-            });
+            world.run_schedule(OnExit(old));
+            world.run_schedule(OnEnter(new));
         }
     });
 }
