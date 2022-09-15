@@ -374,8 +374,11 @@ fn main() {
 }
 ```
 
-By default, all state transitions are evaluated just before `CoreSystems::Update`, in a `CoreSystems::ApplyStateTransitions` set.
-Calling `App::add_state` adds the corresponding `CurrentState` and `NextState` resources, and registers a `apply_state_transition<S>` system.
+Calling `App::add_state<S>`:
+
+1. Adds the corresponding `CurrentState<S>` and `NextState<S>` resources
+2. Adds a `OnUpdate(S::Variant)` set for each valid state. These sets are nested inside of `CoreSystems::Update` by default.
+3. Registers a `apply_state_transition<S>` system, which is evaluated just before `CoreSystems::Update`, in a `CoreSystems::ApplyStateTransitions` set..
 
 ## Implementation strategy
 
