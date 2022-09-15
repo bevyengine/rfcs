@@ -271,10 +271,10 @@ impl Plugin for ProjectilePlugin {
             chain![
                 check_if_projectiles_hit,
                 despawn_projectiles_that_hit,
-                // Wherever you want commands to be applied, insert an instance of `apply_system_buffers`
-                // Note: You cannot use type-derived labels for ordering if duplicates exist,
-                // so give this system a name if you want to order relative to it elsewhere.
-                apply_system_buffers.named(MySystems::FlushProjectiles)
+                // Be mindful when using apply_system_buffers in chains;
+                // this will insert an entirely new copy of the system into your schedule.
+                // This can have unexpected effects on system parallelism, as it bifurcates the scheduling graph.
+                apply_system_buffers,
                 fork_projectiles,
             ]
             .after(CoreSystems::FlushPostUpdate)
@@ -579,7 +579,7 @@ So while it's natural to think of systems as "sets of one", treating their type-
 
 Now, we came up with three options to actually enforce that as an invariant:
 
-1. Require users to name duplicate systems.
+1. Require users to name all duplicate systems.
 2. Leave duplicate systems completely anonymous. Only give the type-derived name to the first copy.
 3. Error when multiple anonymous copies of a system exist and their type-derived label is used for ordering.
 
@@ -589,6 +589,12 @@ Now, we came up with three options to actually enforce that as an invariant:
 
 We like (3) because it doesn't put undue burden on the user or introduce unclear implicit behavior.
 Likewise, resolving the error is very simple: just name the systems.
+
+In the most common case, where the `chain!` macro is used, we can avoid forcing users to name their systems by using an automatically generated private identifier to define the ordering.
+This means that system chaining will *always* introduce new copies of a system, without attempting to reuse existing ones.
+While this is not optimal for `apply_system_buffers` or other heavily blocking systems, it is explicit, consistent and ergonomic.
+
+See the discussion on command-flushed ordering constraints and automatic inference of sync points in Future Work for ideas on how we can improve this.
 
 ## Unresolved questions
 
