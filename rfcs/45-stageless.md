@@ -590,7 +590,9 @@ Now, we came up with three options to actually enforce that as an invariant:
 We like (3) because it doesn't put undue burden on the user or introduce unclear implicit behavior.
 Likewise, resolving the error is very simple: just name the systems.
 
-Internally, systems and sets are given unique identifiers and those are used for graph construction. This means you can do `add_system(apply_system_buffers.after(X))` multiple times or use the `chain!` macro with multiple unnamed instances of the same function without having to name any of them. A system only needs a name when you want to do `before(name)` or `after(name)` somewhere else. 
+Internally, systems and sets are given unique identifiers and those are used for graph construction.
+This means you can do `add_system(apply_system_buffers.after(X))` multiple times or use the `chain!` macro with multiple unnamed instances of the same function without having to name any of them.
+A system only needs a name when you want to do `before(name)` or `after(name)` somewhere else. 
 
 *Note: In case it wasn't already clear, system chaining introduces new instances of systems. It does not reuse existing ones.*
 
