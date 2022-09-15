@@ -590,11 +590,11 @@ Now, we came up with three options to actually enforce that as an invariant:
 We like (3) because it doesn't put undue burden on the user or introduce unclear implicit behavior.
 Likewise, resolving the error is very simple: just name the systems.
 
-In the most common case, where the `chain!` macro is used, we can avoid forcing users to name their systems by using an automatically generated private identifier to define the ordering.
-This means that system chaining will *always* introduce new copies of a system, without attempting to reuse existing ones.
-While this is not optimal for `apply_system_buffers` or other heavily blocking systems, it is explicit, consistent and ergonomic.
+Internally, systems and sets are given unique identifiers and those are used for graph construction. This means you can do `add_system(apply_system_buffers.after(X))` multiple times or use the `chain!` macro with multiple unnamed instances of the same function without having to name any of them. A system only needs a name when you want to do `before(name)` or `after(name)` somewhere else. 
 
-See the discussion on command-flushed ordering constraints and automatic inference of sync points in Future Work for ideas on how we can improve this.
+*Note: In case it wasn't already clear, system chaining introduces new instances of systems. It does not reuse existing ones.*
+
+See the discussion on command-flushed ordering constraints and automatic inference of sync points in **Future Work** for ideas on how we can improve this.
 
 ## Unresolved questions
 
