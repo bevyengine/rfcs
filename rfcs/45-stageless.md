@@ -271,9 +271,8 @@ impl Plugin for ProjectilePlugin {
             chain![
                 check_if_projectiles_hit,
                 despawn_projectiles_that_hit,
-                // Be mindful when using apply_system_buffers in chains;
-                // this will insert an entirely new copy of the system into your schedule.
-                // This can have unexpected effects on system parallelism, as it bifurcates the scheduling graph.
+                // Be mindful when adding exclusive systems like apply_system_buffers to your schedule.
+                // These will create a hard sync point, blocking other systems from running in parallel.
                 apply_system_buffers,
                 fork_projectiles,
             ]
