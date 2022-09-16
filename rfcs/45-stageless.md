@@ -88,7 +88,7 @@ enum GameState {
     Paused
 }
 
-#[derive(SystemLabel)]
+#[derive(SystemSet)]
 enum MySystems {
     Update,
     Menu,
@@ -151,7 +151,7 @@ For example, using `systems![a, b, c, ...].chain()` (or the `chain![a, b, c, ...
 Bevy's `MinimalPlugins` and `DefaultPlugins` plugin groups include several built-in system sets.
 
 ```rust
-#[derive(SystemLabel)]
+#[derive(SystemSet)]
 enum Physics {
     ComputeForces,
     DetectCollisions,
@@ -254,7 +254,7 @@ If one system depends on the effects of commands from another, make sure an `app
 ```rust
 use bevy::prelude::*;
 
-#[derive(SystemLabel)]
+#[derive(SystemSet)]
 enum MySystems {
     /* ... */
     FlushProjectiles,
@@ -293,7 +293,7 @@ fn fancy_exclusive_system(world: &mut World) {
     // removes the selected schedule from Schedules, executes a fn with it, then returns it to the world
     while fancy_logic() {
         // This runs the entire schedule on the world
-        world.run_schedule(ScheduleLabel);
+        world.run_schedule(MySchedule);
     });
 }
 ```
@@ -399,7 +399,7 @@ This design can be broken down into the following steps:
 - Implement storing and retrieving schedules from a resource.
   - `Schedules` is effectively `Hashmap<ScheduleLabel, Schedule>`
   - Each `Schedule` owns the graph data, and cross-schedule dependencies are impossible.
-  - Implement a descriptor coercion trait for `L: SystemLabel` types.
+  - Implement a descriptor coercion trait for `S: SystemSet` types.
 - Remove internal uses of "looping run criteria".
   - Convert fixed timestep and state transitions into exclusive systems that each retrieve and run a schedule.
 - **Port over the rest of the engine and examples to the new API.**
@@ -451,22 +451,6 @@ We will use a global code freeze during those steps to avoid merge conflicts, an
     - Clear, concise error messages and graph visualization tools will become even more important.
 
 ## Rationale and alternatives
-
-### How are system sets any different from labels?
-
-Formally speaking, a system set is a subgraph.
-It's a node in the graph of its parent set(s) (unless it's a root).
-
-We wanted to make it clear that labels are *names* for things and not *tags*.
-You can name systems and system sets.
-
-Today, if you add multiple labels to a system, the expectation is that each label is involved in at least one dependency, so you're actually positioning things, not categorizing them.
-We have made this explicit.
-You position things within sets (and because sets can be "nested", we've added depth).
-
-Although users don't normally add labels and leave them "unconstrained", such a thing does have a direct analogue in this design.
-You can simply include systems in additional sets that are decoupled from the ones you'd normally execute.
-In that case, you'd be using "set" as a simple abstract group instead of a scoped dependency graph.
 
 ### If users can configure system sets, can they control where systems from third-party plugins are added?
 
@@ -527,7 +511,71 @@ If, after migration, a significant number of users are still turning towards a p
 
 A stack-based state machine should be trivial to implement though (i.e. with a loop inside the exclusive system).
 
-### Why is using type-derived labels (`AsSystemLabel`) forbidden when there are duplicate instances of systems?
+### System Sets: the one way to name and group systems
+
+System Sets are now the one way to name and refer to systems (and groups of systems). `SystemLabel` and `some_system.label(X)` have been removed in favor of sets. Even the `SystemTypeIdLabel` (such as `apply_system_buffers`) has been replaced by an equivalent `SystemTypeIdSet`.
+
+The old `SystemLabel` approach, combined with ordering apis like `before` and `after` already resulted in set-like behavior. Consider the following:
+
+```rust
+app
+    .add_system(a.label(X))
+    .add_system(b.label(X))
+    .add_system(c.after(X))
+```
+
+In this app, `a` and `b` share the `X` label. When `c` adds the `after(X)` constraint, it is referring to the "unordered group" (aka a "set") of systems with the label `X`.
+
+System Sets (in this RFC) behave in exactly the same way:
+
+```rust
+app
+    .add_system(a.in_set(X))
+    .add_system(b.in_set(X))
+    .add_system(c.after(X))
+```
+
+The biggest difference is that System Sets can also be ordered relative to other System Sets:
+
+```rust
+// direct ordering
+app.configure_set(X.after(Y))
+// indirect ordering via inheritance
+app.configure_set(Z.in_set(X))
+```
+
+This is a natural extension of the ordering API, as sets were already addressable for ordering and referred to specific slices of the Schedule graph. If you can order a system relative to a set (previously known as a label), why not allow ordering the set relative to other sets?
+
+There is one corner case worth discussing: "function system name sets", such as `apply_system_buffers`. Function names *are still conceptually and functionally set like*, especially if we allow them to be used in ordering apis.
+
+First consider this common ordering scenario:
+
+```rust
+app
+    .add_system(foo)
+    .add_system(bar.after(foo))
+```
+
+There is one instance of `foo` and one instance of `bar` in the schedule. And we've configured `bar` to run after `foo`. No need to think about sets. The intent of the program is clear.
+
+Now consider this ordering scenario:
+
+```rust
+app
+    .add_system(foo)
+    .add_system(bar.after(foo));
+
+// later, maybe in a different Plugin
+app.add_system(foo.after(baz))
+```
+
+Now we can see why this api is still set-like! There are now two `foo` systems in the schedule, each identified by the `foo` name. When `bar` adds the `after(foo)` constraint, it is ambiguously referring to both systems (and implicitly needs to wait for `baz` to finish, despite having never intended to depend on that instance of foo).
+
+This *is* a problem, but it is one inherent to the apis. There can be multiple `foo` systems and they can be ambiguously referred to as a group. As the example above illustrates, this can result in unexpected, potentially game breaking behaviors.
+
+Therefore in the context of "function system name sets" (`SystemTypeIdSet`), ordering constraints like `before` and `after` are explicitly disallowed if there is more than one instance of the system in the schedule (via runtime checks during schedule initialization). See the next section for details.
+
+### Why is ordering relative to type-derived sets (`SystemTypeIdSet`) forbidden when there are duplicate instances of systems?
 
 If you schedule multiple instances of a system, the one thing we *never* want to do is group them together without your explicit say-so.
 To explain why, let's consider one common and significant case: `apply_system_buffers`.
@@ -544,7 +592,7 @@ fn main() {
 }
 ```
 
-The user has added three systems and, naively, created dependencies using the `apply_system_buffers` type label.
+The user has added three systems and, naively, created dependencies using the `apply_system_buffers` set (containing all instances of the apply_system_buffers function system).
 
 Since there's only one instance of `apply_system_buffers`, this app works like you'd expect.
 But now suppose that the user adds more anonymous instances of `apply_system_buffers` or imports plugin logic that does.
@@ -566,44 +614,108 @@ fn main() {
 
 What happened here?
 
-Well, the problem is a type-derived label will name *all* anonymous systems of that type.
-Therefore, `before(apply_system_buffers)` means "before all anonymous instances of `apply_system_buffers`" even though the user was most likely only thinking about the one they added themselves.
+Well, the problem is a type-derived set will name *all* anonymous systems of that type.
+Therefore, `before(apply_system_buffers)` means "before all instances of `apply_system_buffers`" even though the user was most likely only thinking about the one they added themselves.
 Totally obvious, right? (/s)
 
 Their program panicked because it saw a contradiction: `generate_commands` had to run before all `apply_system_buffers` instances and run after the one inside `X` at the same time.
-The only (reliable) solution here is for the user to give their instance of `apply_system_buffers` a unique name and use that name for ordering.
 
-So while it's natural to think of systems as "sets of one", treating their type-derived labels as system set names is subtly different and doing so would virtually guarantee errors when multiple copies exist, so we just won't allow it.
+One (reliable) solution here is for the user to give their instance of `apply_system_buffers` a unique name and use that name for ordering.
 
-Now, we came up with three options to actually enforce that as an invariant:
+We came up with the following options to protect against this case:
 
 1. Require users to name all duplicate systems.
 2. Leave duplicate systems completely anonymous. Only give the type-derived name to the first copy.
 3. Error when multiple anonymous copies of a system exist and their type-derived label is used for ordering.
+4. Disallow before/after ordering constraints between systems using their names by not implementing SystemSet for function names.
 
 (1) ensures correctness and an easier debugging experience, but is too inconvenient.
 (2) drops the naming requirement without losing correctness, but makes things too unclear.
-(3) just makes doing the wrong thing an error.
+(3) just makes doing the (generally) wrong thing an error.
+(4) prevents a common useful (and ergonomic) pattern to protect against a corner case
 
 We like (3) because it doesn't put undue burden on the user or introduce unclear implicit behavior.
 Likewise, resolving the error is very simple: just name the systems.
 
 Internally, systems and sets are given unique identifiers and those are used for graph construction.
-This means you can do `add_system(apply_system_buffers.after(X))` multiple times or use the `chain!` macro with multiple unnamed instances of the same function without having to name any of them.
-A system only needs a name when you want to do `before(name)` or `after(name)` somewhere else.
+This means you can do `add_system(apply_system_buffers.after(X))` multiple times or use the `chain!` macro with multiple unnamed instances of the same function without having to name any of them using their types. This protects against the error in (3) for many common cases.
+
+A system only needs to reference the potentially ambiguous `SystemTypeIdSet` when you want to do `before(name)` or `after(name)` somewhere else. And in these cases, the validation from (3) will protect users from accidentally doing something wrong.
+
+In short, when the error in (3) is encountered:
+
+```rust
+app
+    .add_system(foo)
+    .add_system(foo)
+    .add_system(bar.after(foo))
+```
+
+Users should do one of the following:
+
+1. Create a new set, add it to the duplicate system, and use that to define orders unambiguously;
+
+    ```rust
+    app
+        .add_system(foo)
+        .add_system(foo.in_set(X))
+        .add_system(bar.after(X))
+    ```
+
+2. Refactor their system registration to use APIs that order unambiguously using specific system instance ids:
+
+    ```rust
+    // chaining
+    app
+        .add_system(foo)
+        .add_system(chain![foo, bar])
+    // rotate bar.after(foo) to foo.before(bar)
+    app
+        .add_system(foo)
+        .add_system(bar)
+        .add_system(foo.before(bar))
+    ```
 
 *Note: In case it wasn't already clear, system chaining introduces new instances of systems. It does not reuse existing ones.*
 
 See the discussion on command-flushed ordering constraints and automatic inference of sync points in **Future Work** for ideas on how we can improve this.
 
+### If "system types" are System Sets, won't that allow users to configure them in confusing ways?
+
+Unless we do something to prevent this, then yes:
+
+```rust
+fn some_system(time: Res<Time>) {}
+
+app
+    .configure_set(some_system.after(X))
+    .add_system(foo.in_set(some_system))
+```
+
+This is certainly confusing! To resolve this, we've added the ability to "lock" sets:
+
+```rust
+app.configure_set(SomeSet.lock())
+```
+
+This will cause any further "set configuration" (adding ordering constraints, adding systems to sets, etc) from being added. SystemTypeIdSets (such as `some_system` in the example above) are automatically "locked" when they are initialized, preventing any user configuration.
+
+When adding systems, this lock flag will be internally ignored specifically for their automatically-computed `SystemTypeIdSet`. Ensuring that the set is still constructed correctly and ordering is respected.
+
+"Set locking" can also be used by Bevy plugin authors to make their sets "private" (much like "visibility" keywords in programming languages).
+
 ## Unresolved questions
 
-### What's a good convention for naming system label types?
+### What's a good convention for naming System Sets?
 
-What convention would we have for labeling internal systems and system sets?
+What convention would we have for labeling internal system sets?
 
-- Would a plugin have one enum type for systems and another for system sets, or generally one enum for both?
-  - If one enum for both, how would we typically name it? e.g. `CoreLabel`, `CoreSystems`, etc.
+For example, Bevy will have a number of "core" sets. These could use any of the following conventions:
+
+- `enum CoreSet { Update, PostUpdate }`
+- `enum CoreSets { Update, PostUpdate }`
+- `enum CoreSystems { Update, PostUpdate }`
+- `mod core_set { struct Update; struct PostUpdate; }`
 
 ### What sugar should we use for adding multiple systems at once?
 
@@ -613,7 +725,7 @@ Convenience methods like `add_systems` are important for reducing boilerplate. F
 
 - builder syntax: marginal improvement over adding individual systems
 - array syntax: looks pretty but is literally impossible
-- tuple syntax: looks pretty but is limited to 12 elements
+- tuple syntax: looks pretty but is limited to a fixed number of elements
 - `vec!`-like macro syntax: looks OK but, eh, uses macros
 
 **Conclusion:** macro syntax for practicality, likely powered by builder syntax under the hood
@@ -770,18 +882,18 @@ As a bonus, schedule construction will become completely order-independent as ev
 pub trait IntoConfiguredSystem<Params> {
     fn configure(self) -> ConfiguredSystem;
     fn configure_with(self, config: Config) -> ConfiguredSystem;
-    fn before<M>(self, label: impl AsSystemLabel<M>) -> ConfiguredSystem;
-    fn after<M>(self, label: impl AsSystemLabel<M>) -> ConfiguredSystem;
-    fn in_set(self, set: impl SystemLabel) -> ConfiguredSystem;
+    fn before<M>(self, label: impl AsSystemSet<M>) -> ConfiguredSystem;
+    fn after<M>(self, label: impl AsSystemSet<M>) -> ConfiguredSystem;
+    fn in_set(self, set: impl SystemSet) -> ConfiguredSystem;
     fn run_if<P>(self, condition: impl IntoRunCondition<P>) -> ConfiguredSystem;
 }
 
 pub trait IntoConfiguredSystemSet {
     fn configure(self) -> ConfiguredSystemSet;
     fn configure_with(self, config: Config) -> ConfiguredSystemSet;
-    fn before<M>(self, label: impl AsSystemLabel<M>) -> ConfiguredSystemSet;
-    fn after<M>(self, label: impl AsSystemLabel<M>) -> ConfiguredSystemSet;
-    fn in_set(self, set: impl SystemLabel) -> ConfiguredSystemSet;
+    fn before<M>(self, label: impl AsSystemSet<M>) -> ConfiguredSystemSet;
+    fn after<M>(self, label: impl AsSystemSet<M>) -> ConfiguredSystemSet;
+    fn in_set(self, set: impl SystemSet) -> ConfiguredSystemSet;
     fn run_if<P>(self, condition: impl IntoRunCondition<P>) -> ConfiguredSystemSet;
 }
 
@@ -791,19 +903,19 @@ enum Order {
 }
 
 struct Config {
-    sets: HashSet<SystemLabelId>,
-    dependencies: Vec<(Order, SystemLabelId)>,
+    sets: HashSet<SystemSetId>,
+    dependencies: Vec<(Order, SystemSetId)>,
     conditions: Vec<BoxedRunCondition>,
 }
 
 struct ConfiguredSystem {
     system: BoxedSystem,
     config: Config,
-    instance_name: SystemLabelId,
+    instance_name: SystemSetId,
 }
 
 struct ConfiguredSystemSet {
-    set: SystemLabelId,
+    set: SystemSetId,
     config: Config,
 }
 ```
@@ -836,14 +948,13 @@ So what are the errors?
         .configure_set(C.in_set(B).in_set(A))
     ```
 
-4. You called `.in_set` with a label that belongs to a system, rather than a system set.
-5. (Optional) You have a dependency between two things that aren't siblings in a common set. That edge will not appear in either set's dependency graph, only in the flattened graph of an overarching set. This can lead to unwanted implicit ordering between systems in different sets.
-6. (Optional) You referenced an "unknown" label. e.g. `.after(label)` references a label that doesn't belong to any known system or system set.
-7. (Optional) You have at least one pair of ambiguously-ordered systems with conflicting data access.
+4. (Optional) You have a dependency between two things that aren't siblings in a common set. That edge will not appear in either set's dependency graph, only in the flattened graph of an overarching set. This can lead to unwanted implicit ordering between systems in different sets.
+5. (Optional) You referenced an "unknown" set. e.g. `.after(set)` references a set that doesn't belong to any known system set.
+6. (Optional) You have at least one pair of ambiguously-ordered systems with conflicting data access.
 
-(5), (6), and (7) don't inherently make a graph unsolvable, so they can be configured as ignore, warn, or error.
+(4), (5), and (6) don't inherently make a graph unsolvable, so they can be configured as ignore, warn, or error.
 By default, they are all configured as warn.
-(7) has additional configuration options.
+(6) has additional configuration options.
 See [bevyengine/bevy#4299](https://github.com/bevyengine/bevy/pull/4299) for more details.
 
 ### `IntoRunCondition`
@@ -908,10 +1019,10 @@ pub struct NextState<S: State>(pub Option<S>);
 
 impl<S: State> NextState<S> { /* ... */ }
 
-#[derive(SystemLabel)]
+#[derive(ScheduleLabel)]
 pub struct OnEnter<S: State>(S);
 
-#[derive(SystemLabel)]
+#[derive(ScheduleLabel)]
 pub struct OnExit<S: State>(S);
 
 // add (multiple instances of) this system to your schedule
