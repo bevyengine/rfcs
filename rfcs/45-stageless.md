@@ -326,7 +326,10 @@ When you supply a constant delta time value (the literal fixed timestep) inside 
 ```rust
 fn main() {
     App::new()
-        .add_systems(
+        // Ensuring they run on a fixed timestep
+        // as part of the `CoreSchedule::FixedUpdate` schedule
+        .add_systems_to(
+            CoreSchedule::FixedUpdate,
             (
                apply_forces,
                apply_acceleration,
@@ -334,9 +337,6 @@ fn main() {
             )
             // Conveneniently ordering these systems relative to each other
             .chain()
-            // Ensuring they run on a fixed timestep
-            // as part of the `CoreSchedule::FixedUpdate` schedule
-            .in_schedule(CoreSchedule::FixedUpdate)
          )
         .run();
 }
@@ -362,7 +362,7 @@ fn main() {
         .add_state::<GameState>()
         /* ... */
         // These systems only run as part of the state transition logic
-        .add_system(load_map.in_schedule(OnEnter(GameState::Playing)))
+        .add_system_to(OnEnter(GameState::Playing), load_map)
         // The .on_enter and .on_exit methods are equivalent to the pattern above
         .add_system(autosave.on_exit(GameState::Playing))
         // This system will be added under the `OnUpdate(GameState::Playing)` set
