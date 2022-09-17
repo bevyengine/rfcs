@@ -117,13 +117,14 @@ fn main() {
                 .run_if(some_condition_system)
                 .run_if(|value: Res<Value>| value > 9000)
         )
-        // Bulk-add systems and system sets with some convenience macros.
+        // Bulk-add systems
         .add_systems(
           chain![
             some_system,
             // Choose when to process commands with instances of this dedicated system.
             apply_system_buffers,
-          ]
+          )
+          .chain()
           // Configure these together.
           .in_set(MySystems::Menu)
           .after(some_other_system)
@@ -142,8 +143,8 @@ Dependencies involving system sets are later flattened into dependencies between
 
 If a combination of constraints cannot be satisfied (e.g. you say A has to come both before and after B), a dependency graph will be found to be **unsolvable** and return an error. However, that error should clearly explain how to fix whatever problem was detected.
 
-An `add_systems` method and convenience macros are provided as another means to add properties in bulk.
-For example, using `systems![a, b, c, ...].chain()` (or the `chain![a, b, c, ...]` shortcut) will create dependencies between the successive elements.
+An `add_systems` method is provided as another means to add properties in bulk, which accepts a collection of configured systems.
+For example, tuples of systems like `(a, b, c)` can be added, and using `(a, b, c, ...).chain()` will create dependencies between the successive elements.
 
 *Note: This is different from the "system chaining" in previous versions of Bevy. That has been renamed to "system piping" to avoid overlap.*
 
@@ -179,7 +180,8 @@ impl Plugin for PhysicsPlugin {
             .configure_set(Physics::HandleCollisions.in_set(FixedAfterInput))
             .add_system(gravity.in_set(Physics::ComputeForces))
             .add_systems(
-                chain![broad_pass, narrow_pass, solve_constraints]
+                (broad_pass, narrow_pass, solve_constraints)
+                    .chain()
                     .in_set(Physics::DetectCollisions))
             .add_system(collision_damage.in_set(Physics::HandleCollisions));
     }
@@ -224,7 +226,7 @@ fn main() {
         // You can add functions with read-only system parameters as conditions.
         .configure_set(GameSystems::Construction.run_if(construction_timer_not_finished))
         .add_systems(
-            systems![tick_construction_timer, update_construction_progress]
+            (tick_construction_timer, update_construction_progress)
                 .in_set(GameSystems::Construction))
         .add_system(mitigate_meltdown.run_if(too_many_enemies))
         // You can use closures for simple one-off conditions.
@@ -269,14 +271,15 @@ impl Plugin for ProjectilePlugin {
         app
         .add_system(spawn_projectiles.before(CoreSystems::FlushPostUpdate))
         .add_systems(
-            chain![
+            (
                 check_if_projectiles_hit,
                 despawn_projectiles_that_hit,
                 // Be mindful when adding exclusive systems like apply_system_buffers to your schedule.
                 // These will create a hard sync point, blocking other systems from running in parallel.
                 apply_system_buffers,
                 fork_projectiles,
-            ]
+            )
+            .chain()
             .after(CoreSystems::FlushPostUpdate)
             .before(CoreSystems::FlushLast)
         )
@@ -324,12 +327,13 @@ When you supply a constant delta time value (the literal fixed timestep) inside 
 fn main() {
     App::new()
         .add_systems(
-            // Conveneniently ordering these systems relative to each other
-            chain!([
+            (
                apply_forces,
                apply_acceleration,
                apply_velocity
-            ])
+            )
+            // Conveneniently ordering these systems relative to each other
+            .chain()
             // Ensuring they run on a fixed timestep
             // as part of the `CoreSchedule::FixedUpdate` schedule
             .in_schedule(CoreSchedule::FixedUpdate)
@@ -406,7 +410,7 @@ This design can be broken down into the following steps:
 - **Port over the rest of the engine and examples to the new API.**
 - Remove stages and run criteria.
 - Misc.
-  - Implement bulk scheduling capabilities (`.add_systems`, descriptor wrapper enum, and convenience macros like `chain!`)
+  - Implement bulk scheduling capabilities (`.add_systems`, descriptor wrapper enum, system collections / tuples, and consider convenience macros like `chain!`)
     - Rebrand "system chaining" (e.g. `ChainSystem`) into something else, like "system piping".
 
 There is a prototype implementation of these changes (in a separate module) here: bevyengine/bevy#4391 (The **Appendix** shows several snippets from this.)
@@ -639,7 +643,7 @@ We like (3) because it doesn't put undue burden on the user or introduce unclear
 Likewise, resolving the error is very simple: just name the systems.
 
 Internally, systems and sets are given unique identifiers and those are used for graph construction.
-This means you can do `add_system(apply_system_buffers.after(X))` multiple times or use the `chain!` macro with multiple unnamed instances of the same function without having to name any of them using their types. This protects against the error in (3) for many common cases.
+This means you can do `add_system(apply_system_buffers.after(X))` multiple times or use the `(a, b, c).chain()` operation with multiple unnamed instances of the same function without having to name any of them using their types. This protects against the error in (3) for many common cases.
 
 A system only needs to reference the potentially ambiguous `SystemTypeIdSet` when you want to do `before(name)` or `after(name)` somewhere else. And in these cases, the validation from (3) will protect users from accidentally doing something wrong.
 
@@ -669,7 +673,7 @@ Users should do one of the following:
     // chaining
     app
         .add_system(foo)
-        .add_system(chain![foo, bar])
+        .add_system((foo, bar).chain())
     // rotate bar.after(foo) to foo.before(bar)
     app
         .add_system(foo)
@@ -718,10 +722,10 @@ Convenience methods like `add_systems` are important for reducing boilerplate. F
 
 - builder syntax: marginal improvement over adding individual systems
 - array syntax: looks pretty but is literally impossible
-- tuple syntax: looks pretty but is limited to a fixed number of elements
+- tuple syntax: looks pretty but is limited to a fixed number of elements, unless tuple nesting is used (or variadic tuples are added to rust)
 - `vec!`-like macro syntax: looks OK but, eh, uses macros
 
-**Conclusion:** macro syntax for practicality, likely powered by builder syntax under the hood
+**Conclusion:** tuple syntax for terseness and avoiding macro-magic. `add_systems` should accept some `Into<SystemCollection>` impl, which means we can optionally support macros and/or builder syntax for those that prefer them, either officially or via 3rd party crates.
 
 Below, we examine the the options by example.
 
@@ -791,7 +795,7 @@ This was the strategy we used for `SystemSet`.
 ```
 
 - looks pretty
-- limited to 12 elements
+- limited to a fixed number of elements (the more we support, the bigger the compile time cost)
 - increases compile times
 - relies on type system magic
   - requires invocation of the `all_tuples` macro to generate blanket impls
