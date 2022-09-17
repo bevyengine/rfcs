@@ -109,7 +109,7 @@ fn main() {
                 // (If this fails, all systems in the set will be skipped.)
                 .run_if(state_equals(GameState::Paused))
         )
-        .add_system(
+        .add_systems(
             some_system
                 .in_set(MySystems::Menu)
                 // Attach multiple conditions to this system, and they won't conflict with Menu's conditions.
@@ -183,7 +183,7 @@ impl Plugin for PhysicsPlugin {
                 (broad_pass, narrow_pass, solve_constraints)
                     .chain()
                     .in_set(Physics::DetectCollisions))
-            .add_system(collision_damage.in_set(Physics::HandleCollisions));
+            .add_systems(collision_damage.in_set(Physics::HandleCollisions));
     }
 }
 ```
@@ -228,12 +228,15 @@ fn main() {
         .add_systems(
             (tick_construction_timer, update_construction_progress)
                 .in_set(GameSystems::Construction))
-        .add_system(mitigate_meltdown.run_if(too_many_enemies))
-        // You can use closures for simple one-off conditions.
-        .add_system(spawn_more_enemies.run_if(|difficulty: Res<Difficulty>| difficulty >= 9000))
-        // `resource_exists` and `resource_equals` are helper functions that produce
-        // new closures that can be used as conditions.
-        .add_system(gravity.run_if(resource_exists(Gravity)))
+        .add_systems((
+            mitigate_meltdown.run_if(too_many_enemies),
+            // You can use closures for simple one-off conditions.
+            spawn_more_enemies.run_if(|difficulty: Res<Difficulty>| difficulty >= 9000),
+            // `resource_exists` and `resource_equals` are helper functions that produce
+            // new closures that can be used as conditions.
+            gravity.run_if(resource_exists(Gravity))
+        ))
+
         // The systems in this set won't run if `Paused` is `true`.
         .configure_set(GameSystems::Physics.run_if(resource_equals(Paused(false))))
         .run();
@@ -269,7 +272,7 @@ struct ProjectilePlugin;
 impl Plugin for ProjectilePlugin {
     fn build(app: &mut App) {
         app
-        .add_system(spawn_projectiles.before(CoreSystems::FlushPostUpdate))
+        .add_systems(spawn_projectiles.before(CoreSystems::FlushPostUpdate))
         .add_systems(
             (
                 check_if_projectiles_hit,
@@ -363,15 +366,17 @@ fn main() {
         /* ... */
         // These systems only run as part of the state transition logic
         .add_system_to(OnEnter(GameState::Playing), load_map)
-        // The .on_enter and .on_exit methods are equivalent to the pattern above
-        .add_system(autosave.on_exit(GameState::Playing))
-        // This system will be added under the `OnUpdate(GameState::Playing)` set
-        // Note that this is not a schedule:
-        // it is run as part of the main game schedule,
-        // but only runs if the current state is GameState::Playing
-        .add_system(run.in_set(OnUpdate(GameState::Playing)))
-        // This system will not be part of the set above, but will otherwise follow the same rules
-        .add_system(jump.run_if(state_equals(GameState::Playing)))
+        .add_systems((
+            // The .on_enter and .on_exit methods are equivalent to the pattern above
+            autosave.on_exit(GameState::Playing),
+            // This system will be added under the `OnUpdate(GameState::Playing)` set
+            // Note that this is not a schedule:
+            // it is run as part of the main game schedule,
+            // but only runs if the current state is GameState::Playing
+            run.in_set(OnUpdate(GameState::Playing)),
+            // This system will not be part of the set above, but will otherwise follow the same rules
+            jump.run_if(state_equals(GameState::Playing)),
+        ))
         /* ... */
         .run();
 }
@@ -524,9 +529,11 @@ The old `SystemLabel` approach, combined with ordering apis like `before` and `a
 
 ```rust
 app
-    .add_system(a.label(X))
-    .add_system(b.label(X))
-    .add_system(c.after(X))
+    .add_systems((
+        a.label(X),
+        b.label(X),
+        c.after(X),
+    ))
 ```
 
 In this app, `a` and `b` share the `X` label. When `c` adds the `after(X)` constraint, it is referring to the "unordered group" (aka a "set") of systems with the label `X`.
@@ -535,9 +542,8 @@ System Sets (in this RFC) behave in exactly the same way:
 
 ```rust
 app
-    .add_system(a.in_set(X))
-    .add_system(b.in_set(X))
-    .add_system(c.after(X))
+    .add_systems((a, b).in_set(X))
+    .add_systems(c.after(X))
 ```
 
 The biggest difference is that System Sets can also be ordered relative to other System Sets:
@@ -557,8 +563,10 @@ First consider this common ordering scenario:
 
 ```rust
 app
-    .add_system(foo)
-    .add_system(bar.after(foo))
+    .add_systems((
+        foo,
+        bar.after(foo),
+    ))
 ```
 
 There is one instance of `foo` and one instance of `bar` in the schedule. And we've configured `bar` to run after `foo`. No need to think about sets. The intent of the program is clear.
@@ -567,11 +575,13 @@ Now consider this ordering scenario:
 
 ```rust
 app
-    .add_system(foo)
-    .add_system(bar.after(foo));
+    .add_systems((
+        foo,
+        bar.after(foo),
+    ));
 
 // later, maybe in a different Plugin
-app.add_system(foo.after(baz))
+app.add_systems(foo.after(baz))
 ```
 
 Now we can see why this api is still set-like! There are now two `foo` systems in the schedule, each identified by the `foo` name. When `bar` adds the `after(foo)` constraint, it is ambiguously referring to both systems (and implicitly needs to wait for `baz` to finish, despite having never intended to depend on that instance of foo).
@@ -590,9 +600,11 @@ Suppose a user has written the following:
 ```rust
 fn main() {
     app
-        .add_system(apply_system_buffers)
-        .add_system(generates_commands.before(apply_system_buffers))
-        .add_system(relies_on_commands.after(apply_system_buffers))
+        .add_systems((
+            apply_system_buffers,
+            generates_commands.before(apply_system_buffers),
+            relies_on_commands.after(apply_system_buffers),
+        ))
         .run()
 }
 ```
@@ -609,9 +621,11 @@ If the user schedules `X` to run before (or after) their logic, their program wi
 fn main() {
     app
         .configure_set(X.before(generates_commands))
-        .add_system(apply_system_buffers)
-        .add_system(generates_commands.before(apply_system_buffers))
-        .add_system(relies_on_commands.after(apply_system_buffers))
+        .add_systems((
+            apply_system_buffers,
+            generates_commands.before(apply_system_buffers),
+            relies_on_commands.after(apply_system_buffers),
+        ))
         // This will panic.
         .run()
 }
@@ -643,17 +657,18 @@ We like (3) because it doesn't put undue burden on the user or introduce unclear
 Likewise, resolving the error is very simple: just name the systems.
 
 Internally, systems and sets are given unique identifiers and those are used for graph construction.
-This means you can do `add_system(apply_system_buffers.after(X))` multiple times or use the `(a, b, c).chain()` operation with multiple unnamed instances of the same function without having to name any of them using their types. This protects against the error in (3) for many common cases.
+This means you can do `add_systems(apply_system_buffers.after(X))` multiple times or use the `(a, b, c).chain()` operation with multiple unnamed instances of the same function without having to name any of them using their types. This protects against the error in (3) for many common cases.
 
 A system only needs to reference the potentially ambiguous `SystemTypeIdSet` when you want to do `before(name)` or `after(name)` somewhere else. And in these cases, the validation from (3) will protect users from accidentally doing something wrong.
 
 In short, when the error in (3) is encountered:
 
 ```rust
-app
-    .add_system(foo)
-    .add_system(foo)
-    .add_system(bar.after(foo))
+app.add_systems((
+    foo,
+    foo,
+    bar.after(foo),
+))
 ```
 
 Users should do one of the following:
@@ -661,10 +676,11 @@ Users should do one of the following:
 1. Create a new set, add it to the duplicate system, and use that to define orders unambiguously;
 
     ```rust
-    app
-        .add_system(foo)
-        .add_system(foo.in_set(X))
-        .add_system(bar.after(X))
+    app.add_systems((
+        foo,
+        foo.in_set(X),
+        bar.after(X),
+    ))
     ```
 
 2. Refactor their system registration to use APIs that order unambiguously using specific system instance ids:
@@ -672,13 +688,14 @@ Users should do one of the following:
     ```rust
     // chaining
     app
-        .add_system(foo)
-        .add_system((foo, bar).chain())
+        .add_systems(foo)
+        .add_systems((foo, bar).chain())
     // rotate bar.after(foo) to foo.before(bar)
-    app
-        .add_system(foo)
-        .add_system(bar)
-        .add_system(foo.before(bar))
+    app.add_systems((
+        foo,
+        bar,
+        foo.before(bar),
+    ))
     ```
 
 *Note: In case it wasn't already clear, system chaining introduces new instances of systems. It does not reuse existing ones.*
@@ -694,7 +711,7 @@ fn some_system(time: Res<Time>) {}
 
 app
     .configure_set(some_system.after(X))
-    .add_system(foo.in_set(some_system))
+    .add_systems(foo.in_set(some_system))
 ```
 
 To prevent this, user-facing set configuration and set-membership APIs will fail with an error message if SystemTypeIdSets (such as `some_system` in the example above) are passed in.
