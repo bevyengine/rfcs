@@ -109,26 +109,26 @@ fn main() {
                 // (If this fails, all systems in the set will be skipped.)
                 .run_if(state_equals(GameState::Paused))
         )
-        .add_systems(
+        // Bulk-add systems
+        .add_systems((
             some_system
                 .in_set(MySystems::Menu)
                 // Attach multiple conditions to this system, and they won't conflict with Menu's conditions.
                 // (All of these must return true or this system will be skipped.)
                 .run_if(some_condition_system)
-                .run_if(|value: Res<Value>| value > 9000)
-        )
-        // Bulk-add systems
-        .add_systems(
-          chain![
-            some_system,
-            // Choose when to process commands with instances of this dedicated system.
-            apply_system_buffers,
-          )
-          .chain()
-          // Configure these together.
-          .in_set(MySystems::Menu)
-          .after(some_other_system)
-        )
+                .run_if(|value: Res<Value>| value > 9000),
+            // nesting tuples of systems is allowed, enabling grouped configuration of systems
+            (
+                some_system,
+                // Choose when to process commands with instances of this dedicated system.
+                apply_system_buffers,
+            )
+                .chain()
+                // Configure these together.
+                .in_set(MySystems::Menu)
+                .after(some_other_system),
+            
+        ))
         /* ... */
         .run();
 }
@@ -178,12 +178,13 @@ impl Plugin for PhysicsPlugin {
                     .in_set(FixedAfterInput)
                     .before(Physics::HandleCollisions))
             .configure_set(Physics::HandleCollisions.in_set(FixedAfterInput))
-            .add_system(gravity.in_set(Physics::ComputeForces))
-            .add_systems(
+            .add_systems((
+                gravity.in_set(Physics::ComputeForces),
                 (broad_pass, narrow_pass, solve_constraints)
                     .chain()
-                    .in_set(Physics::DetectCollisions))
-            .add_systems(collision_damage.in_set(Physics::HandleCollisions));
+                    .in_set(Physics::DetectCollisions),
+                collision_damage.in_set(Physics::HandleCollisions)
+            ));
     }
 }
 ```
@@ -225,10 +226,9 @@ fn main() {
         .add_plugins(DefaultPlugins)
         // You can add functions with read-only system parameters as conditions.
         .configure_set(GameSystems::Construction.run_if(construction_timer_not_finished))
-        .add_systems(
-            (tick_construction_timer, update_construction_progress)
-                .in_set(GameSystems::Construction))
         .add_systems((
+            (tick_construction_timer, update_construction_progress)
+                .in_set(GameSystems::Construction)),
             mitigate_meltdown.run_if(too_many_enemies),
             // You can use closures for simple one-off conditions.
             spawn_more_enemies.run_if(|difficulty: Res<Difficulty>| difficulty >= 9000),
@@ -236,7 +236,6 @@ fn main() {
             // new closures that can be used as conditions.
             gravity.run_if(resource_exists(Gravity))
         ))
-
         // The systems in this set won't run if `Paused` is `true`.
         .configure_set(GameSystems::Physics.run_if(resource_equals(Paused(false))))
         .run();
@@ -272,8 +271,8 @@ struct ProjectilePlugin;
 impl Plugin for ProjectilePlugin {
     fn build(app: &mut App) {
         app
-        .add_systems(spawn_projectiles.before(CoreSystems::FlushPostUpdate))
-        .add_systems(
+        .add_systems((
+            spawn_projectiles.before(CoreSystems::FlushPostUpdate),
             (
                 check_if_projectiles_hit,
                 despawn_projectiles_that_hit,
@@ -282,10 +281,10 @@ impl Plugin for ProjectilePlugin {
                 apply_system_buffers,
                 fork_projectiles,
             )
-            .chain()
-            .after(CoreSystems::FlushPostUpdate)
-            .before(CoreSystems::FlushLast)
-        )
+                .chain()
+                .after(CoreSystems::FlushPostUpdate)
+                .before(CoreSystems::FlushLast)
+        ))
     }
 }
 ```
@@ -338,7 +337,7 @@ fn main() {
                apply_acceleration,
                apply_velocity
             )
-            // Conveneniently ordering these systems relative to each other
+            // Conveniently ordering these systems relative to each other
             .chain()
          )
         .run();
@@ -365,7 +364,7 @@ fn main() {
         .add_state::<GameState>()
         /* ... */
         // These systems only run as part of the state transition logic
-        .add_system_to(OnEnter(GameState::Playing), load_map)
+        .add_systems_to(OnEnter(GameState::Playing), load_map)
         .add_systems((
             // The .on_enter and .on_exit methods are equivalent to the pattern above
             autosave.on_exit(GameState::Playing),
@@ -528,12 +527,11 @@ System Sets are now the one way to name and refer to systems (and groups of syst
 The old `SystemLabel` approach, combined with ordering apis like `before` and `after` already resulted in set-like behavior. Consider the following:
 
 ```rust
-app
-    .add_systems((
-        a.label(X),
-        b.label(X),
-        c.after(X),
-    ))
+app.add_systems((
+    a.label(X),
+    b.label(X),
+    c.after(X),
+))
 ```
 
 In this app, `a` and `b` share the `X` label. When `c` adds the `after(X)` constraint, it is referring to the "unordered group" (aka a "set") of systems with the label `X`.
@@ -541,9 +539,10 @@ In this app, `a` and `b` share the `X` label. When `c` adds the `after(X)` const
 System Sets (in this RFC) behave in exactly the same way:
 
 ```rust
-app
-    .add_systems((a, b).in_set(X))
-    .add_systems(c.after(X))
+app.add_systems((
+    (a, b).in_set(X),
+    c.after(X)
+))
 ```
 
 The biggest difference is that System Sets can also be ordered relative to other System Sets:
@@ -562,11 +561,10 @@ There is one corner case worth discussing: "function system name sets", such as 
 First consider this common ordering scenario:
 
 ```rust
-app
-    .add_systems((
-        foo,
-        bar.after(foo),
-    ))
+app.add_systems((
+    foo,
+    bar.after(foo),
+))
 ```
 
 There is one instance of `foo` and one instance of `bar` in the schedule. And we've configured `bar` to run after `foo`. No need to think about sets. The intent of the program is clear.
@@ -574,11 +572,10 @@ There is one instance of `foo` and one instance of `bar` in the schedule. And we
 Now consider this ordering scenario:
 
 ```rust
-app
-    .add_systems((
-        foo,
-        bar.after(foo),
-    ));
+app.add_systems((
+    foo,
+    bar.after(foo),
+));
 
 // later, maybe in a different Plugin
 app.add_systems(foo.after(baz))
@@ -687,9 +684,10 @@ Users should do one of the following:
 
     ```rust
     // chaining
-    app
-        .add_systems(foo)
-        .add_systems((foo, bar).chain())
+    app.add_systems((
+        foo,
+        (foo, bar).chain()
+    ))
     // rotate bar.after(foo) to foo.before(bar)
     app.add_systems((
         foo,
