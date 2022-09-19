@@ -159,7 +159,7 @@ enum Physics {
 
 /// "Logical" system set for sharing fixed-after-input config
 #[derive(SystemSet)]
-FixedAfterInput;
+struct FixedAfterInput;
 
 impl Plugin for PhysicsPlugin {
     fn build(app: &mut App){
