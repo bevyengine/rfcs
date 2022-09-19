@@ -109,25 +109,26 @@ fn main() {
                 // (If this fails, all systems in the set will be skipped.)
                 .run_if(state_equals(GameState::Paused))
         )
-        .add_system(
+        // Bulk-add systems
+        .add_systems((
             some_system
                 .in_set(MySystems::Menu)
                 // Attach multiple conditions to this system, and they won't conflict with Menu's conditions.
                 // (All of these must return true or this system will be skipped.)
                 .run_if(some_condition_system)
-                .run_if(|value: Res<Value>| value > 9000)
-        )
-        // Bulk-add systems and system sets with some convenience macros.
-        .add_systems(
-          chain![
-            some_system,
-            // Choose when to process commands with instances of this dedicated system.
-            apply_system_buffers,
-          ]
-          // Configure these together.
-          .in_set(MySystems::Menu)
-          .after(some_other_system)
-        )
+                .run_if(|value: Res<Value>| value > 9000),
+            // nesting tuples of systems is allowed, enabling grouped configuration of systems
+            (
+                some_system,
+                // Choose when to process commands with instances of this dedicated system.
+                apply_system_buffers,
+            )
+                .chain()
+                // Configure these together.
+                .in_set(MySystems::Menu)
+                .after(some_other_system),
+            
+        ))
         /* ... */
         .run();
 }
@@ -142,8 +143,8 @@ Dependencies involving system sets are later flattened into dependencies between
 
 If a combination of constraints cannot be satisfied (e.g. you say A has to come both before and after B), a dependency graph will be found to be **unsolvable** and return an error. However, that error should clearly explain how to fix whatever problem was detected.
 
-An `add_systems` method and convenience macros are provided as another means to add properties in bulk.
-For example, using `systems![a, b, c, ...].chain()` (or the `chain![a, b, c, ...]` shortcut) will create dependencies between the successive elements.
+An `add_systems` method is provided as another means to add properties in bulk, which accepts a collection of configured systems.
+For example, tuples of systems like `(a, b, c)` can be added, and using `(a, b, c, ...).chain()` will create dependencies between the successive elements.
 
 *Note: This is different from the "system chaining" in previous versions of Bevy. That has been renamed to "system piping" to avoid overlap.*
 
@@ -177,11 +178,13 @@ impl Plugin for PhysicsPlugin {
                     .in_set(FixedAfterInput)
                     .before(Physics::HandleCollisions))
             .configure_set(Physics::HandleCollisions.in_set(FixedAfterInput))
-            .add_system(gravity.in_set(Physics::ComputeForces))
-            .add_systems(
-                chain![broad_pass, narrow_pass, solve_constraints]
-                    .in_set(Physics::DetectCollisions))
-            .add_system(collision_damage.in_set(Physics::HandleCollisions));
+            .add_systems((
+                gravity.in_set(Physics::ComputeForces),
+                (broad_pass, narrow_pass, solve_constraints)
+                    .chain()
+                    .in_set(Physics::DetectCollisions),
+                collision_damage.in_set(Physics::HandleCollisions)
+            ));
     }
 }
 ```
@@ -223,15 +226,16 @@ fn main() {
         .add_plugins(DefaultPlugins)
         // You can add functions with read-only system parameters as conditions.
         .configure_set(GameSystems::Construction.run_if(construction_timer_not_finished))
-        .add_systems(
-            systems![tick_construction_timer, update_construction_progress]
-                .in_set(GameSystems::Construction))
-        .add_system(mitigate_meltdown.run_if(too_many_enemies))
-        // You can use closures for simple one-off conditions.
-        .add_system(spawn_more_enemies.run_if(|difficulty: Res<Difficulty>| difficulty >= 9000))
-        // `resource_exists` and `resource_equals` are helper functions that produce
-        // new closures that can be used as conditions.
-        .add_system(gravity.run_if(resource_exists(Gravity)))
+        .add_systems((
+            (tick_construction_timer, update_construction_progress)
+                .in_set(GameSystems::Construction)),
+            mitigate_meltdown.run_if(too_many_enemies),
+            // You can use closures for simple one-off conditions.
+            spawn_more_enemies.run_if(|difficulty: Res<Difficulty>| difficulty >= 9000),
+            // `resource_exists` and `resource_equals` are helper functions that produce
+            // new closures that can be used as conditions.
+            gravity.run_if(resource_exists(Gravity))
+        ))
         // The systems in this set won't run if `Paused` is `true`.
         .configure_set(GameSystems::Physics.run_if(resource_equals(Paused(false))))
         .run();
@@ -267,19 +271,20 @@ struct ProjectilePlugin;
 impl Plugin for ProjectilePlugin {
     fn build(app: &mut App) {
         app
-        .add_system(spawn_projectiles.before(CoreSystems::FlushPostUpdate))
-        .add_systems(
-            chain![
+        .add_systems((
+            spawn_projectiles.before(CoreSystems::FlushPostUpdate),
+            (
                 check_if_projectiles_hit,
                 despawn_projectiles_that_hit,
                 // Be mindful when adding exclusive systems like apply_system_buffers to your schedule.
                 // These will create a hard sync point, blocking other systems from running in parallel.
                 apply_system_buffers,
                 fork_projectiles,
-            ]
-            .after(CoreSystems::FlushPostUpdate)
-            .before(CoreSystems::FlushLast)
-        )
+            )
+                .chain()
+                .after(CoreSystems::FlushPostUpdate)
+                .before(CoreSystems::FlushLast)
+        ))
     }
 }
 ```
@@ -322,16 +327,17 @@ When you supply a constant delta time value (the literal fixed timestep) inside 
 ```rust
 fn main() {
     App::new()
-        .add_systems(
-            // Conveneniently ordering these systems relative to each other
-            chain!([
+        // Ensuring they run on a fixed timestep
+        // as part of the `CoreSchedule::FixedUpdate` schedule
+        .add_systems_to(
+            CoreSchedule::FixedUpdate,
+            (
                apply_forces,
                apply_acceleration,
                apply_velocity
-            ])
-            // Ensuring they run on a fixed timestep
-            // as part of the `CoreSchedule::FixedUpdate` schedule
-            .in_schedule(CoreSchedule::FixedUpdate)
+            )
+            // Conveniently ordering these systems relative to each other
+            .chain()
          )
         .run();
 }
@@ -357,16 +363,18 @@ fn main() {
         .add_state::<GameState>()
         /* ... */
         // These systems only run as part of the state transition logic
-        .add_system(load_map.in_schedule(OnEnter(GameState::Playing)))
-        // The .on_enter and .on_exit methods are equivalent to the pattern above
-        .add_system(autosave.on_exit(GameState::Playing))
-        // This system will be added under the `OnUpdate(GameState::Playing)` set
-        // Note that this is not a schedule:
-        // it is run as part of the main game schedule,
-        // but only runs if the current state is GameState::Playing
-        .add_system(run.in_set(OnUpdate(GameState::Playing)))
-        // This system will not be part of the set above, but will otherwise follow the same rules
-        .add_system(jump.run_if(state_equals(GameState::Playing)))
+        .add_system_to(OnEnter(GameState::Playing), load_map)
+        .add_systems((
+            // The .on_enter and .on_exit methods are equivalent to the pattern above
+            autosave.on_exit(GameState::Playing),
+            // This system will be added under the `OnUpdate(GameState::Playing)` set
+            // Note that this is not a schedule:
+            // it is run as part of the main game schedule,
+            // but only runs if the current state is GameState::Playing
+            run.in_set(OnUpdate(GameState::Playing)),
+            // This system will not be part of the set above, but will otherwise follow the same rules
+            jump.run_if(state_equals(GameState::Playing)),
+        ))
         /* ... */
         .run();
 }
@@ -405,7 +413,7 @@ This design can be broken down into the following steps:
 - **Port over the rest of the engine and examples to the new API.**
 - Remove stages and run criteria.
 - Misc.
-  - Implement bulk scheduling capabilities (`.add_systems`, descriptor wrapper enum, and convenience macros like `chain!`)
+  - Implement bulk scheduling capabilities (`.add_systems`, descriptor wrapper enum, system collections / tuples, and consider convenience macros like `chain!`)
     - Rebrand "system chaining" (e.g. `ChainSystem`) into something else, like "system piping".
 
 There is a prototype implementation of these changes (in a separate module) here: bevyengine/bevy#4391 (The **Appendix** shows several snippets from this.)
@@ -518,10 +526,11 @@ System Sets are now the one way to name and refer to systems (and groups of syst
 The old `SystemLabel` approach, combined with ordering apis like `before` and `after` already resulted in set-like behavior. Consider the following:
 
 ```rust
-app
-    .add_system(a.label(X))
-    .add_system(b.label(X))
-    .add_system(c.after(X))
+app.add_systems((
+    a.label(X),
+    b.label(X),
+    c.after(X),
+))
 ```
 
 In this app, `a` and `b` share the `X` label. When `c` adds the `after(X)` constraint, it is referring to the "unordered group" (aka a "set") of systems with the label `X`.
@@ -529,10 +538,10 @@ In this app, `a` and `b` share the `X` label. When `c` adds the `after(X)` const
 System Sets (in this RFC) behave in exactly the same way:
 
 ```rust
-app
-    .add_system(a.in_set(X))
-    .add_system(b.in_set(X))
-    .add_system(c.after(X))
+app.add_systems((
+    (a, b).in_set(X),
+    c.after(X)
+))
 ```
 
 The biggest difference is that System Sets can also be ordered relative to other System Sets:
@@ -551,9 +560,10 @@ There is one corner case worth discussing: "function system name sets", such as 
 First consider this common ordering scenario:
 
 ```rust
-app
-    .add_system(foo)
-    .add_system(bar.after(foo))
+app.add_systems((
+    foo,
+    bar.after(foo),
+))
 ```
 
 There is one instance of `foo` and one instance of `bar` in the schedule. And we've configured `bar` to run after `foo`. No need to think about sets. The intent of the program is clear.
@@ -561,9 +571,10 @@ There is one instance of `foo` and one instance of `bar` in the schedule. And we
 Now consider this ordering scenario:
 
 ```rust
-app
-    .add_system(foo)
-    .add_system(bar.after(foo));
+app.add_systems((
+    foo,
+    bar.after(foo),
+));
 
 // later, maybe in a different Plugin
 app.add_system(foo.after(baz))
@@ -585,9 +596,11 @@ Suppose a user has written the following:
 ```rust
 fn main() {
     app
-        .add_system(apply_system_buffers)
-        .add_system(generates_commands.before(apply_system_buffers))
-        .add_system(relies_on_commands.after(apply_system_buffers))
+        .add_systems((
+            apply_system_buffers,
+            generates_commands.before(apply_system_buffers),
+            relies_on_commands.after(apply_system_buffers),
+        ))
         .run()
 }
 ```
@@ -604,9 +617,11 @@ If the user schedules `X` to run before (or after) their logic, their program wi
 fn main() {
     app
         .configure_set(X.before(generates_commands))
-        .add_system(apply_system_buffers)
-        .add_system(generates_commands.before(apply_system_buffers))
-        .add_system(relies_on_commands.after(apply_system_buffers))
+        .add_systems((
+            apply_system_buffers,
+            generates_commands.before(apply_system_buffers),
+            relies_on_commands.after(apply_system_buffers),
+        ))
         // This will panic.
         .run()
 }
@@ -638,17 +653,19 @@ We like (3) because it doesn't put undue burden on the user or introduce unclear
 Likewise, resolving the error is very simple: just name the systems.
 
 Internally, systems and sets are given unique identifiers and those are used for graph construction.
-This means you can do `add_system(apply_system_buffers.after(X))` multiple times or use the `chain!` macro with multiple unnamed instances of the same function without having to name any of them using their types. This protects against the error in (3) for many common cases.
+This means you can do `add_system(apply_system_buffers.after(X))` multiple times or use the `(a, b, c).chain()` operation with multiple unnamed instances of the same function without having to name any of them using their types.
+This protects against the error in (3) for many common cases.
 
 A system only needs to reference the potentially ambiguous `SystemTypeIdSet` when you want to do `before(name)` or `after(name)` somewhere else. And in these cases, the validation from (3) will protect users from accidentally doing something wrong.
 
 In short, when the error in (3) is encountered:
 
 ```rust
-app
-    .add_system(foo)
-    .add_system(foo)
-    .add_system(bar.after(foo))
+app.add_systems((
+    foo,
+    foo,
+    bar.after(foo),
+))
 ```
 
 Users should do one of the following:
@@ -656,24 +673,27 @@ Users should do one of the following:
 1. Create a new set, add it to the duplicate system, and use that to define orders unambiguously;
 
     ```rust
-    app
-        .add_system(foo)
-        .add_system(foo.in_set(X))
-        .add_system(bar.after(X))
+    app.add_systems((
+        foo,
+        foo.in_set(X),
+        bar.after(X),
+    ))
     ```
 
 2. Refactor their system registration to use APIs that order unambiguously using specific system instance ids:
 
     ```rust
     // chaining
-    app
-        .add_system(foo)
-        .add_system(chain![foo, bar])
+    app.add_systems((
+        foo,
+        (foo, bar).chain()
+    ))
     // rotate bar.after(foo) to foo.before(bar)
-    app
-        .add_system(foo)
-        .add_system(bar)
-        .add_system(foo.before(bar))
+    app.add_systems((
+        foo,
+        bar,
+        foo.before(bar),
+    ))
     ```
 
 *Note: In case it wasn't already clear, system chaining introduces new instances of systems. It does not reuse existing ones.*
@@ -711,16 +731,18 @@ For example, Bevy will have a number of "core" sets. These could use any of the 
 
 ### What sugar should we use for adding multiple systems at once?
 
-Convenience methods like `add_systems` are important for reducing boilerplate. For these methods, we need to be able to refer to collections of systems.
+Convenience methods like `add_systems` are important for reducing boilerplate.
+For these methods, we need to be able to refer to collections of systems.
 
 **In summary:**
 
 - builder syntax: marginal improvement over adding individual systems
 - array syntax: looks pretty but is literally impossible
-- tuple syntax: looks pretty but is limited to a fixed number of elements
+- tuple syntax: looks pretty but is limited to a fixed number of elements, unless tuple nesting is used (or variadic tuples are added to rust)
 - `vec!`-like macro syntax: looks OK but, eh, uses macros
 
-**Conclusion:** macro syntax for practicality, likely powered by builder syntax under the hood
+**Conclusion:** tuple syntax for terseness and avoiding macro-magic.
+`add_systems` should accept some `Into<SystemCollection>` impl, which means we can optionally support macros and/or builder syntax for those that prefer them, either officially or via 3rd party crates.
 
 Below, we examine the the options by example.
 
@@ -790,7 +812,7 @@ This was the strategy we used for `SystemSet`.
 ```
 
 - looks pretty
-- limited to 12 elements
+- limited to a fixed number of elements (the more we support, the bigger the compile time cost)
 - increases compile times
 - relies on type system magic
   - requires invocation of the `all_tuples` macro to generate blanket impls
