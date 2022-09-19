@@ -291,7 +291,6 @@ Each system is stored within a `Schedule`, which themselves live within a public
 
 ```rust
 fn fancy_exclusive_system(world: &mut World) {
-    // removes the selected schedule from Schedules, executes a fn with it, then returns it to the world
     while fancy_logic() {
         // This runs the entire schedule on the world
         world.run_schedule(ScheduleLabel);
