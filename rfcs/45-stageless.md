@@ -654,7 +654,8 @@ We like (3) because it doesn't put undue burden on the user or introduce unclear
 Likewise, resolving the error is very simple: just name the systems.
 
 Internally, systems and sets are given unique identifiers and those are used for graph construction.
-This means you can do `add_system(apply_system_buffers.after(X))` multiple times or use the `(a, b, c).chain()` operation with multiple unnamed instances of the same function without having to name any of them using their types. This protects against the error in (3) for many common cases.
+This means you can do `add_system(apply_system_buffers.after(X))` multiple times or use the `(a, b, c).chain()` operation with multiple unnamed instances of the same function without having to name any of them using their types.
+This protects against the error in (3) for many common cases.
 
 A system only needs to reference the potentially ambiguous `SystemTypeIdSet` when you want to do `before(name)` or `after(name)` somewhere else. And in these cases, the validation from (3) will protect users from accidentally doing something wrong.
 
@@ -731,7 +732,8 @@ For example, Bevy will have a number of "core" sets. These could use any of the 
 
 ### What sugar should we use for adding multiple systems at once?
 
-Convenience methods like `add_systems` are important for reducing boilerplate. For these methods, we need to be able to refer to collections of systems.
+Convenience methods like `add_systems` are important for reducing boilerplate.
+For these methods, we need to be able to refer to collections of systems.
 
 **In summary:**
 
@@ -740,7 +742,8 @@ Convenience methods like `add_systems` are important for reducing boilerplate. F
 - tuple syntax: looks pretty but is limited to a fixed number of elements, unless tuple nesting is used (or variadic tuples are added to rust)
 - `vec!`-like macro syntax: looks OK but, eh, uses macros
 
-**Conclusion:** tuple syntax for terseness and avoiding macro-magic. `add_systems` should accept some `Into<SystemCollection>` impl, which means we can optionally support macros and/or builder syntax for those that prefer them, either officially or via 3rd party crates.
+**Conclusion:** tuple syntax for terseness and avoiding macro-magic.
+`add_systems` should accept some `Into<SystemCollection>` impl, which means we can optionally support macros and/or builder syntax for those that prefer them, either officially or via 3rd party crates.
 
 Below, we examine the the options by example.
 
