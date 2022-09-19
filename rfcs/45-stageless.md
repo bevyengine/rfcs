@@ -364,7 +364,7 @@ fn main() {
         .add_state::<GameState>()
         /* ... */
         // These systems only run as part of the state transition logic
-        .add_systems_to(OnEnter(GameState::Playing), load_map)
+        .add_system_to(OnEnter(GameState::Playing), load_map)
         .add_systems((
             // The .on_enter and .on_exit methods are equivalent to the pattern above
             autosave.on_exit(GameState::Playing),
@@ -578,7 +578,7 @@ app.add_systems((
 ));
 
 // later, maybe in a different Plugin
-app.add_systems(foo.after(baz))
+app.add_system(foo.after(baz))
 ```
 
 Now we can see why this api is still set-like! There are now two `foo` systems in the schedule, each identified by the `foo` name. When `bar` adds the `after(foo)` constraint, it is ambiguously referring to both systems (and implicitly needs to wait for `baz` to finish, despite having never intended to depend on that instance of foo).
@@ -654,7 +654,7 @@ We like (3) because it doesn't put undue burden on the user or introduce unclear
 Likewise, resolving the error is very simple: just name the systems.
 
 Internally, systems and sets are given unique identifiers and those are used for graph construction.
-This means you can do `add_systems(apply_system_buffers.after(X))` multiple times or use the `(a, b, c).chain()` operation with multiple unnamed instances of the same function without having to name any of them using their types. This protects against the error in (3) for many common cases.
+This means you can do `add_system(apply_system_buffers.after(X))` multiple times or use the `(a, b, c).chain()` operation with multiple unnamed instances of the same function without having to name any of them using their types. This protects against the error in (3) for many common cases.
 
 A system only needs to reference the potentially ambiguous `SystemTypeIdSet` when you want to do `before(name)` or `after(name)` somewhere else. And in these cases, the validation from (3) will protect users from accidentally doing something wrong.
 
@@ -709,7 +709,7 @@ fn some_system(time: Res<Time>) {}
 
 app
     .configure_set(some_system.after(X))
-    .add_systems(foo.in_set(some_system))
+    .add_system(foo.in_set(some_system))
 ```
 
 To prevent this, user-facing set configuration and set-membership APIs will fail with an error message if SystemTypeIdSets (such as `some_system` in the example above) are passed in.
