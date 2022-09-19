@@ -693,17 +693,9 @@ app
     .add_system(foo.in_set(some_system))
 ```
 
-This is certainly confusing! To resolve this, we've added the ability to "lock" sets:
+To prevent this, user-facing set configuration and set-membership APIs will fail with an error message if SystemTypeIdSets (such as `some_system` in the example above) are passed in.
 
-```rust
-app.configure_set(SomeSet.lock())
-```
-
-This will cause any further "set configuration" (adding ordering constraints, adding systems to sets, etc) from being added. SystemTypeIdSets (such as `some_system` in the example above) are automatically "locked" when they are initialized, preventing any user configuration.
-
-When adding systems, this lock flag will be internally ignored specifically for their automatically-computed `SystemTypeIdSet`. Ensuring that the set is still constructed correctly and ordering is respected.
-
-"Set locking" can also be used by Bevy plugin authors to make their sets "private" (much like "visibility" keywords in programming languages).
+In the future, we might generalize the "set locking" feature to user-defined sets, which would enable Bevy plugin authors to make their sets "private" (much like "visibility" keywords in programming languages).
 
 ## Unresolved questions
 
