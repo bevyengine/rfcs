@@ -157,24 +157,26 @@ enum Physics {
     HandleCollisions,
 }
 
+/// "Logical" system set for sharing fixed-after-input config
+#[derive(SystemSet)]
+FixedAfterInput;
+
 impl Plugin for PhysicsPlugin {
     fn build(app: &mut App){
-        // configs are reusable
-        let mut fixed_after_input = Config::new()
-            // built-in fixed timestep system set
-            .in_set(CoreSystems::FixedUpdate)
-            .after(InputSystems::ReadInputHandling);
-
         app
             .configure_set(
+                FixedAfterInput
+                    .in_set(CoreSystems::FixedUpdate)
+                    .after(InputSystems::ReadInputHandling))
+            .configure_set(
                 Physics::ComputeForces
-                    .configure_with(fixed_after_input)
+                    .in_set(FixedAfterInput)
                     .before(Physics::DetectCollisions))
             .configure_set(
                 Physics::DetectCollisions
-                    .configure_with(fixed_after_input)
+                    .in_set(FixedAfterInput)
                     .before(Physics::HandleCollisions))
-            .configure_set(Physics::HandleCollisions.configure_with(fixed_after_input))
+            .configure_set(Physics::HandleCollisions.in_set(FixedAfterInput))
             .add_system(gravity.in_set(Physics::ComputeForces))
             .add_systems(
                 chain![broad_pass, narrow_pass, solve_constraints]
@@ -880,7 +882,6 @@ As a bonus, schedule construction will become completely order-independent as ev
 ```rust
 pub trait IntoConfiguredSystem<Params> {
     fn configure(self) -> ConfiguredSystem;
-    fn configure_with(self, config: Config) -> ConfiguredSystem;
     fn before<M>(self, set: impl AsSystemSet<M>) -> ConfiguredSystem;
     fn after<M>(self, set: impl AsSystemSet<M>) -> ConfiguredSystem;
     fn in_set(self, set: impl SystemSet) -> ConfiguredSystem;
@@ -889,7 +890,6 @@ pub trait IntoConfiguredSystem<Params> {
 
 pub trait IntoConfiguredSystemSet {
     fn configure(self) -> ConfiguredSystemSet;
-    fn configure_with(self, config: Config) -> ConfiguredSystemSet;
     fn before<M>(self, set: impl AsSystemSet<M>) -> ConfiguredSystemSet;
     fn after<M>(self, set: impl AsSystemSet<M>) -> ConfiguredSystemSet;
     fn in_set(self, set: impl SystemSet) -> ConfiguredSystemSet;
