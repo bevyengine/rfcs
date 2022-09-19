@@ -120,14 +120,13 @@ fn main() {
         // Bulk-add systems and system sets with some convenience macros.
         .add_systems(
           chain![
-            // Macros can also accept system sets.
-            MySystems::SubMenu,
+            some_system,
             // Choose when to process commands with instances of this dedicated system.
             apply_system_buffers,
           ]
           // Configure these together.
           .in_set(MySystems::Menu)
-          .after(some_system)
+          .after(some_other_system)
         )
         /* ... */
         .run();
@@ -462,7 +461,7 @@ A popular physics plugin [has already implemented something like this](https://g
 
 There are three key rules for system configuration:
 
-1. You can always add configuration (for any public, unlocked set).
+1. You can always add configuration (for any public set).
 2. You can never remove configuration.
 3. Contradictory configuration is invalid, even if it's locally consistent.
 
@@ -719,7 +718,7 @@ For example, Bevy will have a number of "core" sets. These could use any of the 
 
 ### What sugar should we use for adding multiple systems at once?
 
-Convenience methods like `add_systems` are important for reducing boilerplate. For these methods, we need to be able to refer to collections of systems and system sets.
+Convenience methods like `add_systems` are important for reducing boilerplate. For these methods, we need to be able to refer to collections of systems.
 
 **In summary:**
 
