@@ -10,9 +10,11 @@ This design is buitl on top of the [many worlds RFC][many_worlds].
 
 When devolping an editor for bevy, the information visible should not necessarily be in the same format that most runtime systems operate on.
 The runtime representation is often optimized for efficiency and use in those systems, while the information displayed in the editor should be optimized for
-easy understanding and stability agains changes.
-We propose to address this by adding another default world to the ones described in the [many worlds RFC][many_worlds] that we call the "schematic world",
-and which contains the information used in the editor and its scene file formats.
+easy understanding.
+We propose to address this by adding another default world to the ones described in the [many worlds RFC][many_worlds] that we call the "schematic world".
+A big emphasis on the design is also for the schematic representation to be able to be stable against even major changes to the runime representation.
+This not only enables us to use the schematic world for a stable scene format inside one project, but it also helps with separating internal implentation changes in both official
+and unofficial plugins from what users, especially non-technical users.
 
 The main problem that arises from this approach is the synchronisation between the main and schematic worlds, so the RFC focuses on this aspect.
 Similar problems, where data needs to kept synchronized between worlds, might also appear in other areas.
@@ -50,16 +52,16 @@ fn schematic_for_a(query: SchematicQuery<A, With<Marker>>, mut some_resource: Re
     for (a, commands) in query {
         some_resource.do_something_with(a);
         // You can modify components
-        commands.insert_or_update(MainA(a.0));
+        commands.require(MainA(a.0));
         // And spawn other entities.
         // This will only spawn an entity on the first execution. It will remember the entity
         // by the label "child" so `child_commands` will operate on the same entity the next
         // time this system is run.
-        commands.spawn_or_select_child("child", |child_commands| {
+        commands.require_child("child", |child_commands| {
             // Entity references within the schematic world need to be mapped in this way.
             // (This might not be needed depending on the implementation of many worlds)
             let entity = child_commands.map_entity(a.1);
-            child_commands.insert_or_update(MainAChild(entity));
+            child_commands.require_component(MainAChild(entity));
         });
     }
 }
@@ -67,13 +69,15 @@ fn schematic_for_a(query: SchematicQuery<A, With<Marker>>, mut some_resource: Re
 
 The `SchematicQuery` will automatically only iterate over components that were changed since the system last ran.
 Other than a normal query, the first generic argument can only be a component, so tuples or `Entity` are not allowed as the first argument.
+It provides read-only access to that component.
+Systems that mutate data in the schematic world should usually be separate from schematics.
 
 The main methods of `SchematicCommands` are:
-* `insert_or_update<B: Bundle>(bundle: B)`
-* `spawn_or_select_child<L: SchematicLabel, F: FnOnce(SchematicCommands)>(label: L, F)`
-* `spawn_or_select<L: SchematicLabel, F: FnOnce(SchematicCommands)>(label: L, F)`
-* `despawn_if_exists<L: SchematicLabel>(label: L)`
-* `remove_if_exists<B: Bundle>()`
+* `require<B: Bundle>(bundle: B)`
+* `require_child<L: SchematicLabel, F: FnOnce(SchematicCommands)>(label: L, F)`
+* `require_entity<L: SchematicLabel, F: FnOnce(SchematicCommands)>(label: L, F)`
+* `require_despawned<L: SchematicLabel>(label: L)`
+* `require_deleted<B: Bundle>()`
 
 ### The `default_schematic` system
 
@@ -159,9 +163,11 @@ Note that while precedent set by other engines is some motivation, it does not o
 
 ## Unresolved questions
 
-- What parts of the design do you expect to resolve through the RFC process before this gets merged?
-- What parts of the design do you expect to resolve through the implementation of this feature before the feature PR is merged?
-- What related issues do you consider out of scope for this RFC that could be addressed in the future independently of the solution that comes out of this RFC?
+* Conversion from the runtime to schematic world
+* Conflict resolution in the schematic world vs during conversion
+* "Function style" vs "system" schematics
+* Handle removal of components in the schematic world
+* Checking that every component is read during conversion and similar things
 
 ## \[Optional\] Future possibilities
 
