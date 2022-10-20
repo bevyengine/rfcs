@@ -26,6 +26,11 @@ Finally the approach chosen here would help in implementing a "prefab" system.
 
 ### The `CoreWorld::Schematic`
 
+We propose adding another world to the `CoreWorld` enum, namely `CoreWorld::Schematic`.
+This world is meant to be an representation of the runtime world to be used in the editor and for scene formats.
+As such it should group components from the runtime world, if they can only show up together, and avoid duplicate data such as `Transform` and `GlobalTransform`.
+The purpose of this RFC is to facilitate the conversion between the runtime world and the schematic world.
+
 ### The `SchematicQuery`
 
 The main interface added by this RFC is the `SchematicQuery`, which you will usually only use in systems that run on `CoreWorld::Schematic`.
