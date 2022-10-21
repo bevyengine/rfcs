@@ -4,15 +4,17 @@
 
 The goal of this RFC is to facilitate and standardize two-way conversion and synchronization between ECS worlds.
 The approach described here aims to be more user friendly than just handcoded synchronization systems, but more flexible than a prefab system.
-This design is buitl on top of the [many worlds RFC][many_worlds].
+This design is built on top of the [many worlds RFC][many_worlds], but the implementation can be easily adapted to work with sub apps instead.
 
 ## Motivation
 
-When devolping an editor for bevy, the information visible should not necessarily be in the same format that most runtime systems operate on.
-The runtime representation is often optimized for efficiency and use in those systems, while the information displayed in the editor should be optimized for
-easy understanding.
+When devolping an editor for bevy, the information visible should not necessarily be in the same format that the runtime operates on.
+The runtime representation is often optimized for efficiency and use in logic systems, while the information displayed in the editor should be optimized for
+easy understanding and stability.
 We propose to address this by adding another default world to the ones described in the [many worlds RFC][many_worlds] that we call the "schematic world".
-A big emphasis on the design is also for the schematic representation to be able to be stable against even major changes to the runime representation.
+The entities and components in this world are the ones shown to users in the editor.
+
+A big emphasis on the design is also for the schematic representation to be able to be stable against major changes to the runime representation.
 This not only enables us to use the schematic world for a stable scene format inside one project, but it also helps with separating internal implentation changes in both official
 and unofficial plugins from what users, especially non-technical users.
 
@@ -25,54 +27,86 @@ Finally the approach chosen here would help in implementing a "prefab" system.
 We optionally suggest the "collect-resolve-apply" approach to solve the problem of keeping and resolving invariants between components like "every `ParticleSystem` needs a `Transform`".
 This could also be solved using archetype invariants in the schematic world.
 Some work on archetype invariants is  already in progress (see https://github.com/bevyengine/bevy/pull/5121).
+The design does not depend on either of these approaches though.
 
 ## User-facing explanation
 
 ### The `CoreWorld::Schematic`
 
 We propose adding another world to the `CoreWorld` enum, namely `CoreWorld::Schematic`.
-This world is meant to be an representation of the runtime world to be used in the editor and for scene formats.
+This world is meant to be an representation of the runtime world which is to be used in the editor and for scene formats.
 As such it should group components from the runtime world, if they can only show up together, and avoid duplicate data such as `Transform` and `GlobalTransform`.
 The purpose of this RFC is to facilitate the synchronization between the runtime world and the schematic world.
 
-For this you need to define 3 algorithms for every schematic:
+For this up to 3 algorithms can be defined for every schematic component:
 * Conversion from the schematic world to the runtime world
-* Conversion from the runtime world to the schematic world
-* Update the schematic world with changed data from the runtime world
+* Conversion from the runtime world to the schematic world (optional)
+* Update the schematic world with changed data from the runtime world (optional)
 
 Usually you will not need to write these algorithms yourself - you can use `#[derive(Schematic)]` in most cases.
 
 ### Deriving `Schematic`
 
-The derived implementation contains conversions both direction as well as updates.
+You can add `#[derive(Schematic)]` to any struct or enum that is a component.
+
+If you derive `Schematic` for a struct, every field needs to implement `Component` and `Clone`.
+Otherwise it either needs to implement `Default` and be tagged it with `#[schematic_ignore]`, or you need to specify another `Component`, such that the field has `From` and `Into` instances for this component.
+In the latter case you need to tag the field with `#[schematic_into(OtherComponent)]`
 
 ```rust
 #[derive(Component, Schematic)]
 struct MeshRenderer {
     mesh: Handle<Mesh>,
-    material: MaterialPath,
+    material: Handle<Mesh>,
+    #[schematic_into(Name)]
+    name: String,
     #[schematic_ignore]
     thumbnail: Handle<Image>,
 }
+```
 
+If you derive `Schematic` for an enum
+* Every unit variant nees to be tagged with `#[schematic_marker(MarkerComponent)]`. The given component needs to implement `Default`.
+* Every tuple variant can only have one field which needs to implement `Component` and `Clone` or be tagged with `#[schematic_into(OtherComponent)]`.
+* For struct variants the same rules as for structs apply. Struct variants need to have at least one field that is not marked with `#[schematic_ignore]`.
+Alternatively every variant can also be tagged with `#[schematic_ignore]`
+
+```rust
 #[derive(Component)]
 struct Walking {
     speed: f32,
 }
 
-#[derive(Component)]
+impl From<f32> for Walking {
+    // ...
+}
+
+#[derive(Component, Default)]
 struct Jumping;
+
+#[derive(Component, Clone)]
+struct Attacking {
+    damage: f32,
+    weapon_type: WeaponType,
+}
 
 #[derive(Component, Schematic)]
 enum AnimationState {
-    #[schematic_marker(Walking)]
-    Walking(Walking)
+    Walking {
+        #[schematic_into(Walking)]
+        speed: f32
+    }
     #[schematic_marker(Jumping)]
     Jumping,
+    Attacking(Attacking),
 }
 ```
 
-### Conversion from schematic to runtime world
+The derived implementation contains conversions both direction as well as updates.
+
+### Writing `Schematic` from hand
+
+#### Conversion from schematic to runtime world
 
 Conversions from schematic to runtime world are just normal systems that run on the schematic world and have a `SchematicQuery` parameter.
 A `SchematicQuery` works almost the same as a normal `Query`, but when iterating over components will additionaly return `SchematicCommands` for the component queried.
@@ -124,7 +158,7 @@ The main methods of `SchematicCommands` are:
 * `require_despawned<L: SchematicLabel>(label: L)`
 * `require_deleted<B: Bundle>()`
 
-### Conversion from runtime to schematic world
+#### Conversion from runtime to schematic world
 
 You can also optionally write conversions from the runtime world to the schematic world.
 
@@ -150,7 +184,7 @@ fn inference_for_a(
 }
 ```
 
-### Update schematic components
+#### Update schematic components
 
 For more efficient tracking you should also add update systems
 
@@ -208,7 +242,7 @@ fn update_animation_state(
 * If for a schematic there is both, then inference works as expected (schematics are updated if they still exist, new ones are created).
 * If for a schematic there is neither, then no inference is done (schematics are not updated, no new ones are created).
 
-### Putting the algorithms together
+#### Putting the algorithms together
 
 ```rust
 trait Schematic {
@@ -228,6 +262,10 @@ trait SchematicUpdate {
 }
 ```
 
+Notice that an implementation of `Schematic` is not tied to any component.
+The trait can also be implemented for any unit struct unrelated to any components similar to `Plugin`.
+As such you can write your own implementations for existing schematic components.
+
 ### Adding schematics to your app
 
 `Schematic`s can be added to the app using
@@ -236,6 +274,10 @@ app.add_schematic::<AnimationState>();
 ```
 
 Since with many components you want to just copy the same component from the schematic to the main world, a `DefaultSchematic<A: Clone>` is provided.
+
+```rust
+app.add_schematic::<DefaultSchematic<Visibility>>();
+```
 
 ### \[Optional\] Collect-Resolve-Apply
 
