@@ -144,12 +144,54 @@ fn update_for_a(
     schematic_a: &mut SchematicA,
     main_a: &MainA,
     main_a_child: SchematicUpdate<&MainAChild, "child">,
-) {
+) -> bool {
     schematic_a.0 = main_a.0;
     // TODO: Introduce entity mapping here
     schematic_a.1 = main_a_child.1;
+    // return true, as this schematic still exists
+    true
 }
 ```
+
+Example for "enum schematic"
+
+```rust
+#[derive(Component)]
+enum AnimationState {
+    Idle,
+    Walking,
+    Jumping,
+}
+
+#[derive(Component)]
+struct Idle;
+
+#[derive(Component)]
+struct Walking;
+
+#[derive(Component)]
+struct Jumping;
+
+fn update_animation_state(
+    animation_state: &mut AnimationState, 
+    idle: &Option<Idle>,
+    walking: &Option<Walking>,
+    jumping: &Option<Jumping>
+) -> bool {
+    match (idle, walking, jumping) {
+        (Some(_), _, _) => *animation_state = AnimationState::Idle,
+        (_, Some(_), _) => *animation_state = AnimationState::Walking,
+        (_, _, Some(_)) => *animation_state = AnimationState::Jumping,
+        _ => return false,
+    }
+    true
+}
+```
+
+* If for a schematic there is only an update system but no inference, then no new instances of this schematic can be found during runtime.
+* If for a schematic there is only an inference system but no update, then the schematic gets replaced by a new one every time the schmatic world is updated.
+* If for a schematic there is both, then inference works as expected (schematics are updated if they still exist, new ones are created).
+* If for a schematic there is neither, then no inference is done (schematics are not updated, no new ones are created).
 
 ## Implementation strategy
 
