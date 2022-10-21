@@ -111,6 +111,46 @@ In this case you can use
 app.add_schematic(default_schematic::<A>);
 ```
 
+### Schematic inference
+
+You can also optionally write conversions from the runtime world to the schematic world.
+
+```rust
+fn inference_for_a(
+    query: InferenceQuery<(&MainA, &Children), SchematicA>,
+    child_query: InferenceQuery<(Entity, &MainAChild)>,
+) {
+    for ((a, children), inference_commands) in query {
+        let result = children
+            .iter_many(children)
+            .filter_map(|result| result.ok())
+            .next();
+        let (child, a_child) = match result {
+            Some(value) => value,
+            None => continue,
+        };
+        let entity = inference_commands.map_entity(a_child.0);
+        inference_commands.infer(SchematicA(a.0, entity));
+        // This is important so that the schematic world knows about this relation
+        inference_commands.set_entity("child", child);
+    }
+}
+```
+
+For more efficient tracking you should also add update systems
+
+```rust
+fn update_for_a(
+    schematic_a: &mut SchematicA,
+    main_a: &MainA,
+    main_a_child: SchematicUpdate<&MainAChild, "child">,
+) {
+    schematic_a.0 = main_a.0;
+    // TODO: Introduce entity mapping here
+    schematic_a.1 = main_a_child.1;
+}
+```
+
 ## Implementation strategy
 
 * `SchematicQuery<C, F>` is basically `(Query<C, (F, Changed<C>)>, Local<HashMap<Entity, SchematicData>>, AppCommands)` where `SchematicData` is something like
