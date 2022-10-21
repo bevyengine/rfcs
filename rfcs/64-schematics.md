@@ -22,6 +22,10 @@ One example for this is the "render world", for which the extract phase could be
 Another example could be a "server world" in a multiplayer game, that only contains information which is shared with other clients and the server.
 Finally the approach chosen here would help in implementing a "prefab" system.
 
+We optionally suggest the "collect-resolve-apply" approach to solve the problem of keeping and resolving invariants between components like "every `ParticleSystem` needs a `Transform`".
+This could also be solved using archetype invariants in the schematic world.
+Some work on archetype invariants is  already in progress (see https://github.com/bevyengine/bevy/pull/5121).
+
 ## User-facing explanation
 
 ### The `CoreWorld::Schematic`
@@ -29,17 +33,53 @@ Finally the approach chosen here would help in implementing a "prefab" system.
 We propose adding another world to the `CoreWorld` enum, namely `CoreWorld::Schematic`.
 This world is meant to be an representation of the runtime world to be used in the editor and for scene formats.
 As such it should group components from the runtime world, if they can only show up together, and avoid duplicate data such as `Transform` and `GlobalTransform`.
-The purpose of this RFC is to facilitate the conversion between the runtime world and the schematic world.
+The purpose of this RFC is to facilitate the synchronization between the runtime world and the schematic world.
 
-### The `SchematicQuery`
+For this you need to define 3 algorithms for every schematic:
+* Conversion from the schematic world to the runtime world
+* Conversion from the runtime world to the schematic world
+* Update the schematic world with changed data from the runtime world
 
-The main interface added by this RFC is the `SchematicQuery`, which you will usually only use in systems that run on `CoreWorld::Schematic`.
-We call such systems "schematics".
+Usually you will not need to write these algorithms yourself - you can use `#[derive(Schematic)]` in most cases.
+
+### Deriving `Schematic`
+
+The derived implementation contains conversions both direction as well as updates.
+
+```rust
+#[derive(Component, Schematic)]
+struct MeshRenderer {
+    mesh: Handle<Mesh>,
+    material: MaterialPath,
+    #[schematic_ignore]
+    thumbnail: Handle<Image>,
+}
+
+#[derive(Component)]
+struct Walking {
+    speed: f32,
+}
+
+#[derive(Component)]
+struct Jumping;
+
+#[derive(Component, Schematic)]
+enum AnimationState {
+    #[schematic_marker(Walking)]
+    Walking(Walking)
+    #[schematic_marker(Jumping)]
+    Jumping,
+}
+```
+
+### Conversion from schematic to runtime world
+
+Conversions from schematic to runtime world are just normal systems that run on the schematic world and have a `SchematicQuery` parameter.
 A `SchematicQuery` works almost the same as a normal `Query`, but when iterating over components will additionaly return `SchematicCommands` for the component queried.
 This can be used to insert and modify components on the corresponding entity on `CoreWorld::Main` as well as spawn new entities there.
 The entities spawned in this way can not be modified by `SchematicCommands` from other systems, but will be remembered for this system similar to `Local` system parameters.
 
-A typical schematic will look like this:
+A typical conversion will look like this:
 
 ```rust
 #[derive(Component)]
@@ -84,34 +124,7 @@ The main methods of `SchematicCommands` are:
 * `require_despawned<L: SchematicLabel>(label: L)`
 * `require_deleted<B: Bundle>()`
 
-### The `default_schematic` system
-
-Since with many components you want to just copy the same component from the schematic to the main world, a `default_schematic` is provided.
-The implementation of this is just:
-
-```rust
-fn default_schematic<A: Clone>(query: SchematicQuery<A>) {
-    for (a, commands) in query {
-        commands.insert_or_update(a.clone());
-    }
-}
-```
-
-### Adding schematics to your app
-
-`Schematic`s can be added to schedules like any other system
-```rust
-schedule.add_system(schematic_for_a);
-```
-
-Usually you will want to syncronize between the app's `SchematicWorld` and `CoreWorld::Main`.
-In this case you can use
-
-```rust
-app.add_schematic(default_schematic::<A>);
-```
-
-### Schematic inference
+### Conversion from runtime to schematic world
 
 You can also optionally write conversions from the runtime world to the schematic world.
 
@@ -136,6 +149,8 @@ fn inference_for_a(
     }
 }
 ```
+
+### Update schematic components
 
 For more efficient tracking you should also add update systems
 
@@ -192,6 +207,39 @@ fn update_animation_state(
 * If for a schematic there is only an inference system but no update, then the schematic gets replaced by a new one every time the schmatic world is updated.
 * If for a schematic there is both, then inference works as expected (schematics are updated if they still exist, new ones are created).
 * If for a schematic there is neither, then no inference is done (schematics are not updated, no new ones are created).
+
+### Putting the algorithms together
+
+```rust
+trait Schematic {
+    type InterpretParams;
+    type InferParams;
+
+    fn interpret() -> Option<Box<dyn IntoSystemDescriptor<InterpretParams>>;
+    fn infer() -> Option<Box<dyn IntoSystemDescriptor<InferParams>>>;
+    fn updates() -> Vec<Box<dyn IntoSchematicUpdate>>;
+}
+
+trait SchematicUpdate {
+    type Component: Component;
+    type Params: SchematicUpdateParams;
+
+    fn update(component: &mut Component, params: Params) -> bool;
+}
+```
+
+### Adding schematics to your app
+
+`Schematic`s can be added to the app using
+```rust
+app.add_schematic::<AnimationState>();
+```
+
+Since with many components you want to just copy the same component from the schematic to the main world, a `DefaultSchematic<A: Clone>` is provided.
+
+### \[Optional\] Collect-Resolve-Apply
+
+@SamPruden you can add your stuff here
 
 ## Implementation strategy
 
