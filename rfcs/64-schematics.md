@@ -104,7 +104,17 @@ enum AnimationState {
 
 The derived implementation contains conversions both direction as well as updates.
 
-### Writing `Schematic` from hand
+### Schematic combinators
+
+Every schematic that implements `SimpleSchematic` has the following functions which can be used to create new schematics:
+* `map<C, F, G>(into: F, from: G) -> impl SimpleSchematic<Component = C> where F: Fn(&Self::Component) -> C, G: Fn(C) -> Self::Component`
+* `add<S: SimpleSchematic>() -> impl SimpleSchematic<Component = (Self::Component, S::Component)>`
+* `alternative<S: SimpleSchematic>() -> impl SimpleSchematic<Component = Result<Self::Component, S::Component>>`
+* `filter<F: Fn(&Self::Component) -> bool>() -> impl SimpleSchematic<Component = Self::Component>`
+
+(`SimpleSchematic` is a schematic that only handles one schematic component. All derived schematics are also simple schematics)
+
+### Writing `Schematic` manually
 
 #### Conversion from schematic to runtime world
 
