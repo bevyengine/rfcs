@@ -8,15 +8,15 @@ This design is built on top of the [many worlds RFC][many_worlds], but the imple
 
 ## Motivation
 
-When devolping an editor for bevy, the information visible should not necessarily be in the same format that the runtime operates on.
+When eventually devolping an editor for bevy, the information visible should not necessarily be in the same format that the runtime operates on.
 The runtime representation is often optimized for efficiency and use in logic systems, while the information displayed in the editor should be optimized for
 easy understanding and stability.
 We propose to address this by adding another default world to the ones described in the [many worlds RFC][many_worlds] that we call the "schematic world".
 The entities and components in this world are the ones shown to users in the editor.
 
-A big emphasis on the design is also for the schematic representation to be able to be stable against major changes to the runime representation.
+A big emphasis on the design is also for the schematic representation to be able to be stable against major changes to the runtime representation.
 This not only enables us to use the schematic world for a stable scene format inside one project, but it also helps with separating internal implentation changes in both official
-and unofficial plugins from what users, especially non-technical users.
+and unofficial plugins from what users, especially non-technical users, see in the editor.
 
 The main problem that arises from this approach is the synchronisation between the main and schematic worlds, so the RFC focuses on this aspect.
 Similar problems, where data needs to kept synchronized between worlds, might also appear in other areas.
@@ -24,37 +24,44 @@ One example for this is the "render world", for which the extract phase could be
 Another example could be a "server world" in a multiplayer game, that only contains information which is shared with other clients and the server.
 Finally the approach chosen here would help in implementing a "prefab" system.
 
-We optionally suggest the "collect-resolve-apply" approach to solve the problem of keeping and resolving invariants between components like "every `ParticleSystem` needs a `Transform`".
-This could also be solved using archetype invariants in the schematic world.
-Some work on archetype invariants is  already in progress (see https://github.com/bevyengine/bevy/pull/5121).
-The design does not depend on either of these approaches though.
-
 ## User-facing explanation
 
 ### The `CoreWorld::Schematic`
 
 We propose adding another world to the `CoreWorld` enum, namely `CoreWorld::Schematic`.
-This world is meant to be an representation of the runtime world which is to be used in the editor and for scene formats.
+This world is meant to be an representation of the runtime world which is to be used in the editor and for serialization formats.
 As such it should group components from the runtime world, if they can only show up together, and avoid duplicate data such as `Transform` and `GlobalTransform`.
 The purpose of this RFC is to facilitate the synchronization between the runtime world and the schematic world.
 
-For this up to 3 algorithms can be defined for every schematic component:
-* Conversion from the schematic world to the runtime world
-* Conversion from the runtime world to the schematic world (optional)
-* Update the schematic world with changed data from the runtime world (optional)
+### Schematics
 
-Usually you will not need to write these algorithms yourself - you can use `#[derive(Schematic)]` in most cases.
+To synchronize between the main and schematic worlds, for every component in the schematic world you need to add a `Schematic` to your app.
+A `Schematic` is just a collection of systems used for this synchronization process.
 
-### Deriving `Schematic`
+* A system to convert components in the schematic world to components in the runtime world
+* A system to convert components in the runtime world to components in the schematic world
+* A system to update a schematic component given the data of its related components in the runtime world
 
-You can add `#[derive(Schematic)]` to any struct or enum that is a component.
+Only the first of those 3 systems is mandatory.
+The other 2 can be left out, but conversion from the runtime world might not be possible or not efficient respectively.
 
-If you derive `Schematic` for a struct, every field needs to implement `Component` and `Clone`.
+* If for a schematic there is only an update system but no inference, then no new instances of this schematic can be found during runtime.
+* If for a schematic there is only an inference system but no update, then the schematic gets replaced by a new one every time the schmatic world is updated.
+* If for a schematic there is both, then inference works as expected (schematics are updated if they still exist, new ones are created).
+* If for a schematic there is neither, then no inference is done (schematics are not updated, no new ones are created).
+
+Usually though, you will not need to write these algorithms yourself - you can use `#[derive(DefaultSchematic)]` in most cases.
+
+### Deriving `DefaultSchematic`
+
+You can add `#[derive(DefaultSchematic)]` to any struct or enum that is a component.
+
+If you derive `DefaultSchematic` for a struct, every untagged field needs to implement `Component` and `Clone`.
 Otherwise it either needs to implement `Default` and be tagged it with `#[schematic_ignore]`, or you need to specify another `Component`, such that the field has `From` and `Into` instances for this component.
 In the latter case you need to tag the field with `#[schematic_into(OtherComponent)]`
 
 ```rust
-#[derive(Component, Schematic)]
+#[derive(Component, DefaultSchematic)]
 struct MeshRenderer {
     mesh: Handle<Mesh>,
     material: Handle<Mesh>,
@@ -65,7 +72,7 @@ struct MeshRenderer {
 }
 ```
 
-If you derive `Schematic` for an enum
+If you derive `DefaultSchematic` for an enum
 * Every unit variant nees to be tagged with `#[schematic_marker(MarkerComponent)]`. The given component needs to implement `Default`.
 * Every tuple variant can only have one field which needs to implement `Component` and `Clone` or be tagged with `#[schematic_into(OtherComponent)]`.
 * For struct variants the same rules as for structs apply. Struct variants need to have at least one field that is not marked with `#[schematic_ignore]`.
@@ -90,7 +97,7 @@ struct Attacking {
     weapon_type: WeaponType,
 }
 
-#[derive(Component, Schematic)]
+#[derive(Component, DefaultSchematic)]
 enum AnimationState {
     Walking {
         #[schematic_into(Walking)]
@@ -102,21 +109,44 @@ enum AnimationState {
 }
 ```
 
+The `DefaultSchematic` trait has only one function
+```rust
+fn default_schematic() -> Schematic<Self>
+```
 The derived implementation contains conversions both direction as well as updates.
 
 ### Schematic combinators
 
-Every schematic that implements `SimpleSchematic` has the following functions which can be used to create new schematics:
-* `map<C, F, G>(into: F, from: G) -> impl SimpleSchematic<Component = C> where F: Fn(&Self::Component) -> C, G: Fn(C) -> Self::Component`
-* `add<S: SimpleSchematic>() -> impl SimpleSchematic<Component = (Self::Component, S::Component)>`
-* `alternative<S: SimpleSchematic>() -> impl SimpleSchematic<Component = Result<Self::Component, S::Component>>`
-* `filter<F: Fn(&Self::Component) -> bool>() -> impl SimpleSchematic<Component = Self::Component>`
+`Schematic<A>` has the following functions which can be used to create new schematics:
+* `map<C, F, G>(self, into: F, from: G) -> Schematic<C> where F: Fn(&A) -> C, G: Fn(&C) -> A`
+* `zip<C>(self, other: Schematic<C>) -> Schematic<(A, C)>`
+* `alternative<C>(self, other: Schematic<C>) -> Schematic<Result<A, C>>`
+* `filter<F: Fn(&A) -> bool>(self, f: F) -> Schematic<A>`
 
-(`SimpleSchematic` is a schematic that only handles one schematic component. All derived schematics are also simple schematics)
+### Creating `Schematic` manually
 
-### Writing `Schematic` manually
+`Schematic<A>` can be constructed manually using the `new` function
+```rust
+fn new<S>(system: S) -> Schematic<S::Component>
+where
+    S: IntoSchematicConversion
+```
 
-#### Conversion from schematic to runtime world
+You can add conversion in the other direction by using the `add_inference` function
+```rust
+fn add_inference<S>(self, system: S) -> Schematic<A>
+where
+    S: IntoSchematicInference<Component = A>
+```
+
+Finally you can add updates by using the `add_update` function
+```rust
+fn add_udpate<S>(self, system: S) -> Schematic<A>
+where
+    S: IntoSchematicUpdate<Component = A>
+```
+
+#### Writing schematic conversion systems
 
 Conversions from schematic to runtime world are just normal systems that run on the schematic world and have a `SchematicQuery` parameter.
 A `SchematicQuery` works almost the same as a normal `Query`, but when iterating over components will additionaly return `SchematicCommands` for the component queried.
@@ -168,9 +198,7 @@ The main methods of `SchematicCommands` are:
 * `require_despawned<L: SchematicLabel>(label: L)`
 * `require_deleted<B: Bundle>()`
 
-#### Conversion from runtime to schematic world
-
-You can also optionally write conversions from the runtime world to the schematic world.
+#### Writing inference systems
 
 ```rust
 fn inference_for_a(
@@ -194,14 +222,12 @@ fn inference_for_a(
 }
 ```
 
-#### Update schematic components
-
-For more efficient tracking you should also add update systems
+#### Writing update systems
 
 ```rust
 fn update_for_a(
     schematic_a: &mut SchematicA,
-    main_a: &MainA,
+    main_a: SchematicUpdate<&MainA>,
     main_a_child: SchematicUpdate<&MainAChild, "child">,
 ) -> bool {
     schematic_a.0 = main_a.0;
@@ -247,51 +273,18 @@ fn update_animation_state(
 }
 ```
 
-* If for a schematic there is only an update system but no inference, then no new instances of this schematic can be found during runtime.
-* If for a schematic there is only an inference system but no update, then the schematic gets replaced by a new one every time the schmatic world is updated.
-* If for a schematic there is both, then inference works as expected (schematics are updated if they still exist, new ones are created).
-* If for a schematic there is neither, then no inference is done (schematics are not updated, no new ones are created).
-
-#### Putting the algorithms together
-
-```rust
-trait Schematic {
-    type InterpretParams;
-    type InferParams;
-
-    fn interpret() -> Option<Box<dyn IntoSystemDescriptor<InterpretParams>>;
-    fn infer() -> Option<Box<dyn IntoSystemDescriptor<InferParams>>>;
-    fn updates() -> Vec<Box<dyn IntoSchematicUpdate>>;
-}
-
-trait SchematicUpdate {
-    type Component: Component;
-    type Params: SchematicUpdateParams;
-
-    fn update(component: &mut Component, params: Params) -> bool;
-}
-```
-
-Notice that an implementation of `Schematic` is not tied to any component.
-The trait can also be implemented for any unit struct unrelated to any components similar to `Plugin`.
-As such you can write your own implementations for existing schematic components.
-
 ### Adding schematics to your app
 
 `Schematic`s can be added to the app using
 ```rust
-app.add_schematic::<AnimationState>();
+app.add_schematic(AnimationState::default_schematic());
 ```
 
-Since with many components you want to just copy the same component from the schematic to the main world, a `DefaultSchematic<A: Clone>` is provided.
+Since with many components you want to just copy the same component from the schematic to the main world, a `CloneSchematic<A: Clone>` is provided.
 
 ```rust
-app.add_schematic::<DefaultSchematic<Visibility>>();
+app.add_schematic(CloneSchematic::<Visibility>::default());
 ```
-
-### \[Optional\] Collect-Resolve-Apply
-
-@SamPruden you can add your stuff here
 
 ## Implementation strategy
 
@@ -309,12 +302,21 @@ app.add_schematic::<DefaultSchematic<Visibility>>();
           current_label: Option<SchematicLabelId>,
       }
   ```
+* `Schematic` is
+  ```rust
+  struct Schematic<A> {
+      conversion: Box<dyn SchematicConversion<A>>,
+      inference: Option<Box<dyn SchematicInference<A>>>,
+      update: Option<Box<dyn SchematicUpdate<A>>>,
+  }
+  ```
+* `SchematicConversion`, `SchematicInference` and `SchematicUpdate` are basically just `System` with a restriction on the parameters
 
 ## Drawbacks
 
 * Adds another data model that programmers need to think about.
 * The design may not be very performant and use a lot of extra memory
-* Need to add additional code to pretty much any component, even if it is just `app.add_schematic(default_schematic::<C>)`
+* Need to add additional code to pretty much any component, even if it is just `app.add_schematic(CopySchematic::<C>::default())`
 * It is not possible to check invariants, e.g. synchronization should be idempotent, schmatics shouldn't touch same component, ...
 
 ## Rationale and alternatives
@@ -323,7 +325,7 @@ This design
 * Integrates well into ECS architecture
 * Is neutral with regard to usage
 * Can use existing code to achive parallel execution
-* Can live alongside synchronization systems that don't use `SchematicQuery`
+* Can live alongside synchronization systems that are not built using `Schematic`
 
 The problem could also be solved by "prefabs", i.e. scenes that might expose certain fields of the components they contain.
 But this would be a lot more restrictive the "schematics" described here.
@@ -350,25 +352,11 @@ Note that while precedent set by other engines is some motivation, it does not o
 
 ## Unresolved questions
 
-* Conversion from the runtime to schematic world
-* Conflict resolution in the schematic world vs during conversion
-* "Function style" vs "system" schematics
-* Handle removal of components in the schematic world
 * Checking that every component is read during conversion and similar things
 
-## \[Optional\] Future possibilities
+## Future possibilities
 
-Think about what the natural extension and evolution of your proposal would
-be and how it would affect Bevy as a whole in a holistic way.
-Try to use this section as a tool to more fully consider other possible
-interactions with the engine in your proposal.
-
-This is also a good place to "dump ideas", if they are out of scope for the
-RFC you are writing but otherwise related.
-
-Note that having something written down in the future-possibilities section
-is not a reason to accept the current or a future RFC; such notes should be
-in the section on motivation or rationale in this or subsequent RFCs.
-If a feature or change has no direct value on its own, expand your RFC to include the first valuable feature that would build on it.
+*TODO: Write how this would fit into an editor UI*
+*TODO: Write how it's ok that not every schematic can be converted back*
 
 [many_worlds]: https://github.com/bevyengine/rfcs/pull/43
