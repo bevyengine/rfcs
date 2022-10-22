@@ -123,6 +123,19 @@ The derived implementation contains conversions both direction as well as update
 * `alternative<C>(self, other: Schematic<C>) -> Schematic<Result<A, C>>`
 * `filter<F: Fn(&A) -> bool>(self, f: F) -> Schematic<A>`
 
+### Adding schematics to your app
+
+`Schematic`s can be added to the app using
+```rust
+app.add_schematic(AnimationState::default_schematic());
+```
+
+Since with many components you want to just copy the same component from the schematic to the main world, a `CloneSchematic<A: Clone>` is provided.
+
+```rust
+app.add_schematic(CloneSchematic::<Visibility>::default());
+```
+
 ### Creating `Schematic` manually
 
 `Schematic<A>` can be constructed manually using the `new` function
@@ -132,16 +145,16 @@ where
     S: IntoSchematicConversion
 ```
 
-You can add conversion in the other direction by using the `add_inference` function
+You can add conversion in the other direction by using the `set_inference` function
 ```rust
-fn add_inference<S>(self, system: S) -> Schematic<A>
+fn set_inference<S>(self, system: S) -> Schematic<A>
 where
     S: IntoSchematicInference<Component = A>
 ```
 
-Finally you can add updates by using the `add_update` function
+Finally you can add updates by using the `set_update` function
 ```rust
-fn add_udpate<S>(self, system: S) -> Schematic<A>
+fn set_udpate<S>(self, system: S) -> Schematic<A>
 where
     S: IntoSchematicUpdate<Component = A>
 ```
@@ -273,17 +286,33 @@ fn update_animation_state(
 }
 ```
 
-### Adding schematics to your app
+### `UntypedSchematic`
 
-`Schematic`s can be added to the app using
+A `UntypedSchematic` is the same as a `Schematic` just without the type restriction.
+Usually it is safer to use the `Schematic` interface, but you might want to handle multiple schematic components within the same system.
+Not having an associated type means, that the `map`, `zip`, `alternative` and `filter` methods are not available for `UntypedSchematic`.
+
+`UntypedSchematic` can be constructed manually using the `new` function
 ```rust
-app.add_schematic(AnimationState::default_schematic());
+fn new<S>(system: S) -> UntypedSchematic
+where
+    S: IntoSchematicConversion
 ```
 
-Since with many components you want to just copy the same component from the schematic to the main world, a `CloneSchematic<A: Clone>` is provided.
-
+You can add conversion in the other direction by using the `set_inference` function.
+This will not replace any systems added previously by this method.
 ```rust
-app.add_schematic(CloneSchematic::<Visibility>::default());
+fn add_inference(self, system: S) -> UntypedSchematic
+where
+    S: IntoSchematicInference
+```
+
+Finally you can add updates by using the `add_update` function.
+This will not replace any systems added previously by this method.
+```rust
+fn add_udpate<S>(self, system: S) -> UntypedSchematic
+where
+    S: IntoSchematicUpdate
 ```
 
 ## Implementation strategy
@@ -305,9 +334,18 @@ app.add_schematic(CloneSchematic::<Visibility>::default());
 * `Schematic` is
   ```rust
   struct Schematic<A> {
-      conversion: Box<dyn SchematicConversion<A>>,
-      inference: Option<Box<dyn SchematicInference<A>>>,
-      update: Option<Box<dyn SchematicUpdate<A>>>,
+      marker: PhantomMarker<A>,
+      conversion: Box<dyn SchematicConversion<Component = A>>,
+      inference: Option<Box<dyn SchematicInference<Component = A>>>,
+      update: Option<Box<dyn SchematicUpdate<Component = A>>>,
+  }
+  ```
+* `UntypedSchematic` is
+  ```rust
+  struct UntypedSchematic {
+      conversion: Vec<Box<dyn SchematicConversion>>,
+      inference: Vec<Box<dyn SchematicInference>>,
+      update: Vec<Box<dyn SchematicUpdate>>,
   }
   ```
 * `SchematicConversion`, `SchematicInference` and `SchematicUpdate` are basically just `System` with a restriction on the parameters
