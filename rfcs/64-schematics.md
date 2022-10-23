@@ -135,6 +135,10 @@ where
 fn add_inference_for_entity<S>(self, entity_label: impl SchematicLabel, system: S) -> Schematic
 where
     S: IntoSchematicInference
+        
+fn add_discovery<S>(self, system: S) -> Schematic
+where
+    S: IntoSchematicDiscovery
 ```
 
 #### Example for struct
@@ -157,7 +161,7 @@ fn mesh_renderer_schematic(query: SchematicQuery<MeshRenderer>) {
 }
 
 fn infer_mesh(
-    query: InferenceQuery<Handle<Mesh>, MeshRenderer>,
+    query: InferenceQuery<&Handle<Mesh>, MeshRenderer>,
 ) {
     for (mesh, commands) in query {
         commands.infer(|mesh_renderer| mesh_renderer.mesh = mesh.clone());
@@ -165,7 +169,7 @@ fn infer_mesh(
 }
 
 fn infer_material(
-    query: InferenceQuery<Handle<material>, MeshRenderer>,
+    query: InferenceQuery<&Handle<Material>, MeshRenderer>,
 ) {
     for (material, commands) in query {
         commands.infer(|mesh_renderer| mesh_renderer.material = material.clone());
@@ -173,10 +177,19 @@ fn infer_material(
 }
 
 fn infer_name(
-    query: InferenceQuery<Handle<Name>, MeshRenderer>,
+    query: InferenceQuery<&Handle<Name>, MeshRenderer>,
 ) {
     for (name, commands) in query {
         commands.infer(|mesh_renderer| mesh_renderer.name = name.into());
+    }
+}
+
+fn discover_mesh_renderer(
+    query: Query<Entity, (With<Handle<Mesh>>, With<Handle<Material>>, With<Name>)>,
+    commands: DiscoveryCommands<AnimationState>,
+) {
+    for entity in query {
+        comands.discover(entity);
     }
 }
 
@@ -186,6 +199,7 @@ impl DefaultSchematic for MeshRenderer {
             .add_inference(infer_mesh)
             .add_inference(infer_material)
             .add_inference(infer_name)
+            .add_discovery(discover_mesh_renderer)
     }
 }
 ```
@@ -226,34 +240,46 @@ fn animation_state_schematic(query: SchematicQuery<AnimationState>) {
     }
 }
 
-fn infer_animation_state(
-    query: InferenceQuery<(Option<&Walking>, Option<&Jumping>, Option<&Attacking>), AnimationState>,
+fn infer_walking(
+    query: InferenceQuery<&Walking, AnimationState>,
 ) {
-    for ((walking, jumping, attacking), commands) in query {
-        match (walking, jumping, attacking) {
-            (Some(Walking { speed }), _, _) => {
-                commands.infer(|animation_state| {
-                    *animation_state = AnimationState::Walking { speed };
-                });
-            },
-            (_, Some(Jumping), _) => {
-                commands.infer(|animation_state| {
-                    *animation_state = AnimationState::Jumping;
-                });
-            },
-            (_, _, Some(attacking)) => {
-                commands.infer(|animation_state| {
-                    *animation_state = AnimationState::Attacking(attacking.clone());
-                });
-            },
-        }
+    for (walking, commands) in query {
+        commands.infer(|animation_state| *animation_state = AnimationState::Walking { speed });
+    }
+}
+
+fn infer_jumping(
+    query: InferenceQuery<(), AnimationState, With<Jumping>>,
+) {
+    for (_, commands) in query {
+        commands.infer(|animation_state| *animation_state = AnimationState::Jumping);
+    }
+}
+
+fn infer_attacking(
+    query: InferenceQuery<&Attacking, AnimationState>,
+) {
+    for (attacking, commands) in query {
+        commands.infer(|animation_state| *animation_state = AnimationState::Attacking(attacking.clone()));
+    }
+}
+
+fn discover_animation_state(
+    query: Query<Entity, Or<(With<Walking>, With<Jumping>, With<Attacking>)>,
+    commands: DiscoveryCommands<AnimationState>,
+) {
+    for entity in query {
+        commands.discover(entity);
     }
 }
 
 impl DefaultSchematic for AnimationState {
     fn default_schematic() -> Schematic {
         Schematic::new(animation_state_schematic)
-            .add_inference(infer_animation_state)
+            .add_inference(infer_walking)
+            .add_inference(infer_jumping)
+            .add_inference(infer_attacking)
+            .add_discovery(discover_animation_state)
     }
 }
 ```
@@ -302,13 +328,27 @@ fn inference_for_main_a(
 
 fn inference_for_main_a_child(
     query: InferenceQuery<&MainAChild, SchematicA>,
-    child_query: Query<&Children>,
 ) {
-    for (a_child, inference_commands) in query.iter_find(|entity| child_query.get(entity)) {
+    for (a_child, inference_commands) in query {
         let entity = inference_commands.map_entity(a_child.0);
         inference_commands.infer(|schematic_a| {
             schematic_a.1 = entity;
         });
+    }
+}
+
+fn discover_schematic_a(
+    query: Query<(Entity, &Children), With<MainA>>,
+    child_query: Query<Entity, With<MainAChild>>,
+    commands: DiscoveryCommands,
+) {
+    for (entity, children) in query {
+        let child = child_query.get_many(children).filter_map(|result| result.ok()).next();
+        if Some(child) = child {
+            commands
+                .discover(entity)
+                .with_entity("child", child);
+        }
     }
 }
 
@@ -317,6 +357,7 @@ impl DefaultSchematic for SchematicA {
         Schematic::new(schematic_a)
             .add_inference(inference_for_main_a)
             .add_inference_for_entity("child", inference_for_main_a_child)
+            .add_discovery(discover_schematic_a)
     }
 }
 ```
