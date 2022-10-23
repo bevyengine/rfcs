@@ -103,17 +103,10 @@ enum AnimationState {
 
 The `DefaultSchematic` trait has only one function
 ```rust
-fn default_schematic() -> Schematic<Self>
+fn default_schematic() -> Schematic
 ```
+
 The derived implementation contains conversions both directions.
-
-### Schematic combinators
-
-`Schematic<A>` has the following functions which can be used to create new schematics:
-* `map<C, F, G>(self, into: F, from: G) -> Schematic<C> where F: Fn(&A) -> C, G: Fn(&C) -> A`
-* `zip<C>(self, other: Schematic<C>) -> Schematic<(A, C)>`
-* `alternative<C>(self, other: Schematic<C>) -> Schematic<Result<A, C>>`
-* `filter<F: Fn(&A) -> bool>(self, f: F) -> Schematic<A>`
 
 ### Adding schematics to your app
 
@@ -131,17 +124,17 @@ app.add_schematic(CloneSchematic::<Visibility>::default());
 ### Creating `Schematic` manually
 
 ```rust
-fn new<S>(system: S) -> Schematic<S::Component>
+fn new<S>(system: S) -> Schematic
 where
     S: IntoSchematicConversion
 
-fn add_inference<S>(self, system: S) -> Schematic<A>
+fn add_inference<S>(self, system: S) -> Schematic
 where
-    S: IntoSchematicInference<Component = A>
+    S: IntoSchematicInference
 
-fn add_inference_for_entity<S>(self, entity_label: impl SchematicLabel, system: S) -> Schematic<A>
+fn add_inference_for_entity<S>(self, entity_label: impl SchematicLabel, system: S) -> Schematic
 where
-    S: IntoSchematicInference<Component = A>
+    S: IntoSchematicInference
 ```
 
 #### Example 1
@@ -198,7 +191,7 @@ fn inference_for_main_a_child(
     }
 }
 
-fn build_schematic() -> Schematic<SchematicA> {
+fn build_schematic() -> Schematic {
     Schematic::new(schematic_a)
         .add_inference(inference_for_main_a)
         .add_inference_for_entity("child", inference_for_main_a_child)
@@ -216,32 +209,6 @@ The main methods of `SchematicCommands` are:
 * `require_entity<L: SchematicLabel, F: FnOnce(SchematicCommands)>(label: L, F)`
 * `require_despawned<L: SchematicLabel>(label: L)`
 * `require_deleted<B: Bundle>()`
-
-#### Writing inference systems
-
-```rust
-```
-
-### `UntypedSchematic`
-
-A `UntypedSchematic` is the same as a `Schematic` just without the type restriction.
-Usually it is safer to use the `Schematic` interface, but you might want to handle multiple schematic components within the same system.
-Not having an associated type means, that the `map`, `zip`, `alternative` and `filter` methods are not available for `UntypedSchematic`.
-
-`UntypedSchematic` can be constructed manually using the `new` function
-```rust
-fn new<S>(system: S) -> UntypedSchematic
-where
-    S: IntoSchematicConversion
-```
-
-You can add conversion in the other direction by using the `add_inference` function.
-This will not replace any systems added previously by this method.
-```rust
-fn add_inference(self, system: S) -> UntypedSchematic
-where
-    S: IntoSchematicInference
-```
 
 ## Implementation strategy
 
@@ -261,17 +228,9 @@ where
   ```
 * `Schematic` is
   ```rust
-  struct Schematic<A> {
-      marker: PhantomMarker<A>,
-      conversion: Box<dyn SchematicConversion<Component = A>>,
-      inference: Option<Box<dyn SchematicInference<Component = A>>>,
-  }
-  ```
-* `UntypedSchematic` is
-  ```rust
-  struct UntypedSchematic {
-      conversion: Vec<Box<dyn SchematicConversion>>,
-      inference: Vec<Box<dyn SchematicInference>>,
+  struct Schematic {
+      conversion: Box<dyn SchematicConversion>,
+      inference: Option<Box<dyn SchematicInference>>,
   }
   ```
 * `SchematicConversion` and `SchematicInference` are basically just `System` with a restriction on the parameters
