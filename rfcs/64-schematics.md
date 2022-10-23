@@ -46,14 +46,14 @@ Usually though, you will not need to write these algorithms yourself - you can u
 
 ### Deriving `DefaultSchematic`
 
-You can add `#[derive(DefaultSchematic)]` to any struct or enum that is a component.
+You can add `#[derive(DefaultSchematic)]` to any struct or enum that is a component and that implements `Default`.
 
 If you derive `DefaultSchematic` for a struct, every untagged field needs to implement `Component` and `Clone`.
 Otherwise it either needs to implement `Default` and be tagged it with `#[schematic_ignore]`, or you need to specify another `Component`, such that the field has `From` and `Into` instances for this component.
 In the latter case you need to tag the field with `#[schematic_into(OtherComponent)]`
 
 ```rust
-#[derive(Component, DefaultSchematic)]
+#[derive(Component, Default, DefaultSchematic)]
 struct MeshRenderer {
     mesh: Handle<Mesh>,
     material: Handle<Mesh>,
@@ -89,7 +89,7 @@ struct Attacking {
     weapon_type: WeaponType,
 }
 
-#[derive(Component, DefaultSchematic)]
+#[derive(Component, Default, DefaultSchematic)]
 enum AnimationState {
     Walking {
         #[schematic_into(Walking)]
@@ -130,28 +130,21 @@ app.add_schematic(CloneSchematic::<Visibility>::default());
 
 ### Creating `Schematic` manually
 
-`Schematic<A>` can be constructed manually using the `new` function
 ```rust
 fn new<S>(system: S) -> Schematic<S::Component>
 where
     S: IntoSchematicConversion
-```
 
-You can add conversion in the other direction by using the `set_inference` function
-```rust
-fn set_inference<S>(self, system: S) -> Schematic<A>
+fn add_inference<S>(self, system: S) -> Schematic<A>
+where
+    S: IntoSchematicInference<Component = A>
+
+fn add_inference_for_entity<S>(self, entity_label: impl SchematicLabel, system: S) -> Schematic<A>
 where
     S: IntoSchematicInference<Component = A>
 ```
 
-#### Writing schematic conversion systems
-
-Conversions from schematic to runtime world are just normal systems that run on the schematic world and have a `SchematicQuery` parameter.
-A `SchematicQuery` works almost the same as a normal `Query`, but when iterating over components will additionaly return `SchematicCommands` for the component queried.
-This can be used to insert and modify components on the corresponding entity on `CoreWorld::Main` as well as spawn new entities there.
-The entities spawned in this way can not be modified by `SchematicCommands` from other systems, but will be remembered for this system similar to `Local` system parameters.
-
-A typical conversion will look like this:
+#### Example 1
 
 ```rust
 #[derive(Component)]
@@ -165,7 +158,7 @@ struct MainAChild(Entity);
 
 /// Translates a `SchematicA` to a `MainA` as well as a child entity that has a `MainAChild`.
 /// The system can contain any other parameter besides the schematic query
-fn schematic_for_a(query: SchematicQuery<A, With<Marker>>, mut some_resource: ResMut<R>) {
+fn schematic_a(query: SchematicQuery<A, With<Marker>>, mut some_resource: ResMut<R>) {
     for (a, commands) in query {
         some_resource.do_something_with(a);
         // You can modify components
@@ -181,6 +174,34 @@ fn schematic_for_a(query: SchematicQuery<A, With<Marker>>, mut some_resource: Re
             child_commands.require_component(MainAChild(entity));
         });
     }
+}
+
+fn inference_for_main_a(
+    query: InferenceQuery<&MainA, SchematicA>,
+) {
+    for (a, inference_commands) in query {
+        inference_commands.infer(|schematic_a| {
+            schematic_a.0 = a.0;
+        });
+    }
+}
+
+fn inference_for_main_a_child(
+    query: InferenceQuery<&MainAChild, SchematicA>,
+    child_query: Query<&Children>,
+) {
+    for (a_child, inference_commands) in query.iter_find(|entity| child_query.get(entity)) {
+        let entity = inference_commands.map_entity(a_child.0);
+        inference_commands.infer(|schematic_a| {
+            schematic_a.1 = entity;
+        });
+    }
+}
+
+fn build_schematic() -> Schematic<SchematicA> {
+    Schematic::new(schematic_a)
+        .add_inference(inference_for_main_a)
+        .add_inference_for_entity("child", inference_for_main_a_child)
 }
 ```
 
@@ -199,25 +220,6 @@ The main methods of `SchematicCommands` are:
 #### Writing inference systems
 
 ```rust
-fn inference_for_a(
-    query: InferenceQuery<(&MainA, &Children), SchematicA>,
-    child_query: InferenceQuery<(Entity, &MainAChild)>,
-) {
-    for ((a, children), inference_commands) in query {
-        let result = children
-            .iter_many(children)
-            .filter_map(|result| result.ok())
-            .next();
-        let (child, a_child) = match result {
-            Some(value) => value,
-            None => continue,
-        };
-        let entity = inference_commands.map_entity(a_child.0);
-        inference_commands.infer(SchematicA(a.0, entity));
-        // This is important so that the schematic world knows about this relation
-        inference_commands.set_entity("child", child);
-    }
-}
 ```
 
 ### `UntypedSchematic`
