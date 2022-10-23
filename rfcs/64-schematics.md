@@ -156,26 +156,36 @@ fn mesh_renderer_schematic(query: SchematicQuery<MeshRenderer>) {
     }
 }
 
-fn infer_mesh_renderer(
-    mesh_query: InferenceQuery<Handle<Mesh>, MeshRenderer>,
-    material_query: InferenceQuery<Handle<Material>, MeshRenderer>,
-    name_query: InferenceQuery<Name, MeshRenderer>,
+fn infer_mesh(
+    query: InferenceQuery<Handle<Mesh>, MeshRenderer>,
 ) {
-    for (mesh, commands) in mesh_query {
+    for (mesh, commands) in query {
         commands.infer(|mesh_renderer| mesh_renderer.mesh = mesh.clone());
     }
-    for (material, commands) in material_query {
+}
+
+fn infer_material(
+    query: InferenceQuery<Handle<material>, MeshRenderer>,
+) {
+    for (material, commands) in query {
         commands.infer(|mesh_renderer| mesh_renderer.material = material.clone());
     }
-    for (name, commands) in name_query {
+}
+
+fn infer_name(
+    query: InferenceQuery<Handle<Name>, MeshRenderer>,
+) {
+    for (name, commands) in query {
         commands.infer(|mesh_renderer| mesh_renderer.name = name.into());
     }
 }
 
-impl DefaultSchematic for AnimationState {
+impl DefaultSchematic for MeshRenderer {
     fn default_schematic() -> Schematic {
-        Schematic::new(animation_state_schematic)
-            .add_inference(infer_animation_state)
+        Schematic::new(mesh_renderer_schematic)
+            .add_inference(infer_mesh)
+            .add_inference(infer_material)
+            .add_inference(infer_name)
     }
 }
 ```
