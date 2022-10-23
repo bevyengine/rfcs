@@ -40,16 +40,8 @@ A `Schematic` is just a collection of systems used for this synchronization proc
 
 * A system to convert components in the schematic world to components in the runtime world
 * A system to convert components in the runtime world to components in the schematic world
-* A system to update a schematic component given the data of its related components in the runtime world
 
-Only the first of those 3 systems is mandatory.
-The other 2 can be left out, but conversion from the runtime world might not be possible or not efficient respectively.
-
-* If for a schematic there is only an update system but no inference, then no new instances of this schematic can be found during runtime.
-* If for a schematic there is only an inference system but no update, then the schematic gets replaced by a new one every time the schmatic world is updated.
-* If for a schematic there is both, then inference works as expected (schematics are updated if they still exist, new ones are created).
-* If for a schematic there is neither, then no inference is done (schematics are not updated, no new ones are created).
-
+Only the first those two is mandatory.
 Usually though, you will not need to write these algorithms yourself - you can use `#[derive(DefaultSchematic)]` in most cases.
 
 ### Deriving `DefaultSchematic`
@@ -113,7 +105,7 @@ The `DefaultSchematic` trait has only one function
 ```rust
 fn default_schematic() -> Schematic<Self>
 ```
-The derived implementation contains conversions both direction as well as updates.
+The derived implementation contains conversions both directions.
 
 ### Schematic combinators
 
@@ -150,13 +142,6 @@ You can add conversion in the other direction by using the `set_inference` funct
 fn set_inference<S>(self, system: S) -> Schematic<A>
 where
     S: IntoSchematicInference<Component = A>
-```
-
-Finally you can add updates by using the `set_update` function
-```rust
-fn set_udpate<S>(self, system: S) -> Schematic<A>
-where
-    S: IntoSchematicUpdate<Component = A>
 ```
 
 #### Writing schematic conversion systems
@@ -235,57 +220,6 @@ fn inference_for_a(
 }
 ```
 
-#### Writing update systems
-
-```rust
-fn update_for_a(
-    schematic_a: &mut SchematicA,
-    main_a: SchematicUpdate<&MainA>,
-    main_a_child: SchematicUpdate<&MainAChild, "child">,
-) -> bool {
-    schematic_a.0 = main_a.0;
-    // TODO: Introduce entity mapping here
-    schematic_a.1 = main_a_child.1;
-    // return true, as this schematic still exists
-    true
-}
-```
-
-Example for "enum schematic"
-
-```rust
-#[derive(Component)]
-enum AnimationState {
-    Idle,
-    Walking,
-    Jumping,
-}
-
-#[derive(Component)]
-struct Idle;
-
-#[derive(Component)]
-struct Walking;
-
-#[derive(Component)]
-struct Jumping;
-
-fn update_animation_state(
-    animation_state: &mut AnimationState, 
-    idle: &Option<Idle>,
-    walking: &Option<Walking>,
-    jumping: &Option<Jumping>
-) -> bool {
-    match (idle, walking, jumping) {
-        (Some(_), _, _) => *animation_state = AnimationState::Idle,
-        (_, Some(_), _) => *animation_state = AnimationState::Walking,
-        (_, _, Some(_)) => *animation_state = AnimationState::Jumping,
-        _ => return false,
-    }
-    true
-}
-```
-
 ### `UntypedSchematic`
 
 A `UntypedSchematic` is the same as a `Schematic` just without the type restriction.
@@ -299,20 +233,12 @@ where
     S: IntoSchematicConversion
 ```
 
-You can add conversion in the other direction by using the `set_inference` function.
+You can add conversion in the other direction by using the `add_inference` function.
 This will not replace any systems added previously by this method.
 ```rust
 fn add_inference(self, system: S) -> UntypedSchematic
 where
     S: IntoSchematicInference
-```
-
-Finally you can add updates by using the `add_update` function.
-This will not replace any systems added previously by this method.
-```rust
-fn add_udpate<S>(self, system: S) -> UntypedSchematic
-where
-    S: IntoSchematicUpdate
 ```
 
 ## Implementation strategy
@@ -337,7 +263,6 @@ where
       marker: PhantomMarker<A>,
       conversion: Box<dyn SchematicConversion<Component = A>>,
       inference: Option<Box<dyn SchematicInference<Component = A>>>,
-      update: Option<Box<dyn SchematicUpdate<Component = A>>>,
   }
   ```
 * `UntypedSchematic` is
@@ -345,10 +270,9 @@ where
   struct UntypedSchematic {
       conversion: Vec<Box<dyn SchematicConversion>>,
       inference: Vec<Box<dyn SchematicInference>>,
-      update: Vec<Box<dyn SchematicUpdate>>,
   }
   ```
-* `SchematicConversion`, `SchematicInference` and `SchematicUpdate` are basically just `System` with a restriction on the parameters
+* `SchematicConversion` and `SchematicInference` are basically just `System` with a restriction on the parameters
 
 ## Drawbacks
 
