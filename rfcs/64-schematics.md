@@ -137,7 +137,118 @@ where
     S: IntoSchematicInference
 ```
 
-#### Example 1
+#### Example for struct
+
+```rust
+#[derive(Component, Default)]
+struct MeshRenderer {
+    mesh: Handle<Mesh>,
+    material: Handle<Mesh>,
+    name: String,
+    thumbnail: Handle<Image>,
+}
+
+fn mesh_renderer_schematic(query: SchematicQuery<MeshRenderer>) {
+    for (mesh_renderer, commands) in query {
+        commands.require(mesh_renderer.mesh.clone());
+        commands.require(mesh_renderer.material.clone());
+        commands.require(mesh_renderer.name.into());
+    }
+}
+
+fn infer_mesh_renderer(
+    mesh_query: InferenceQuery<Handle<Mesh>, MeshRenderer>,
+    material_query: InferenceQuery<Handle<Material>, MeshRenderer>,
+    name_query: InferenceQuery<Name, MeshRenderer>,
+) {
+    for (mesh, commands) in mesh_query {
+        commands.infer(|mesh_renderer| mesh_renderer.mesh = mesh.clone());
+    }
+    for (material, commands) in material_query {
+        commands.infer(|mesh_renderer| mesh_renderer.material = material.clone());
+    }
+    for (name, commands) in name_query {
+        commands.infer(|mesh_renderer| mesh_renderer.name = name.into());
+    }
+}
+
+impl DefaultSchematic for AnimationState {
+    fn default_schematic() -> Schematic {
+        Schematic::new(animation_state_schematic)
+            .add_inference(infer_animation_state)
+    }
+}
+```
+
+#### Example for enum
+
+```rust
+#[derive(Component)]
+struct Walking {
+    speed: f32,
+}
+
+#[derive(Component)]
+struct Jumping;
+
+#[derive(Component, Clone)]
+struct Attacking {
+    damage: f32,
+    weapon_type: WeaponType,
+}
+
+#[derive(Component, Default)]
+enum AnimationState {
+    Walking {
+        speed: f32
+    }
+    Jumping,
+    Attacking(Attacking),
+}
+
+fn animation_state_schematic(query: SchematicQuery<AnimationState>) {
+    for (animation_state, commands) in query {
+        match animation_state {
+            AnimationState::Walking { speed } => commands.require(Walking { speed }),
+            AnimationState::Jumping => commands.require(Jumping),
+            AnimationState::Attacking(attacking) => commands.require(attacking.clone()),
+        }
+    }
+}
+
+fn infer_animation_state(
+    query: InferenceQuery<(Option<&Walking>, Option<&Jumping>, Option<&Attacking>), AnimationState>,
+) {
+    for ((walking, jumping, attacking), commands) in query {
+        match (walking, jumping, attacking) {
+            (Some(Walking { speed }), _, _) => {
+                commands.infer(|animation_state| {
+                    *animation_state = AnimationState::Walking { speed };
+                });
+            },
+            (_, Some(Jumping), _) => {
+                commands.infer(|animation_state| {
+                    *animation_state = AnimationState::Jumping;
+                });
+            },
+            (_, _, Some(attacking)) => {
+                commands.infer(|animation_state| {
+                    *animation_state = AnimationState::Attacking(attacking.clone());
+                });
+            },
+        }
+    }
+}
+
+impl DefaultSchematic for AnimationState {
+    fn default_schematic() -> Schematic {
+        Schematic::new(animation_state_schematic)
+            .add_inference(infer_animation_state)
+    }
+}
+```
+
+#### Example with related entities
 
 ```rust
 #[derive(Component)]
@@ -151,7 +262,7 @@ struct MainAChild(Entity);
 
 /// Translates a `SchematicA` to a `MainA` as well as a child entity that has a `MainAChild`.
 /// The system can contain any other parameter besides the schematic query
-fn schematic_a(query: SchematicQuery<A, With<Marker>>, mut some_resource: ResMut<R>) {
+fn schematic_a(query: SchematicQuery<A>>, mut some_resource: ResMut<R>) {
     for (a, commands) in query {
         some_resource.do_something_with(a);
         // You can modify components
@@ -191,10 +302,12 @@ fn inference_for_main_a_child(
     }
 }
 
-fn build_schematic() -> Schematic {
-    Schematic::new(schematic_a)
-        .add_inference(inference_for_main_a)
-        .add_inference_for_entity("child", inference_for_main_a_child)
+impl DefaultSchematic for SchematicA {
+    fn default_schematic() -> Schematic {
+        Schematic::new(schematic_a)
+            .add_inference(inference_for_main_a)
+            .add_inference_for_entity("child", inference_for_main_a_child)
+    }
 }
 ```
 
