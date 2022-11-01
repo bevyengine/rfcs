@@ -153,7 +153,7 @@ fn drive_to_place(
             }
         )
         .and_then(
-            |path: SolvePath, driver: Query<&Drive>| {
+            |path: SolvedPath, driver: Query<&Drive>| {
                 // Returns a Promise<Arrival>
                 driver.single().request(path)
             }
@@ -313,7 +313,7 @@ fn find_optimal_path_search_service(
             to_place: Place::BOSTON,
         })
         .and_then(
-            |path: SolvePath, driver: Query<&Drive>| {
+            |path: SolvedPath, driver: Query<&Drive>| {
                 // Returns a Promise<Arrival>
                 driver.single().request(path)
             }
@@ -330,22 +330,26 @@ I am currently not clear on how exactly dynamic system construction can/does wor
 Chaining promises may be especially challenging.
 
 ### Promises
-* `Promise<Response>` instances are created by `Service<Request, Response, ...>` instances
+* `Promise<Response>` instances are created by `Service<Request, Response>` instances
   * Channels are created between the promise and the service using `crossbeam`
   * When the result is ready, the service will send it over a channel
   * When a callback gets chained to a promise, it uses a different channel to push the callback to the service
 * The promise will maintain a `PromiseStatus` to track its current state
-  * When the user calls `Promise::poll(&mut self)`, the `PromiseStatus` is consumed.
+  * When the user calls `Promise::poll(&mut self)`, the current `PromiseStatus` will be moved out as the return value.
   * If the `PromiseStatus` was `Resolved(T)` then the next `PromiseStatus` will be `Consumed`
   * For all other `PromiseStatus` values, the next value will be a clone of the last.
-  * The user can `peek_status(&self)` instead to get a reference to the status and not consume it.
+  * The user can `peek_status(&self)` instead to get a reference to the current status and not consume it.
 
 ### Services
 * Services keep track of requests that have been issued to them
 * Requests that are being tracked by a service can have an "unassigned" status which indicates that the service has not started working on it yet
   * All new requests are automatically set to unassigned
   * A request can be assigned to a `bevy_task::Task` to automate its fulfilment
-* Requests that have not been fulfilled yet will have a "pending" status (all unassigned requests are also pending)
+  * Otherwise a service provider can use the `.assigned()` method to mark an unassigned request as assigned
+* Requests that have not been fulfilled yet will have a "pending" status
+  * All unassigned requests are also pending
+  * Requests will no longer be pending once they are resolved
+  * If an unassigned request gets resolved, it will be removed from both the pending list and the unassigned list
 
 ### Domain management
 
@@ -363,17 +367,18 @@ It might be necessary to use [trait queries](https://crates.io/crates/bevy-trait
 
 ## Rationale and alternatives
 
+### Why services instead of tasks
 It is often difficult and awkward for users to figure out how to structure their code when they need to handle futures that require polling.
-Services attempt to eliminate the need for users to think in terms of futures by giving a simple way for them to describe the entire asynchronous data flow that they want in a single location.
+Services attempt to eliminate the need for users to think in terms of actively polling futures by giving a simple way for them to describe the entire asynchronous data flow that they want in a simple declaration.
 Being able to chain reactions is especially valuable for dealing with complex multi-stage data flows.
 
 This design pattern also cuts down on the boilerplate that users need to write for dealing with asynchronous programming.
 They will no longer need to write any system whose entire job is to poll for tasks that are running inside of task pools.
-Instead usages of task pools can be written more ergonomically as services.
+Instead usages of task pools can be written more ergonomically as services and callbacks.
 
 ### Service Descriptions
-In the proposal, generic descriptions are stored inside of the `Service` and queried by clients.
-This is done to keep the description information encapsulated inside of the `Service` component.
+In the proposal, generic descriptions are stored inside of the `Service` and queried from the `Service` by interested clients.
+This is done to keep the description information tightly encapsulated inside of the `Service` component and easy for clients to access.
 
 Should these descriptions actually be saved as separate components on the entity instead of buried inside of the `Service` component?
 That approach would align better with an ECS design philosophy but might be less convenient for users.
@@ -388,16 +393,16 @@ We could draw inspiration from other implementations of Promises that have been 
 
 ### Network / Connection Errors
 What kind of impossible-to-deliver errors should be supported, and how should they be supported?
-For example, if a service needs to make remote call but no network is available, is `PromiseStatus::Failure(anyhow::Error)` adequate?
-The `Response` type of the service could be a Result with a user-defined error type, but I think it would be nicer if the `Response` type of the service should only contain domain-specific concerns related to the `Request` and should not care about service pipeline issues.
+For example, if a service needs to make a remote call but no network is available, is `PromiseStatus::Failure(anyhow::Error)` adequate?
+The `Response` type of the service could be a `Result` with a user-defined error type, but I think it would be nicer if the `Response` type of the service should only contain domain-specific concerns related to the `Request` and should not care about service pipeline issues.
 Otherwise the `Response` type becomes sensitive to the choice of service middleware (or lack thereof).
 
 ### Service Progress
 For services that take a long time to finish, a user may want to be able to track the progress that is being made.
 I can think of a few ways to do this:
 
-* Provide a new type like `Action<Request, Response, Progress>` which mimics the [ROS Action semantics](https://docs.ros.org/en/foxy/Tutorials/Beginner-CLI-Tools/Understanding-ROS2-Actions/Understanding-ROS2-Actions.html).
-  * Advantages: Clear semantic distinction from `Service`, which will only provide a Response
+* Provide a different type like `Action<Request, Response, Progress>` which mimics the [ROS Action semantics](https://docs.ros.org/en/foxy/Tutorials/Beginner-CLI-Tools/Understanding-ROS2-Actions/Understanding-ROS2-Actions.html).
+  * Advantages: Clear semantic distinction from `Service` which only provides a Response
   * Disadvantages: A lot of functional duplication with `Service`
 * Add a `Progress` generic to `Service` with a default of `()`, i.e.: `Service<Request, Response, Progress=()>`.
   * Advantages: No functional duplication and easy to ignore the Progress capability if it's not needed
