@@ -1,6 +1,6 @@
 # Feature Name: Topics
 
-:warning: This proposal depends on [one-shot systems](https://github.com/bevyengine/bevy/pull/4090), which is not yet a merged feature.
+:warning: This proposal depends on [one-shot systems](https://github.com/bevyengine/bevy/pull/4090), which is not yet a merged feature, and possibly [trait queries](https://github.com/bevyengine/rfcs/pull/39) which is not yet a merged RFC.
 
 ## Summary
 
@@ -11,16 +11,34 @@ Each subscriber can listen to messages from many publishers, and many subscriber
 ## Motivation
 
 Topics are a common mechanism for middlewares to pass data between distributed systems.
-Topics are also called pub-sub (publish-subscribe) and are supported by middlewares like ROS, MQTT, ZeroMQ, Kafka, RabbitMQ, and many others.
+Often called pub-sub (publish-subscribe), this pattern is supported by middlewares like ROS, MQTT, ZeroMQ, Kafka, RabbitMQ, and many others.
 In these systems, anonymous publishers are able to push out messages to "topics" (data channels) which anonymous subscribers can listen to.
 This allows the development of distributed reactive systems, organized by the abstraction of "topics" so that publishers can be easily discovered by relevant subscribers without needing to know details of how the overall distributed system is implemented.
 
-This RFC proposes implementing topics inside of Bevy as ergonomic Systems, Resources, and Components.
+This RFC proposes implementing publishers and subscribers, with topic-based discovery inside of Bevy as ergonomic Systems, Resources, and Components.
 
 Topics can be used inside of Bevy to help Bevy users implement their application using a "distributed" architecture to decouple and organize event flows from various agents/entities.
 This is similar to a previous suggestion about [Entity Events](https://github.com/bevyengine/bevy/issues/2070) and has similar motivations.
 Bevy's current resource-based Event mechanism is not convenient for representing more complex flows of information that may be entity/agent-driven or entity/agent-sensitive.
 
+### Example Use-Case
+* A game has NPCs that can react to various events.
+* The NPCs are split into two teams: `"Red"` and `"Blue"` team and there are team-wide events.
+* There are team-agnostic event types, but not all NPCs should listen to all of these events.
+* Not all NPCs should react to events in the same way.
+
+To program the logic for this game with the existing `Events` system, the programmer would need to define one single system that accounts for every possible combination of these factors.
+The many conditional combinations will cause the single system to have many complex branches.
+
+With pub-sub and topics, the programmer could break down the problem as follows:
+* NPC entities on the `"Red"` team subscribe to the `"Red"` topic.
+* NPC entities on the `"Blue"` team subscribe to the `"Blue"` topic.
+* Additional topics are only subscribed by each entity if they are relevant for the entity.
+* Each subscription specifies the appropriate behavior for its own NPC.
+
+The different conditional combinations that need to be accounted for are expressed more easily through topic subscription management.
+
+### Networking
 At the same time, defining this generic ergonomic pipeline for topics within Bevy should help facilitate the integration of various middlewares into Bevy.
 For example, a `bevy_mqtt` plugin could simply subscribe to bevy topics and then effortlessly publish the received messages to MQTT topics, and vice-versa for two-way communication.
 
@@ -41,28 +59,41 @@ These are the key structs for topics:
 To send out messages, spawn a `Publisher<T>` component for an entity, optionally giving some initial messages:
 
 ```rust
-struct MyMessage {
-    data: String,
+enum Mission {
+    Attack,
+    Hold,
+    Retreat,
 }
 
-fn make_a_publisher(
+/// Colonels issue missions to their battalions, so they need to publish Mission messages
+fn connect_colonels(
     commands: Commands,
+    new_colonels: Query<(Entity, &Battalion), Added<Colonel>>,
+    domain: ResMut<GlobalDomain<BattleSim>>,
 ) {
-    let mut publisher = Publisher::<MyMessage>::new();
-    publisher.publish(MyMessage{data: "Hello, world!".to_string()});
-    publisher.publish(MyMessage{data: "I am being spawned!".to_string()});
-    commands.spawn().insert(publisher);
+    for (e, battalion) in &new_colonels {
+        let mut publisher = Publisher::<Mission>::new();
+        publisher.publish(Mission::Hold);
+        commands.entity(e).insert(publisher);
+    }
 }
 ```
 
 To use a spawned publisher, query for a mutable reference and use its `publish(data: T)` method:
 
 ```rust
-fn use_the_publishers(
-    publishers: Query<&mut Publisher<MyMessage>>,
+/// On each update cycle, the colonels decide what action to take
+fn update_colonels(
+    armies: Query<(&BattleConditions, &mut Publisher<Mission>), With<Colonel>>,
 ) {
-    for publisher in &mut publishers {
-        publisher.publish(MyMessage{data: "ping".to_string()});
+    for (condition, mission) in &mut publishers {
+        if condition.is_critical() {
+            mission.publish(Mission::Retreat);
+        } else if condition.have_advantage() {
+            mission.publish(Mission::Attack);
+        } else {
+            mission.publish(Mission::Hold);
+        }
     }
 }
 ```
@@ -70,67 +101,112 @@ fn use_the_publishers(
 To help subscribers discover the publisher, use the `advertise(publisher: Entity, topic: String)` domain method to make the publisher visible in that domain:
 
 ```rust
-fn make_a_publisher(
+/// Colonels issue missions to their battalions, so they need to publish Mission messages
+fn connect_colonels(
     commands: Commands,
-    domain: ResMut<GlobalDomain<MyDomain>>,
+    new_colonels: Query<(Entity, &Battalion), Added<Colonel>>,
+    domain: ResMut<GlobalDomain<BattleSim>>,
 ) {
-    let publisher_entity = commands.spawn().insert(Publisher::<MyMessage>::new()).id();
-    domain.advertise(publisher_entity, "my_topic".to_string());
+    for (e, battalion) in &new_colonels {
+        let mut publisher = Publisher::<Mission>::new();
+        publisher.publish(Mission::Hold);
+        commands.entity(e).insert(publisher);
+        // Colonels advertise their mission publisher to the battalion-wide mission topic
+        domain.advertise(e, battalion.mission_topic());
+    }
 }
 ```
 
 To receive and respond to messages from a specific publisher, spawn a `Subscriber<T>` component for an entity and use its `subscribe(publisher: Entity, callback: F)` method:
 
 ```rust
-struct MySpecialPublisher(Entity);
-
-#[derive(SystemParam)]
-struct MyCallbackParams {
-    message_counter: ResMut<u64>,
-    message_displays: Query<&mut MessageDisplay>,
-}
-
-fn make_a_subscriber(
+/// Soldiers follow the missions issued to them by their colonels
+fn connect_soldiers(
     commands: Commands,
-    special_publisher: Res<MySpecialPublisher>,
+    new_cavalries: Query<(Entity, &Battalion), Added<Cavalry>>,
+    new_archers: Query<(Entity, &Battalion), Added<Archer>>,
 ) {
-    let mut subscriber = Subscriber::<MyMessage>::new();
-    subscriber.subscribe(
-        special_publisher,
-        // Create a closure whose first argument is the incoming message
-        // and whose second argument is a system parameter. This closure will
-        // be triggered each time a new message comes in.
-        |msg: &MyMessage, params: MyCallbackParams| {
-            *params.message_counter += 1;
-            for display in &mut params.message_displays {
-                display.show(msg.data);
+    // Cavalry units listen for missions from their colonel and then charge, defend, or flee
+    for (e, battalion) in initial_soldiers.cavalry() {
+        let mut subscriber = Subscriber::<Mission>::new();
+        subscriber.subscribe(
+            battalion.colonel(),
+            move |mission: &Mission, orders: Query<&mut CavalryOrders>| {
+                let orders = orders.get_mut(e).unwrap();
+                match mission {
+                    Mission::Attack => {
+                        orders.charge_forward();
+                    }
+                    Mission::Hold => {
+                        orders.defense_formation();
+                    }
+                    Mission::Retreat => {
+                        orders.flee();
+                    }
+                }
             }
-        }
-    );
+        );
 
-    commands.spawn().insert(subscriber);
+        commands.entity(e).insert(subscriber);
+    }
+
+    // Archer units listen for missions from the colonel and then fire, aim, or flee
+    for (e, battalion) in initial_soldiers.archers() {
+        let mut subscriber = Subscriber::<Mission>::new();
+        subscriber.subscribe(
+            battalion.colonel(),
+            move |mission: &Mission, orders: Query<&mut ArcherOrders>| {
+                let orders = orders.get_mut(unit).unwrap();
+                match mission {
+                    Mission::Attack => {
+                        orders.fire_salvo();
+                    }
+                    Mission::Hold => {
+                        orders.take_aim();
+                    }
+                    Mission::Retreat => {
+                        orders.flee();
+                    }
+                }
+            }
+        );
+
+        commands.entity(e).insert(subscriber);
+    }
 }
 ```
 
 Alternatively, to automatically subscribe to all publishers (current and future) for a topic, use the `discover(for_subscriber: Entity, on_topic: String, callback: F)` domain method:
 
 ```rust
-fn make_a_subscriber(
+/// Spies intercept or interfere with the mission information of a battalion
+fn connect_spies(
     commands: Commands,
-    domain: ResMut<GlobalDomain<MyDomain>>,
+    new_informants: Query<(Entity, &Informant, &Battalion), Added<Informant>>,
+    new_imposters: Query<(Entity, &Imposter), Added<Imposter>>,
+    domain: ResMut<GlobalDomain<BattleSim>>,
 ) {
-    // The `discover` method will automatically insert a Subscriber component
-    // for the newly spawned entity.
-    domain.discover(
-        commands.spawn(),
-        "my_topic".to_string(),
-        |msg: &MyMessage, params: MyCallbackParams| {
-            *params.message_counter += 1;
-            for display in &mut params.message_displays {
-                display.show(msg.data);
+    for (e, informant, battalion) in &new_informants {
+        // Informants listen to the battalion missions and then re-publish them
+        // for an enemy army to hear.
+        domain.advertise(e, informant.report_topic());
+        let battalion_id = battalion.id();
+        commands.entity(e).insert(Publisher::<(Entity, Mission)>::new());
+        domain.discover(
+            battalion.mission_topic(),
+            move |mission: &Mission, report: Query<&mut Publisher<(Entity, Mission)>| {
+                report.get_mut(e).publish((battalion_id, mission.clone()));
             }
-        }
-    );
+        )
+    }
+
+    for (e, imposter) in &new_imposters {
+        // Imposters also publish battalion missions to confuse informants.
+        // Ordinary soldiers are subscribed directly to their colonels so they
+        // are not confused by imposters.
+        commands.entity(e).insert(Publisher::<Mission>::new());
+        domain.advertise(e, imposter.mission_topic());
+    }
 }
 ```
 
@@ -142,7 +218,7 @@ Many details of this implementation proposal will likely need significant iterat
 I am currently not clear on how exactly dynamic system construction can/does work, nor the right way to leverage one-shot systems to make this work.
 
 ### Publishing
-* Messages are be stored in the `Publisher<T>` struct as a `Smallvec`.
+* Published messages are stored in the `Publisher<T>` struct as a `Smallvec`.
 * The `Publisher<T>` will also store a `SmallVec<Entity>` to keep track of its subscribers.
 * Once per cycle, the message queue in the publisher will be processed against all current subscribers.
   * For each subscriber of each publisher that has a non-empty queue, generate a one-shot system. The one-shot system would query for:
@@ -217,8 +293,13 @@ The concept is also associated with a more general pattern of "reactive programm
 
 ## Unresolved questions
 
-### Domain struct name
-Should topics and services use the same `Domain` struct or should they namespaced, e.g. `bevy_topics::Domain` and `bevy_services::Domain`? Or should each of these structs be given different names entirely?
+### How to automatically operate on publishers/subscribers with different message types
+The `bevy_topics` plugin somehow needs to create systems that operate on `Publisher<T>` and `Subscriber<T>` components where `T` may vary.
+
+One option would be to require users to register each type they want to support messages for when adding the `bevy_topics` plugin.
+I would prefer to avoid this because requirement because I think users would be confused when they create a connection between entities with `Publisher<Foo>` and `Subscriber<Foo>` components but the connection quietly fails because they forgot to register `Foo`.
+
+The only other way I can think of making this work would be to use something like [trait queries](https://github.com/bevyengine/rfcs/pull/39) where `Publisher<Foo>` and `Subscriber<Foo>` implement traits that allow them to be discovered by the `bevy_topics` system.
 
 ### Topic names
 Should topic names use `String` or should they be more like `StageLabel` where they can use any data structure with Hash and Eq traits?
@@ -230,10 +311,23 @@ In what stage should subscription callbacks be processed? Is that something that
 
 ### Publisher `Description`
 
-In addition to the message type field, allow publishers to have a `Description` generic parameter that allows them to describe themselves.
+In addition to the message type field, allow publishers to provide a "description" value that allows them to describe themselves.
 This may help subscribers filter publishers whose outputs are not relevant for them.
 
-Using the `Description` type, the `Domain` discovery feature should allow subscribers to provide a callback to filter out publishers for the topics that the subscriber is trying to subscribe to.
+Using the description, the `Domain` discovery feature should allow subscribers to provide a callback to filter out publishers for the topics that the subscriber is trying to subscribe to.
+
+To allow descriptions to be generic without being coupled to the `Publisher<T>` type, we could use the following pattern:
+
+```rust
+impl<T> Publisher<T> {
+    /// Add a description of any kind to this publisher
+    pub fn add_description<Description>(&mut self, description: Description);
+
+    /// View a description of any kind for this publisher, if the publisher
+    /// provides it.
+    pub fn get_description<Description>(&self) -> Option<&Description>;
+}
+```
 
 ### Connection events
 
@@ -273,7 +367,7 @@ In the current implementation proposal, a system needs to obtain a mutable refer
 This means at most one system can be publishing for a certain type of publisher at a time (without needing complicated system-deconflicting strategies).
 It would be good to have ways for systems to publish with the same publisher in parallel. Some possibilities:
 
-* Custom command that flushes commands into publishers
+* Custom command that flushes messages into publishers
   * Advantage: commands are a familiar way of marshalling parallel requests in Bevy
   * Disadvantage: it may feel clunky for users because they would need to explicitly communicate the publisher entity to the command
 * Additional method `Publisher<T>::parallel_publish(&self, msg: T)` that uses a mutex to protect access to the message queue
@@ -286,7 +380,7 @@ It would be good if it were possible for users to specify how they want the publ
 Even if we lock users into `SmallVec` (which is probably a good choice for +90% of use cases), users may still want to specify the default pre-allocation size based on their knowledge of what publishing patterns they can expect.
 
 Since the container or size information would need to be part of the Publisher's type information as a generic parameter, the publisher would become harder to query, and the queries would become sensitive to the choice of container.
-To work nicely, this capability would require [trait queries](https://crates.io/crates/bevy-trait-query) where `Publisher<T>` is a trait instead of a struct.
+To work nicely, this capability would require [trait queries](https://github.com/bevyengine/rfcs/pull/39) where `Publisher<T>` is a trait instead of a struct.
 
 ### Stream operations
 
