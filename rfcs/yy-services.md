@@ -251,14 +251,16 @@ fn detect_arrival(
             if let Some(request) = pending.peek_request() {
                 current_path.extend(request.iter());
             }
-            // This request will no longer show up in the unassigned list, but
-            // will still be visible in the pending list.
+            // After calling assigned(), this request will no longer show up in
+            // the unassigned list, but will still be visible in the pending list.
             request.assigned();
         }
 
         for pending in service.pending_requests_mut() {
             if let Some(request) = pending.peek_request() {
                 if request.0.last() == Some(*current_place) {
+                    // After calling resolve(~), the request will no longer show
+                    // up in the pending list.
                     pending.resolve(Arrival {
                         place: current_place.clone(),
                         time: clock.now(),
@@ -286,8 +288,8 @@ fn make_path_search_service(
         PathSearch::new().with_description(SearchType::QuickSearch)
     ).id();
 
-    domain.advertise::<PathSearch>(optimal_search, "driving_path".to_string());
-    domain.advertise::<PathSearch>(quick_search, "driving_path".to_string());
+    domain.advertise::<PathSearch>(optimal_search, "driving_path");
+    domain.advertise::<PathSearch>(quick_search, "driving_path");
 }
 ```
 
@@ -297,7 +299,7 @@ Then a client can discover these services and select one of them based on the de
 fn find_optimal_path_search_service(
     domain: Res<GlobalDomain<MyDomain>>,
 ) {
-    let service = domain.discover::<PathSearch>("driving_path".to_string())
+    let service = domain.discover::<PathSearch>("driving_path")
         .filter(|service| {
             service.get_description::<SearchType>()
                 .filter(|d| *d == SearchType::Optimal)
@@ -306,8 +308,7 @@ fn find_optimal_path_search_service(
         .next();
 
     if let Some(service) = service {
-        service.request(
-            RequestPath {
+        service.request(RequestPath {
             from_place: Place::NEW_YORK,
             to_place: Place::BOSTON,
         })
