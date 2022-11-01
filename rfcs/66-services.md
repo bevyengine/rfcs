@@ -1,4 +1,4 @@
-# Feature Name: Topics
+# Feature Name: Services
 
 :warning: This proposal depends on [one-shot systems](https://github.com/bevyengine/bevy/pull/4090), which is not yet a merged feature, and possibly [trait queries](https://github.com/bevyengine/rfcs/pull/39) which is not yet a merged RFC.
 
