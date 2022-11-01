@@ -56,7 +56,7 @@ These are the key structs for topics:
 * `Domain`: a component that maintains a dictionary of topic names along with the publishers and subscribers that are interested in each topic
 * `GlobalDomain<T>`: a Domain that can be used as a resource instead of as a component
 
-To send out messages, spawn a `Publisher<T>` component for an entity, optionally giving some initial messages:
+To send out messages, insert a `Publisher<T>` component for an entity, optionally giving some initial messages:
 
 ```rust
 enum Mission {
@@ -68,10 +68,10 @@ enum Mission {
 /// Colonels issue missions to their battalions, so they need to publish Mission messages
 fn connect_colonels(
     commands: Commands,
-    new_colonels: Query<(Entity, &Battalion), Added<Colonel>>,
+    new_colonels: Query<Entity, Added<Colonel>>,
     domain: ResMut<GlobalDomain<BattleSim>>,
 ) {
-    for (e, battalion) in &new_colonels {
+    for e in &new_colonels {
         let mut publisher = Publisher::<Mission>::new();
         publisher.publish(Mission::Hold);
         commands.entity(e).insert(publisher);
@@ -82,11 +82,11 @@ fn connect_colonels(
 To use a spawned publisher, query for a mutable reference and use its `publish(data: T)` method:
 
 ```rust
-/// On each update cycle, the colonels decide what action to take
+/// On each update cycle, the colonels decide what action to take based on their battle conditions
 fn update_colonels(
-    armies: Query<(&BattleConditions, &mut Publisher<Mission>), With<Colonel>>,
+    colonels: Query<(&BattleConditions, &mut Publisher<Mission>), With<Colonel>>,
 ) {
-    for (condition, mission) in &mut publishers {
+    for (condition, mission) in &mut colonels {
         if condition.is_critical() {
             mission.publish(Mission::Retreat);
         } else if condition.have_advantage() {
@@ -117,7 +117,7 @@ fn connect_colonels(
 }
 ```
 
-To receive and respond to messages from a specific publisher, spawn a `Subscriber<T>` component for an entity and use its `subscribe(publisher: Entity, callback: F)` method:
+To receive and respond to messages from a specific publisher, insert a `Subscriber<T>` component for an entity and use its `subscribe(publisher: Entity, callback: F)` method:
 
 ```rust
 /// Soldiers follow the missions issued to them by their colonels
@@ -127,7 +127,7 @@ fn connect_soldiers(
     new_archers: Query<(Entity, &Battalion), Added<Archer>>,
 ) {
     // Cavalry units listen for missions from their colonel and then charge, defend, or flee
-    for (e, battalion) in initial_soldiers.cavalry() {
+    for (e, battalion) in &new_cavalries {
         let mut subscriber = Subscriber::<Mission>::new();
         subscriber.subscribe(
             battalion.colonel(),
@@ -151,7 +151,7 @@ fn connect_soldiers(
     }
 
     // Archer units listen for missions from the colonel and then fire, aim, or flee
-    for (e, battalion) in initial_soldiers.archers() {
+    for (e, battalion) in &new_archers {
         let mut subscriber = Subscriber::<Mission>::new();
         subscriber.subscribe(
             battalion.colonel(),
@@ -201,7 +201,7 @@ fn connect_spies(
     }
 
     for (e, imposter) in &new_imposters {
-        // Imposters also publish battalion missions to confuse informants.
+        // Imposters publish battalion missions to confuse informants.
         // Ordinary soldiers are subscribed directly to their colonels so they
         // are not confused by imposters.
         commands.entity(e).insert(Publisher::<Mission>::new());
