@@ -42,7 +42,7 @@ The different conditional combinations that need to be accounted for are express
 At the same time, defining this generic ergonomic pipeline for topics within Bevy should help facilitate the integration of various middlewares into Bevy.
 For example, a `bevy_mqtt` plugin could simply subscribe to bevy topics and then effortlessly publish the received messages to MQTT topics, and vice-versa for two-way communication.
 
-Bevy users who want their application to have networking or inter-process communication can implement their systems in terms of the bevy topics and services, then plug in whichever middleware suits their overall networked / multi-process system.
+Bevy users who want their application to have networking or inter-process communication can implement their systems in terms of the bevy topics, then plug in whichever middleware suits their overall networked / multi-process system.
 They could also change their choice of middleware later without changing how the systems of their application are implemented.
 Or multiple middlewares can be used by one application without affecting how the systems are implemented.
 
