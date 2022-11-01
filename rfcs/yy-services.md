@@ -48,14 +48,7 @@ pub struct RequestPath {
 
 struct SolvedPath(pub Vec<Place>);
 
-pub enum SearchType {
-    /// Search for the optimal path
-    OptimalPath,
-    /// Find any valid path as quickly as possible
-    QuickSearch,
-}
-
-type PathSearch = Service<RequestPath, SolvedPath, SearchType>;
+type PathSearch = Service<RequestPath, SolvedPath>;
 
 fn request_a_path(
     commands: Commands,
@@ -210,8 +203,16 @@ pub enum PromiseStatus<T> {
 To implement a service provider, create a system that queries for the service to check for unassigned requests.
 For convenience, you can assign a `bevy_tasks::Task`, at which point it will no longer show up in the unassigned list.
 It will remain in the pending list until the task is completed.
+The `SearchType` description helps inform how the service should behave.
 
 ```rust
+pub enum SearchType {
+    /// Search for the optimal path
+    OptimalPath,
+    /// Find any valid path as quickly as possible
+    QuickSearch,
+}
+
 fn handle_path_search_requests(
     path_services: Query<&mut PathSearch>,
     planner: Res<Arc<PathPlanner>>,
@@ -368,6 +369,13 @@ Being able to chain reactions is especially valuable for dealing with complex mu
 This design pattern also cuts down on the boilerplate that users need to write for dealing with asynchronous programming.
 They will no longer need to write any system whose entire job is to poll for tasks that are running inside of task pools.
 Instead usages of task pools can be written more ergonomically as services.
+
+### Service Descriptions
+In the proposal, generic descriptions are stored inside of the `Service` and queried by clients.
+This is done to keep the description information encapsulated inside of the `Service` component.
+
+Should these descriptions actually be saved as separate components on the entity instead of buried inside of the `Service` component?
+That approach would align better with an ECS design philosophy but might be less convenient for users.
 
 ## Prior art
 
