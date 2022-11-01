@@ -1,6 +1,6 @@
 # Feature Name: Topics
 
-:warning: This proposal depends on [one-shot systems](https://github.com/bevyengine/bevy/pull/4090), which is not yet a merged feature.
+:warning: This proposal depends on [one-shot systems](https://github.com/bevyengine/bevy/pull/4090), which is not yet a merged feature, and possibly [trait queries](https://github.com/bevyengine/rfcs/pull/39) which is not yet a merged RFC.
 
 ## Summary
 
@@ -29,8 +29,7 @@ The Bevy systems can also be agnostic to what kind of middleware is being used t
 ## User-facing explanation
 
 These are the key structs for services:
-* `Service<Request, Response, Description=()>`: a component or resource that represents a type of service that can be provided, defined by a `Request` input data structure and a `Response` output data structure.
-The `Description` is an optional generic parameter that allows each service instance to describe its purpose or its behavior.
+* `Service<Request, Response>`: a component or resource that represents a type of service that can be provided, defined by a `Request` input data structure and a `Response` output data structure.
 The description can be used by clients to decide which service provider they want to use for a given service type.
 * `Promise<Response>`: a component for awaiting the result of a service request that has been issued.
 A `Promise` can be polled to check if the response is available yet.
@@ -219,7 +218,7 @@ fn handle_path_search_requests(
     pool: Res<AsyncComputeTaskPool>,
 ) {
     for service in &mut path_services {
-        let search_type = service.description();
+        let search_type = service.get_description::<SearchType>().unwrap_or(SearchType::Optimal);
         for unassigned in &mut service.unassigned_requests() {
             let planner = planner.clone();
             let search_type = search_type.clone();
@@ -279,11 +278,11 @@ fn make_path_search_service(
     domain: ResMut<GlobalDomain<MyDomain>>,
 ) {
     let optimal_search = commands.spawn().insert(
-        PathSearch::new(SearchType::OptimalSearch)
+        PathSearch::new().with_description(SearchType::OptimalSearch)
     ).id();
 
     let quick_search = commands.spawn().insert(
-        PathSearch::new(SearchType::QuickSearch)
+        PathSearch::new().with_description(SearchType::QuickSearch)
     ).id();
 
     domain.advertise::<PathSearch>(optimal_search, "driving_path".to_string());
@@ -294,12 +293,14 @@ fn make_path_search_service(
 Then a client can discover these services and select one of them based on the description:
 
 ```rust
-fn find_path_search_service(
+fn find_optimal_path_search_service(
     domain: Res<GlobalDomain<MyDomain>>,
 ) {
     let service = domain.discover::<PathSearch>("driving_path".to_string())
         .filter(|service| {
-            service.description() == SearchType::Optimal
+            service.get_description::<SearchType>()
+                .filter(|d| *d == SearchType::Optimal)
+                .is_some()
         })
         .next();
 
@@ -384,11 +385,20 @@ Otherwise the `Response` type becomes sensitive to the choice of service middlew
 
 ### Service Progress
 For services that take a long time to finish, a user may want to be able to track the progress that is being made.
+I can think of a few ways to do this:
 
-One option is to provide a new type like `Action<Request, Response, Progress, Description=()>` which mimics the [ROS Action terminology](https://docs.ros.org/en/foxy/Tutorials/Beginner-CLI-Tools/Understanding-ROS2-Actions/Understanding-ROS2-Actions.html) or we could add a `Progress` generic to service with a default of `()`: `Service<Request, Response, Progress=(), Description=()>`.
-
-Either way, the `Promise` given back for a request could be loaded with a callback that gets triggered each time the service/action issues a progress update.
-Before the final response is delivered, the service system will ensure that the queue of all progress updates has been drained, and the service provider will be blocked from issuing any further progress updates after the response is delivered.
+* Provide a new type like `Action<Request, Response, Progress>` which mimics the [ROS Action semantics](https://docs.ros.org/en/foxy/Tutorials/Beginner-CLI-Tools/Understanding-ROS2-Actions/Understanding-ROS2-Actions.html).
+  * Advantages: Clear semantic distinction from `Service`, which will only provide a Response
+  * Disadvantages: A lot of functional duplication with `Service`
+* Add a `Progress` generic to `Service` with a default of `()`, i.e.: `Service<Request, Response, Progress=()>`.
+  * Advantages: No functional duplication and easy to ignore the Progress capability if it's not needed
+  * Disadvantages: Services providers that provide different `Progress` types will be categorized as entirely different service types even if they have the same (`Request`, `Response`) pair
+* Use type erasure to hide progress types inside of the `Service<Request, Response>` similar to the service description. Clients can query the `Service` to see what types of Progress updates it supports.
+  * Advantages
+    * Any service providers with the same (`Request`, `Response`) pair will be discoverable together
+    * A service provider can support multiple types of `Progress` updates
+    * A client can receive different multiple types of `Progress` updates from the same service
+  * Disadvantages: harder to implement?
 
 ### Chaining a promise after it is fulfilled
 
