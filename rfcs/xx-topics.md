@@ -281,9 +281,9 @@ Being driven by callbacks provides a few helpful benefits:
 * Callbacks offer a simple way to turn reactions on/off by toggling subscriptions
 
 However, if the user has no control over when the callbacks are processed it may be harder for them to synchronize the overall behavior of their application.
-Ideally users should implement their applications to not be sensitive to callback ordering, but that might not be a realistic requirement to impose.
+Ideally users should implement their applications to not be sensitive to callback timing, but that might not be a realistic requirement to impose.
 Maybe subscriptions should also be able to specify what stage their callback should be processed in.
-This concern will also likely be affected by the upcoming stageless systems design.
+This concern will certainly be affected by the upcoming stageless systems design.
 
 ## Prior art
 
@@ -297,7 +297,7 @@ The concept is also associated with a more general pattern of "reactive programm
 The `bevy_topics` plugin somehow needs to create systems that operate on `Publisher<T>` and `Subscriber<T>` components where `T` may vary.
 
 One option would be to require users to register each type they want to support messages for when adding the `bevy_topics` plugin.
-I would prefer to avoid this because requirement because I think users would be confused when they create a connection between entities with `Publisher<Foo>` and `Subscriber<Foo>` components but the connection quietly fails because they forgot to register `Foo`.
+I would prefer to avoid this requirement because I think users would be confused when they create a connection between entities with `Publisher<Foo>` and `Subscriber<Foo>` components but the connection quietly fails because they forgot to register `Foo`.
 
 The only other way I can think of making this work would be to use something like [trait queries](https://github.com/bevyengine/rfcs/pull/39) where `Publisher<Foo>` and `Subscriber<Foo>` implement traits that allow them to be discovered by the `bevy_topics` system.
 
@@ -308,13 +308,13 @@ Should topic names use `String` or should they be more like `StageLabel` where t
 In what stage should subscription callbacks be processed? Is that something that users should be able to set, and if so how? Should that be customizable per subscription?
 
 ### Repeat subscriptions
-What should happen if a subscriber gets subscribed to the same publisher multiple times with different subscriptions?
+What should happen if a subscriber gets subscribed to the same publisher multiple times with different subscription callbacks?
 What should happen if a publisher advertises on multiple topics and the same subscriber is discovering those multiple topics?
 
 Should all of the subscribed callbacks be triggered?
 Should only the most recently subscribed callback be triggered?
 
-Maybe instead of `Subscriber<T>` we should have `Subscription<T>` that repesents only a single connection and a single callback, stored on its own entity. Then we would have `Subscriber` without a `T` parameter as a parent and manager of the `Subscription<T>` entities.
+Maybe instead of `Subscriber<T>` we should have `Subscription<T>` that repesents only a single connection and a single callback, stored on its own entity. Then we would have `Subscriber` without a `T` parameter as a parent and manager of the `Subscription<T>` entities that are created for it.
 
 ## Future possibilities
 
@@ -368,7 +368,7 @@ impl Subscription {
 }
 ```
 
-This may require adding a second message queue to the `Publisher<T>` struct.
+This may require adding another message queue to the `Publisher<T>` struct to save the history.
 
 ### Parallel Publishing
 
@@ -379,7 +379,7 @@ It would be good to have ways for systems to publish with the same publisher in 
 * Custom command that flushes messages into publishers
   * Advantage: commands are a familiar way of marshalling parallel requests in Bevy
   * Disadvantage: it may feel clunky for users because they would need to explicitly communicate the publisher entity to the command
-* Additional method `Publisher<T>::parallel_publish(&self, msg: T)` that uses a mutex to protect access to the message queue
+* Alternative publish method `Publisher<T>::parallel_publish(&self, msg: T)` that uses a mutex to protect access to the message queue
   * Advantage: ergonomic and easy to understand
   * Disadvantage: introducing mutexes could mean a noticeable performance hit
 
@@ -395,4 +395,4 @@ To work nicely, this capability would require [trait queries](https://github.com
 
 It may be worth considering whether/how bevy can facilitate transformations and operations on data streams the way [ReactiveX](https://reactivex.io/documentation/operators.html) does.
 
-As a simple example, consider an operator that zips two topics/publishers `Publisher<U>`, `Publisher<V>` together to effectively provide `Publisher<(U, V)>` that can be subscribed to. The zipped publisher would publish a new message each time a new message has arrived for both `U` and `V`.
+As a simple example, consider an operator that zips two topics/publishers `Publisher<U>`, `Publisher<V>` together to effectively provide a `Publisher<(U, V)>` that can be subscribed to. The zipped publisher would publish a new message each time a new message has arrived for both `U` and `V`.
