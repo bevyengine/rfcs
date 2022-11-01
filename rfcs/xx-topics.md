@@ -223,7 +223,7 @@ I am currently not clear on how exactly dynamic system construction can/does wor
 * Once per cycle, the message queue in the publisher will be processed against all current subscribers.
   * For each subscriber of each publisher that has a non-empty queue, generate a one-shot system. The one-shot system would query for:
     * immutable reference to the publisher, to have access to its message queue
-    * the system parameter needed by the subscriber
+    * the system parameter needed by the subscriber's callback
   * The one-shot system would iterate through the message queue of the publisher, passing an immutable reference to each message into the subscriber's callback, along with the system parameter needed by the callback.
   * The subscription callbacks will be able to run in parallel, as long as their additional system parameters don't have conflicts.
 
@@ -232,7 +232,7 @@ I am currently not clear on how exactly dynamic system construction can/does wor
 * When a new subscription is created using `Subscriber<T>::subscribe`, the entity of the publisher is saved in a special queue for new subscriptions
   * On each cycle, before published messages are processed, a system runs through all subscribers to process any changes in subscriptions
     * (Consider ways to reduce overhead so this isn't an O(N) operation over all the subscribers on every cycle, maybe using a shared atomic bool to decide if changes even need to be checked)
-  * When a new subscription is found, the publisher is informed about the entity for that subscriptions
+  * When a new subscription is found, the publisher is informed about the subscriber entity for that subscription
   * When an old subscription is removed, the publisher is informed so it does not keep trying to send messages to the subscriber
   * Once the publisher is informed of the new subscriber, the publisher's entity is removed from the special new subscription queue
 * The one-shot system produced by the publisher will use a private function to retrieve the correct callback from the subscriber based on the publisher's entity
@@ -249,7 +249,7 @@ Whenever a publisher is advertised or a subscriber requests discovery, the Domai
   * Dropped publishers/subscribers are identified and any lingering connections to them are erased
 
 The connections created by the `Domain` need to be semantically different from the connections formed by directly subscribing to a publisher.
-For one thing, Domain-created connections need to be reference-counted: If a subscriber is subscribed to multiple topics and a publisher is publishing to more than one of those topics, then when the subscriber unsubscribes from one of the topics it should not unsubscribe from the publisher.
+For one thing, Domain-created connections need to be reference-counted: If a subscriber is subscribed to multiple topics and a publisher is publishing to more than one of those topics, then when the subscriber unsubscribes from one of the topics it should not fully unsubscribe from the publisher.
 The subscriber's connection to the publisher should only be broken when both conditions are met:
 1. Any topics subscriptions that connected the publisher and subscriber are dropped
 2. Any direct connection that was made between the publisher and subscriber is dropped
@@ -306,6 +306,15 @@ Should topic names use `String` or should they be more like `StageLabel` where t
 
 ### Callback timing
 In what stage should subscription callbacks be processed? Is that something that users should be able to set, and if so how? Should that be customizable per subscription?
+
+### Repeat subscriptions
+What should happen if a subscriber gets subscribed to the same publisher multiple times with different subscriptions?
+What should happen if a publisher advertises on multiple topics and the same subscriber is discovering those multiple topics?
+
+Should all of the subscribed callbacks be triggered?
+Should only the most recently subscribed callback be triggered?
+
+Maybe instead of `Subscriber<T>` we should have `Subscription<T>` that repesents only a single connection and a single callback, stored on its own entity. Then we would have `Subscriber` without a `T` parameter as a parent and manager of the `Subscription<T>` entities.
 
 ## Future possibilities
 
