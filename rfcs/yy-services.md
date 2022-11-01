@@ -97,8 +97,8 @@ fn request_a_path(
             }
         )
         .then(
-            |response: SolvedPath, param: DriveParam| {
-                let drive_promise = param.driver.single().request(response);
+            |path: SolvedPath, param: DriveParam| {
+                let drive_promise = param.driver.single().request(path);
                 param.commands.spawn().insert(drive_promise);
             }
         )
@@ -127,8 +127,8 @@ fn find_path_cost(
             }
         )
         .then(
-            |response: SolvedPath, cost_calculator: Res<PathCostCalculator>| {
-                cost_calculator.calculate(response)
+            |path: SolvedPath, cost_calculator: Res<PathCostCalculator>| {
+                cost_calculator.calculate(path)
             }
         );
 
@@ -153,9 +153,9 @@ fn drive_to_place(
             }
         )
         .and_then(
-            |response: SolvePath, driver: Query<&Drive>| {
+            |path: SolvePath, driver: Query<&Drive>| {
                 // Returns a Promise<Arrival>
-                driver.single().request(response)
+                driver.single().request(path)
             }
         );
 
@@ -220,7 +220,7 @@ fn handle_path_search_requests(
 ) {
     for service in &mut path_services {
         let search_type = service.get_description::<SearchType>().unwrap_or(SearchType::Optimal);
-        for unassigned in &mut service.unassigned_requests() {
+        for unassigned in service.unassigned_requests_mut() {
             let planner = planner.clone();
             let search_type = search_type.clone();
             if let Some(request) = unassigned.take_request() {
@@ -247,7 +247,7 @@ fn detect_arrival(
     clock: Res<Clock>,
 ) {
     for service in &mut drivers {
-        for unassigned in &mut service.unassigned_requests() {
+        for unassigned in service.unassigned_requests_mut() {
             if let Some(request) = pending.peek_request() {
                 current_path.extend(request.iter());
             }
@@ -256,7 +256,7 @@ fn detect_arrival(
             request.assigned();
         }
 
-        for pending in &mut service.pending_requests() {
+        for pending in service.pending_requests_mut() {
             if let Some(request) = pending.peek_request() {
                 if request.0.last() == Some(*current_place) {
                     pending.resolve(Arrival {
@@ -312,9 +312,9 @@ fn find_optimal_path_search_service(
             to_place: Place::BOSTON,
         })
         .and_then(
-            |response: SolvePath, driver: Query<&Drive>| {
+            |path: SolvePath, driver: Query<&Drive>| {
                 // Returns a Promise<Arrival>
-                driver.single().request(response)
+                driver.single().request(path)
             }
         )
         .release();
