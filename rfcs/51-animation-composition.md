@@ -29,11 +29,10 @@ Animation is a huge area that spans multiple problem domains:
     animated behaviors.
  4. **Authoring**: this is how we create the animation assets used by the engine.
 
-This RFC only aims to resolve problems within the domain of composition. Storage
-and sampling is addressed in [RFC #49][primitives]. Application can be distinctly
-decoupled from these earlier two stages, treating the sampled values as a black
-box output, and authoring can be built separately upon the primitives provided by
-this RFC and thus are explicit non-goals here.
+This RFC only aims to resolve problems within the domain of composition and
+application. Storage and sampling is addressed in [RFC #49][primitives], and
+authoring can be built separately upon the primitives provided by this RFC and
+thus are explicit non-goals here.
 
 [primitives]: https://github.com/bevyengine/rfcs/pr/49
 
