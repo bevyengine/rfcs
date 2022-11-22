@@ -404,7 +404,9 @@ immediately comes to mind, for example.
 optionization. `ReflectComponent::reflect_component_unchecked` calls `World::get`
 internally, which requires looking up the entity's location for every component
 that is animated. If an alternative that allows using a cached `Entity{Ref, Mut}`
-can save that lookup from being used repeatedly.
+can save that lookup from being used repeatedly. Likewise, caching the
+`ComponentId` for a given `TypeId` when fetching the component can save time
+looking up the type to component mapping from `Components`.
 
 Using `bevy_reflect::GetPath` methods on raw strings requires string comparisons,
 which can be expensvie when done repeatedly.
