@@ -422,3 +422,6 @@ which can be expensvie when done repeatedly.
 pre-parse the field path in to a sequence of integer comparisons instead. This
 still incurs the cost of dynamic dispatch at every level, but it's signfigantly
 faster than doing mutliple piecewise string comparisons for every animated field.
+
+A direct path for `Transform` based animation that avoids dynamic dispatch might
+also save on that very common use case for the system.
