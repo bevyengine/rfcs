@@ -372,15 +372,23 @@ and game logic. Several other game engines have very similar APIs and features:
  - Godot has [animation trees][animation-trees] for creating dynamic animations in
    Blueprints.
 
+Within the Rust ecosystem, [Fyrox][fyrox] has it's own animation system that is
+signifgantly higher level than this implementation. At time of writing, it
+supports blending, but does not support arbitrary property animation, only
+supporting transform based skinned mesh animation. Fyrox supports a high level
+state machine that can be used to transition between different states and blend
+trees, much like Unity's Mecanim animation system.
+
 The proposed API here doesn't purport or aim to directly replicate the features
 seen in these other engines, but provide the absolute bare minimum API so that
-engine developers or game developers can build them if they need to.
-
-Currently nothing like this exists in the entire Rust ecosystem.
+engine developers or game developers can build them if they need to. It's
+entirely feasible to construct a higher level state machine animator like Unity's
+Mecanim or Fyrox's animation system on top of the graph detailed here.
 
 [playable]: https://docs.unity3d.com/Manual/Playables.html
 [animgraph]: https://docs.unrealengine.com/4.27/en-US/AnimatingObjects/SkeletalMeshAnimation/AnimBlueprints/AnimGraph/
 [animation-trees]: https://docs.godotengine.org/en/stable/tutorials/animation/animation_tree.html
+[fyrox]: https://fyrox-book.github.io/fyrox/animation/animation.html
 
 ## Unresolved questions
  - Is there a way to utilize change detection for graph evaluation without
