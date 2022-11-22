@@ -120,6 +120,7 @@ flowchart LR
   mixerB-->root
   clip06-->root
   clip01-->mixerA
+  clip02-->mixerA
   clip02-->mixerB
   clip03-->mixerB
   clip04-->mixerB
