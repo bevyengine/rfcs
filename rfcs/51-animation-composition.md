@@ -103,6 +103,20 @@ functionally equivalent to setting a weight of 0, but the associated input node
 and it's descendants will not be evaluated, which can cut down CPU time spent
 evaluating that subgraph.
 
+### Example Graph
+
+```mermaid
+flowchart LR
+  root(Root Node) --> mixerA, mixerB, clip05
+  mixerA(Mixer A) --> clip01, clip02
+  mixerB(Mixer B) --> clip02, clip03, clip04
+  clip01(Walk)
+  clip02(Run)
+  clip03(Jump Start)
+  clip04(Jump)
+  clip05(Jump End)
+```
+
 ## Implementation strategy
 *Prototype implementation: https://github.com/HouraiTeahouse/bevy_prototype_animation*
 
