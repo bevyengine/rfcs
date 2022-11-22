@@ -107,14 +107,23 @@ evaluating that subgraph.
 
 ```mermaid
 flowchart LR
-  root(Root Node) --> mixerA, mixerB, clip05
-  mixerA(Mixer A) --> clip01, clip02
-  mixerB(Mixer B) --> clip02, clip03, clip04
-  clip01(Walk)
-  clip02(Run)
-  clip03(Jump Start)
-  clip04(Jump)
-  clip05(Jump End)
+  root([Root])
+  mixerA([Mixer A])
+  mixerB([Mixer B])
+  clip01([Walk])
+  clip02([Run])
+  clip03([Jump Start])
+  clip04([Jump])
+  clip05([Jump End])
+  clip06([Punch])
+  root-->mixerA
+  root-->mixerB
+  root-->clip06
+  mixerA-->clip01
+  mixerA-->clip02
+  mixerB-->clip02
+  mixerB-->clip03
+  mixerB-->clip04
 ```
 
 ## Implementation strategy
