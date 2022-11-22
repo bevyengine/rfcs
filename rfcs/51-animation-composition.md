@@ -124,6 +124,7 @@ flowchart LR
   mixerB-->clip02
   mixerB-->clip03
   mixerB-->clip04
+  mixerB-->clip05
 ```
 
 ## Implementation strategy
