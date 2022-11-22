@@ -35,6 +35,8 @@ decoupled from these earlier two stages, treating the sampled values as a black
 box output, and authoring can be built separately upon the primitives provided by
 this RFC and thus are explicit non-goals here.
 
+[primitives]: https://github.com/bevyengine/rfcs/pr/49
+
 ## User-facing explanation
 An `AnimationGraph` is a component that lives on the root of an entity hierarchy.
 Users can add clips to it for it to play. Unlike the current `AnimationPlayer`,
@@ -354,6 +356,12 @@ frame, and allows trivial parallel iteration via `Query::par_for_each`. However:
  - Using it as a component means there will be secondary archetype moves if a
    name or hierarchy changes, which increases archetype fragmentation.
 
+### Combining Binding and Sampling Steps: Parallelizing on AnimationGraph
+If we use the same `unsafe` tricks while parallelizing on `AnimationGraph`,
+there's a risk of aliased mutable access if the same entity's components are
+animated by two or more `AnimationGraph`s.
+
+
 ## Prior art
 This proposal is largely inspired by Unity's [Playable][playable] API, which has
 a similar goal of building composable time-sequenced graphs for animation, audio,
@@ -391,4 +399,16 @@ Another potential extension is to allow this graph-like composition structure fo
 non-animation purposes. Using graphs for low level composition of audio
 immediately comes to mind, for example.
 
-[primitives]: https://github.com/bevyengine/rfcs/pr/49
+### Potential Optimizations
+[#4985](https://github.com/bevyengine/bevy/issues/4985) details one potential
+optionization. `ReflectComponent::reflect_component_unchecked` calls `World::get`
+internally, which requires looking up the entity's location for every component
+that is animated. If an alternative that allows using a cached `Entity{Ref, Mut}`
+can save that lookup from being used repeatedly.
+
+Using `bevy_reflect::GetPath` methods on raw strings requires string comparisons,
+which can be expensvie when done repeatedly.
+[#4080](https://github.com/bevyengine/bevy/issues/4080) details an option to
+pre-parse the field path in to a sequence of integer comparisons instead. This
+still incurs the cost of dynamic dispatch at every level, but it's signfigantly
+faster than doing mutliple piecewise string comparisons for every animated field.
