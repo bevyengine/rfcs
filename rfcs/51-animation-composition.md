@@ -36,12 +36,15 @@ box output, and authoring can be built separately upon the primitives provided b
 this RFC and thus are explicit non-goals here.
 
 ## User-facing explanation
-Individual animations describe the state of a hierarchy of entities at a given
-moment in time. The values in a given animation clip can be blended with one or
-more others to produce a composite animation that would otherwise need to be
-authored by hand. These blends are usually weighted to allow certain clips to
-have a stronger influence the final animation output, and these weights may
-evolve over time.
+An `AnimationGraph` is a component that lives on the root of an entity hierarchy.
+Users can add clips to it for it to play. Unlike the current `AnimationPlayer`,
+it does not always exclusively play one active animation clip, allowing users to
+blend any combination of the clips stored within. This produces a composite
+animation that would otherwise need to be authored by hand.
+
+Each clip has its on assigned weight. As a clips weight grows relative to the
+other clips in the graph, it's influence on the final output grows. These weights
+may evolve over time to allow a smooth transition between animations.
 
 A common example of this kind of blending is smoothing out a transition from one
 animation clip to another. As a character stops walking and starts running, bones
@@ -60,31 +63,29 @@ blend becomes more and more weighted towards the limp animation. Unlike the
 transition case, this is a persistent blend and is not driven by time but by
 gameplay design.
 
-The `AnimationGraph` component allows for storing and blending the clips that
-drive animation for an `Entity` hierarchy. The graph itself defines a public
-interface for creating a directed acyclic graph of blend nodes, with the terminal
-nodes in the graph being individual animation clips.
-
-## Implementation strategy
-*Prototype implementation: https://github.com/HouraiTeahouse/bevy_prototype_animation*
+Each clip has its on assigned time. Some clips can advance faster or slower than
+others. This allows more fine grained control over individual animations than
+using the global time scaling feature to speed up or slow down animations. This
+can be tied to some gameplay element to produce more believable effects. For
+example, speeding up the run animation for a character when they pick up a speed
+up can be a cheap and effective way to convey the power up without needing to
+author a speed up manually.
 
 ### Graph Nodes
-An animation graph is comprised of a network of connected graph nodes. A public
-facing API allwos developers to create, get, and mutate nodes. Nodes can be of
-either two types: blend node or clip node. The graph always has one single root
-node of either type.
-
-Blend nodes do not contain any animation of their own, but can have zero or more
-input edges. Each of these edges has a `f32` weight associated with it and points
-to a source node, which can be either clip node or another blend node. The weight
-of parent to child edge affects the end weighting of all descendant clip nodes.
+To help manage the blending of a large number of clips, an animation graph is
+comprised of a network of connected graph nodes. A public facing API allows
+developers to create, get, and mutate nodes. Nodes can be of either two types:
+blend node or clip node. The graph always has one single root node of either
+type.
 
 Clip nodes cannot have inputs, but contain a reference to an animation clip. A
 animation graph can have multiple clip nodes referring to same underlying clip.
 
-Edges can be disconnected without losing metadata on it's input. This is
-functionally equivalent to setting a weight of 0, but the associated input node
-and it's descendants will not be evaluated.
+Blend nodes mix all of the provided inputs using a weighted blend. Blend nodes do
+not contain any animation of their own, but can have zero or more inputs. Each of
+these edges has a `f32` weight associated with it and points to a source node,
+which can be any other node, including another blend node. The weight
+of parent to child edge affects the end weighting of all descendant clip nodes.
 
 Every node has it's own time value. For clip nodes, this is the time at which the
 underlying clip is sampled at. For blend nodes, this value doesn't do anything.
@@ -92,7 +93,32 @@ However, an optional setting will allow a blend node to propagate the time value
 to all of it's immediate children. If this option is set for it's chilren, it
 will continue to propagate downwards. This is disabled by default. Another option
 for advancing the animation is to advance the entire graph's time in one go. This
-will increment the time value on all nodes by a provided time delta.
+will increment the time value on all nodes by a provided time delta multiplied by
+a clip node's.
+
+### Graph Edges
+Edges can be disconnected without losing metadata on it's input. This is
+functionally equivalent to setting a weight of 0, but the associated input node
+and it's descendants will not be evaluated, which can cut down CPU time spent
+evaluating that subgraph.
+
+## Implementation strategy
+*Prototype implementation: https://github.com/HouraiTeahouse/bevy_prototype_animation*
+
+### Overview
+There are several systems that the animation system uses to drive animation from
+a graph:
+
+ 1. **Graph Evaluation**: This system evaluates the state of the graph to generate an
+    influences map that determines how the clips stored within the graph are going
+    to be blended. This can be done in parallel over every graph individually.
+    This is also when the internal clocks of the graph are ticked.
+ 2. **Binding**: This system traverses the entity hierarchy starting at the
+    graphs to find the corresponding entity for each bone animated by the graph.
+    This can be done in parallel over every graph individually.
+ 3. **Graph Sampling**: This system samples the graph for values from the active
+    clips, uses the generated influences map (from step 1) to blend them into
+    their final values, and applies it to the bound bones (from step 2).
 
 ### Graph Storage
 Two main stores are needed internally for the graph: node storage and clip
@@ -115,6 +141,7 @@ struct Track<T> {
   curves: Vec<Option<Arc<dyn Curve<T>>>>,
 }
 ```
+
 The individual curves stored within are indexed by `ClipId`, and each pointer to
 a curve is non-None if and only if the original clip had a curve for the
 corresponding property.
@@ -129,6 +156,17 @@ of skeletal animation that avoids both the runtime type casting and the dynamic
 dispatch of `Arc<dyn Curve<T>>`.
 
 ### Graph Evaluation
+```rust
+struct Influence {
+    weight: f32,
+    time: f32,
+}
+
+struct GraphInfluences {
+    influence: Vec<Influence> // Indexed by BoneId
+}
+```
+
 To remove the need to evaluate the graph every time a property is sampled, an
 influences map is constructed based on the current state of the graph. This is
 effectively a `Vec<f32>` indexed on `ClipId` mapping clips and their respective
@@ -142,7 +180,7 @@ and `B -> C` have the weights 0.5 and 0.25 respectively, the final weight for
 clip C is 0.125. If multiple paths to a end clip are present, the final weight
 for the clip is the sum of all path's weights.
 
-After traversing the graph, the weights of all active inputs are normalized.
+After traversing the graph, the weights of all active inputs are clamped and normalized.
 
 By default, a dedicated system will run before sampling every app tick that
 evaluates every changed graph, relying on change detection to ensure that any
@@ -150,12 +188,74 @@ mutation to the graph results in a change in the influences. This behavior can b
 disabled via a config option, requiring users to manually evaluate the graph
 instead.
 
+### Binding
+
+```rust
+struct BoneId(usize);
+
+#[derive(PartialEq, Eq, ParitalOrd, Ord)]
+struct EntityPath {
+    path: Vec<Name>,
+}
+
+struct GraphBindings {
+    paths: BTreeMap<EntityPath, BoneId>,
+    bones: Vec<Bone>,
+}
+
+struct Bone {
+    properties: BTreeMap<FieldPath, Track>,
+}
+
+#[derive(Resource)]
+struct BoneBindings(SparseSet<Entity, SmallVec<[(Entity, BoneId), 2]>>);
+```
+
+After graph evalution is building a global `BoneBindings` resource. This is a
+newtype over a mapping between an animated entity (the key), and the
+`AnimationGraph`s and corresponding `BoneId`s the entity is bound to.
+
+`BoneBindings` allows us to safely mutate all animated entities in parallel. This
+still requires use of `RefectComponent::reflect_unchecked_mut` or
+`Query::get_unchecked`, but we can be assured that there is no unsound mutable
+aliasing as each entity is only accessed by one thread at any given time.
+
+`BTreeMap`s are used internally as they're typically more iteration friendly
+than `HashMap`. Iteration on `BTreeMap` is `O(size)`, not `O(capacity)` like
+HashMaps, and is array oriented which tends to be much more cache friendly than
+the hash-based scan. It also provides a consistent iteration order for the
+purposes of determinism.
+
+Rough psuedo-code for building `BoneBindings`:
+
+```rust
+fn build_bone_bindings(
+  graphs: Query<(Entity, &AnimationGraph), Changed<AnimationGraph>>,
+  queue: Local<ThreadLocal<...>>, // Parallel queue
+  mut bindings: ResMut<BoneBindings>,
+) {
+    graphs.par_for_each(|(root, graph)| {
+        for (path, bone_id) in graph.bindings() {
+            if let Ok(target) = NameLookup::find(root, path) {
+                queue.push((target, (root, bone_id)))
+            } else {
+                warn!("Could not find bone at {}", path);
+            }
+        }
+    });
+
+    bindings.clear();
+    update_bindings(&mut bindings, parallel_queue);
+}
+```
+
 ### Graph Sampling
+All animated properties on an entity are sampled at the same time.
 Sampling a single value from the current state of the graph has the rough
 following flow:
 
- - The corresponding track is located in clip storage based on the property
-   path. Fail if not found.
+ - All field paths and tracks for a given entity are fetched for a given bone
+   from the associated graph. Fail if not found.
  - The curves for the active clips is retrieved from the track's sparse array of
    curves.
  - Individual values are sampled from each active curve. Skipping curves with a
@@ -165,20 +265,69 @@ following flow:
 
 This approach has a number of performance related benefits:
 
- - It only requires one string hash lookup instead of one for every active clip.
  - The state of the graph does not need to be evaluated for every sampling.
  - Curves can be sampled in `ClipId` order based on the influence map. This
-   parallel iteration should be cache friendly.
- - No intermediate storage is inherently required during sampling.
-   (`Animatable::blend` may require it for some types).
+   iteration should be cache friendly.
+ - No allocation is inherently required during sampling.  (`Animatable::blend`
+   may require it for some types).
  - This process is (mostly) branch free and can be accelerated easily with SIMD
    compatible `Animatable::blend` implementations.
 
+Rough pseudo-code for sampling values with an exclusive system.
+
+```rust
+fn sample_animators(
+  world: &mut World, // To ensure exclusive access
+  bindings: Res<BoneBindings>,
+) {
+    let world: &World = &world;
+    let type_registry = world.get_resource::<TypeRegistry>().clone();
+    // Uses bevy_tasks::iter::ParallelIterator internally.
+    bindings.par_for_each_bone(move |bone, bone_id, graph| {
+        let graph = world.get::<AnimatorGraph>();
+        for (field_path, track) in graph.get_bone(bone_id).tracks() {
+            assert!(field_path.type_id() != TypeId::of::<AnimationGraph>());
+            let reflect_component = reflect_component(
+                field_path.type_id(),
+                &type_registry);
+            let component: &mut dyn Reflect = unsafe {
+                reflect_component
+                    .reflect_unchecked_mut(world, bone)
+            };
+            track.sample(
+                &graph.influences(),
+                component.path_mut(field_path));
+        }
+    });
+}
+
+impl<T: Animatble + Reflect> Track<T> {
+    fn sample(&self, influences: &GraphInfluences, output: &mut dyn Reflect) {
+        // Samples every track at the graph's targets
+        let tracks = self.curves
+            .zip(&influences)
+            .filter(|(curve, _)| curve.0.is_some())
+            .map(|(curve, influence)| BlendInput {
+                value: curve.sample(influence.time),
+                weight: influence.weight,
+                ...
+            });
+
+        // Blends and uses Reflect to apply the result.
+        let result = T::blend(inputs);
+        output.apply(&mut result);
+    }
+}
+```
+
 ## Drawbacks
-TODO: Complete this section
+The animation sampling system is an exclusive system and blocks all other systems
+from running.
 
 ## Rationale and alternatives
-TODO: Complete this section
+An alternative (easier to implement) version that doesn't use `Reflect` can be
+implemented with just a `Query<&mut Transform>` instead of a `&World`, though
+`Query::get_unchecked` will still need to be used.
 
 ## Prior art
 This proposal is largely inspired by Unity's [Playable][playable] API, which has
