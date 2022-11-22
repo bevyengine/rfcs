@@ -116,15 +116,14 @@ flowchart LR
   clip04([Jump])
   clip05([Jump End])
   clip06([Punch])
-  root-->mixerA
-  root-->mixerB
-  root-->clip06
-  mixerA-->clip01
-  mixerA-->clip02
-  mixerB-->clip02
-  mixerB-->clip03
-  mixerB-->clip04
-  mixerB-->clip05
+  mixerA-->root
+  mixerB-->root
+  clip06-->root
+  clip01-->mixerA
+  clip02-->mixerB
+  clip03-->mixerB
+  clip04-->mixerB
+  clip05-->mixerB
 ```
 
 ## Implementation strategy
