@@ -325,9 +325,34 @@ The animation sampling system is an exclusive system and blocks all other system
 from running.
 
 ## Rationale and alternatives
+
+### Transforms only
 An alternative (easier to implement) version that doesn't use `Reflect` can be
 implemented with just a `Query<&mut Transform>` instead of a `&World`, though
-`Query::get_unchecked` will still need to be used.
+`Query::get_unchecked` will still need to be used. This could be used as an
+intermediate step between the current `AnimationPlayer` and the "animate
+anything" approach described by the implementation above.
+
+### Generic Systems instead of Reflect
+An alternative to the `Reflect` based approach is to use independent generic
+systems that read from `BoneBindings`, but this requires registering each
+animatable component and will not generically work with non-Rust components, it
+will also not avoid the userspace `unsafe` unless the parallel iteration is
+removed.
+
+### Relatonal `BoneBinding` as a Component
+Instead of using `BoneBindings` as a resource that is continually rebuilt every
+frame it's changed, `BoneBinding` could be a relational component, much like
+`Parent` or `Children`. This removes the need to scan the named hierarchy every
+frame, and allows trivial parallel iteration via `Query::par_for_each`. However:
+
+ - it does not avoid the need for userspace `unsafe`.
+ - maintaining the binding components is going to be a nightmare if there are
+   any hierarchy or name changes underneath an `AnimationGraph`.
+ - Commands require applying buffers in between maintanence and use in queries,
+   forces creation of a bottleneck sync point.
+ - Using it as a component means there will be secondary archetype moves if a
+   name or hierarchy changes, which increases archetype fragmentation.
 
 ## Prior art
 This proposal is largely inspired by Unity's [Playable][playable] API, which has
