@@ -8,6 +8,7 @@
   underlying type are moved to `PartialReflect`
 - Most things should now accept a `dyn PartialReflect` rather than
   `dyn Reflect`.
+- When possible, things should return a `dyn Reflect`.
 - It is possible to convert a `PartialReflect` into a `Reflect` using a
   `into_full` method.
 - `FromReflect` becomes `FromPartialReflect`.
@@ -199,7 +200,7 @@ keep the scope of this RFC minimal.
 pub trait PartialReflect: Send + Sync {
     // new
     fn as_full(&self) -> Option<&dyn Reflect>;
-    fn into_full(self: Box<Self>) -> Option<Box<dyn Reflect>>;
+    fn into_full(self: Box<Self>) -> Result<Box<dyn Reflect>, Box<dyn PartialReflect>>;
 
     fn type_name(&self) -> &str;
 
@@ -237,7 +238,6 @@ pub trait Reflect: PartialReflect + Any {
     }
     // etc.
     fn any
-    fn any_mut
     fn downcast
     fn take
     fn is
