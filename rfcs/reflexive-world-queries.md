@@ -76,15 +76,37 @@ This successfully avoid the compile error, but it results in an awkward situtati
 trait impls, and methods are spread accross two very similar types with a non-obvious distinction between them.
 In addition, the `DebugNameItem` struct has necessarily vague documentation due to being generated in a macro.
 
+The core of this problem is that derived `WorldQuery` types are not *reflexive*.
+
 ## User-facing explanation
 
-Explain the proposal as if it was already included in the engine and you were teaching it to another Bevy user. That generally means:
+### **Reflexive**
 
-- Introducing new named concepts.
-- Explaining the feature, ideally through simple examples of solutions to concrete problems.
-- Explaining how Bevy users should *think* about the feature, and how it should impact the way they use Bevy. It should explain the impact as concretely as possible.
-- If applicable, provide sample error messages, deprecation warnings, or migration guidance.
-- If applicable, explain how this feature compares to similar existing features, and in what situations the user would use each one.
+(Adjective) *In reference to oneself.*
+
+Any `WorldQuery` type used within `#[derive(WorldQuery)]` must be reflexive, meaning
+it returns itself when used in a query. Types such as `&mut T` are not reflexive,
+and are forbidden from being used with the derive macro.
+
+Examples:
+
+```rust
+#[derive(WorldQuery)]
+struct DebugName<'w> {
+    name: Option<&'w Name>,
+    id: Entity,
+}
+
+impl Debug for DebugName<'_> { ... }
+
+#[derive(WorldQuery)]
+#[world_query(mutable)]
+struct PhysicsComponents<'w> {
+    mass: &'w Mass,
+    transform: Mut<'w, Transform>,
+    velocity: Mut<'w, Velocity>,
+}
+```
 
 ## Implementation strategy
 
