@@ -62,7 +62,7 @@ Here's what it looks like in the docs:
 ```rust
 pub struct DebugNameItem<'__w> {
     pub name: <Option<&'static Name> as WorldQuery>::Item<'__w>,
-    pub entity: <Entity as WorldQuery>::Item<'__w>,
+    pub id: <Entity as WorldQuery>::Item<'__w>,
 }
 ```
 
