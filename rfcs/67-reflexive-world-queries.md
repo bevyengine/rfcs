@@ -80,7 +80,7 @@ In addition, the `DebugNameItem` struct has necessarily vague documentation due 
 
 ### **Reflexive**
 
-(Adjective) *In reference to oneself.*
+1. (Adjective) *In reference to oneself.*
 
 Any `WorldQuery` type used within `#[derive(WorldQuery)]` must be reflexive,
 meaning it returns itself when used in a query.
