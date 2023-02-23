@@ -76,8 +76,6 @@ This successfully avoid the compile error, but it results in an awkward situtati
 trait impls, and methods are spread accross two very similar types with a non-obvious distinction between them.
 In addition, the `DebugNameItem` struct has necessarily vague documentation due to being generated in a macro.
 
-The core of this problem is that derived `WorldQuery` types are not *reflexive*.
-
 ## User-facing explanation
 
 ### **Reflexive**
@@ -155,6 +153,6 @@ and make it more difficult to understand due to having several very similar type
 
 None.
 
-## \[Optional\] Future possibilities
+## Future possibilities
 
 We should explore ways to make the `#[world_query(mutable)]` attribute unnecessary.
