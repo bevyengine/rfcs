@@ -137,7 +137,7 @@ Since `&mut T` is not reflexive, we will have to implement `WorldQuery` for `Mut
 
 ## Drawbacks
 
-This will add slightly more friction in some cases, non-reflexive `WorldQuery`
+This will add slightly more friction in some cases, since
 types such as `&mut T` are forbidden from being used in the derive macro.
 However, these types can still be used in anonymous `WorldQuery`s or types
 such as `type MyQuery = (&'static mut A, &'static mut U)`.
