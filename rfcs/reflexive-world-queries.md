@@ -83,8 +83,11 @@ In addition, the `DebugNameItem` struct has necessarily vague documentation due 
 (Adjective) *In reference to oneself.*
 
 Any `WorldQuery` type used within `#[derive(WorldQuery)]` must be reflexive, meaning
-it returns itself when used in a query. Types such as `&mut T` are not reflexive,
-and are forbidden from being used with the derive macro.
+it returns itself when used in a query.
+
+Most `WorldQuery` types are reflexive, and may be used without consideration of this property.
+A notable exception is `&mut T`, which is incompatible with the derive macro.
+`Mut<T>` must be used instead.
 
 Examples:
 
