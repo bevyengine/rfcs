@@ -110,8 +110,9 @@ struct PhysicsComponents<'w> {
 
 ## Implementation strategy
 
-Changing the derive macro to be reflexive should be a trivial change,
-and will not be discussed at length in this RFC.
+Changing the derive macro to be reflexive should be a trivial change
+-- the `SystemParam` derive already works this way,
+so the details will not be discussed in this RFC.
 
 To support this change, we will need to rework some of our built-in
 `WorldQuery` types to be reflexive.
