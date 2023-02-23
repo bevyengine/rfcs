@@ -137,15 +137,4 @@ and make it more difficult to understand due to having several very similar type
 
 ## \[Optional\] Future possibilities
 
-Think about what the natural extension and evolution of your proposal would
-be and how it would affect Bevy as a whole in a holistic way.
-Try to use this section as a tool to more fully consider other possible
-interactions with the engine in your proposal.
-
-This is also a good place to "dump ideas", if they are out of scope for the
-RFC you are writing but otherwise related.
-
-Note that having something written down in the future-possibilities section
-is not a reason to accept the current or a future RFC; such notes should be
-in the section on motivation or rationale in this or subsequent RFCs.
-If a feature or change has no direct value on its own, expand your RFC to include the first valuable feature that would build on it.
+We should explore ways to make the `#[world_query(mutable)]` attribute unnecessary.
