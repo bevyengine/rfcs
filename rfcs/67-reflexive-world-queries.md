@@ -14,9 +14,9 @@ to showing the entity's ID if it doesn't.
 
 ```rust
 #[derive(WorldQuery)]
-struct DebugName {
-    name: Option<&'static Name>,
-    id: Entity,
+pub struct DebugName {
+    pub name: Option<&'static Name>,
+    pub id: Entity,
 }
 
 impl Debug for DebugName {
