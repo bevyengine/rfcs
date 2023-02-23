@@ -56,7 +56,7 @@ error[E0277]: `DebugNameItem<'_>` doesn't implement `Debug`
 "Rustc, what are you talking about?" you ask. You just implemented `Debug`!
 
 The problem here is that the type returned from the query is *not* the type we just defined
--- it's an hidden macro-generated type with near-identical fields.
+-- it's a hidden macro-generated type with near-identical fields.
 Here's what it looks like in the docs:
 
 ```rust
