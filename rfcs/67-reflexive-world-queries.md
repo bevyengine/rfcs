@@ -133,6 +133,22 @@ fn my_system(q: Query<Changed<T>>) {
 }
 ```
 
+```rust
+// Before:
+fn my_system(q: Query<AnyOf<(&A, &B, &C)>>) {
+    for (a, b, c) in &q {
+        ...
+    }
+}
+
+// After:
+fn my_system(q: Query<AnyOf<(&A, &B, &C)>>) {
+    for AnyOf((a, b, c)) in &q {
+        ...
+    }
+}
+```
+
 Since `&mut T` is not reflexive, we will have to implement `WorldQuery` for `Mut<T>`.
 
 ## Drawbacks
