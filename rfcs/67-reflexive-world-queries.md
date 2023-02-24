@@ -53,7 +53,7 @@ error[E0277]: `DebugNameItem<'_>` doesn't implement `Debug`
     = note: this error originates in the macro `$crate::format_args_nl` which comes from the expansion of the macro `println` (in Nightly builds, run with -Z macro-backtrace for more info)
 ```
 
-"Rustc, what are you talking about?" you ask. You just implemented `Debug`!
+"What do you mean rustc?!" you plead as you bang your head against the wall. You just implemented `Debug`!
 
 The problem here is that the type returned from the query is *not* the type we just defined
 -- it's a hidden macro-generated type with near-identical fields.
