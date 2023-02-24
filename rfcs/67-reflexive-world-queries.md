@@ -121,15 +121,14 @@ To support this change, we will need to rework some of our built-in
 `WorldQuery` types to be reflexive.
 
 ```rust
-// Before:
 fn my_system(q: Query<AnyOf<(&A, &B, &C)>>) {
+
+    // Before:
     for (a, b, c) in &q {
         ...
     }
-}
-
-// After:
-fn my_system(q: Query<AnyOf<(&A, &B, &C)>>) {
+    
+    // After:
     for AnyOf((a, b, c)) in &q {
         ...
     }
