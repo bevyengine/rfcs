@@ -85,7 +85,7 @@ requires the special syntax `#[world_query(derive(PartialEq))]`.
 
 1. (Adjective) *In reference to oneself.*
 
-Any `WorldQuery` type used within `#[derive(WorldQuery)]` must be reflexive,
+Any `WorldQuery` type defined with `#[derive(WorldQuery)]` must be reflexive,
 meaning it returns itself when used in a query.
 Most `WorldQuery` types are reflexive, and may be used without consideration of this property.
 A notable exception is `&mut T`, which is incompatible with the derive macro.
