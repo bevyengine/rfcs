@@ -72,8 +72,8 @@ In order to fix the error, we need to implement `Debug` for *this* type:
 impl Debug for DebugNameItem<'_> { ... }
 ```
 
-This avoids the compile error, but it results in an awkward situtation where our documentation,
-trait impls, and methods are fragmented between two very similar types with a non-obvious distinction between them.
+This avoids the compile error, but it results in an awkward situtation where *our documentation,
+trait impls, and methods are fragmented between two very similar types* with a non-obvious distinction between them.
 
 Since the `DebugNameItem` is generated in a macro, it is very awkard to flesh out its API.
 Its documentation is necessarily vague since you can't write it yourself, and deriving traits
