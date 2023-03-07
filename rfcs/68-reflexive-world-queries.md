@@ -8,7 +8,7 @@ This makes the API for these types much simpler.
 
 ## Motivation
 
-You, a Bevy humble user, wish to define your own custom `WorldQuery` type.
+You, a humble Bevy user, wish to define your own custom `WorldQuery` type.
 It should display the name of an entity if it has one, and fall back
 to showing the entity's ID if it doesn't.
 
