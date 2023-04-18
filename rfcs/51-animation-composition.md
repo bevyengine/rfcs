@@ -64,7 +64,7 @@ blend becomes more and more weighted towards the limp animation. Unlike the
 transition case, this is a persistent blend and is not driven by time but by
 gameplay design.
 
-Each clip has its on assigned time. Some clips can advance faster or slower than
+Each clip has its own assigned time. Some clips can advance faster or slower than
 others. This allows more fine grained control over individual animations than
 using the global time scaling feature to speed up or slow down animations. This
 can be tied to some gameplay element to produce more believable effects. For
