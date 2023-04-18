@@ -274,6 +274,65 @@ fn build_bone_bindings(
 }
 ```
 
+### `Animatable` Trait
+To define values that can be properly smoothly sampled and composed together, a
+trait is needed to determine the behavior when interpolating and blending values
+of the type together. The general trait may look like the following:
+
+```rust
+struct BlendInput<T> {
+  weight: f32,
+  value: T,
+}
+
+trait Animatable {
+  fn interpolate(a: &Self, b: &Self, time: f32) -> Self;
+  fn blend(inputs: impl Iterator<Item=BlendInput<Self>>) -> Option<Self>;
+  unsafe fn post_process(&mut self, world: &World) {}
+}
+```
+
+`interpolate` implements interpolation between two values of a given type given a
+time. This typically will be a [linear interpolation][lerp], and have the `time`
+parameter clamped to the domain of [0, 1]. However, this may not necessarily be
+strictly be a continuous interpolation for discrete types like the integral
+types, `bool`, or `Handle<T>`. This may also be implemented as [spherical linear
+interpolation][slerp] for quaternions.  This will typically be required to
+provide smooth sampling from the variety of curve implementations. If it is
+desirable to "override" the default lerp behavior, newtype'ing an underlying
+`Animatable` type and implementing `Animatable` on the newtype instead.
+
+`blend` expands upon this and provides a way to blend a collection of weighted
+inputs into one output. This can be used as the base primitive implementation for
+building more complex compositional systems. For typical numerical types, this
+will often come out to just be a weighted sum. For non-continuous discrete types
+like `Handle<T>`, it may select the highest weighted input. Even though a
+iterator is inherently ordered in some way, the result provided by `blend` must
+be order invariant for all types. If the provided iterator is empty, `None`
+should be returned to signal that there were no values to blend.
+
+A blanket implementation could be done on types that implement `Add +
+Mul<Output=Self>`, though this might conflict with a need for specialized
+implementations for the following types:
+ - `Vec3` - needed to take advantage of SIMD instructions via `Vec3A`.
+ - `Handle<T>` - need to properly use `clone_weak`.
+
+An unsafe `post_process` trait function is going to be required to build values
+that are dependent on the state of the World. An example of this is `Handle<T>`,
+which requires strong handles to be used properly: a `Curve<HandleId>` can
+implement `Curve<Handle<T>>` by postprocessing the `HandleId` by reading the
+associated `Assets<T>` resource to make a strong handle. This is applied only
+after blending is applied so post processing is only applied once per sampled
+value. This function is unsafe by default as it may be unsafe to read any
+non-Resource or NonSend resource from the World if application is run over
+multiple threads, which may cause aliasing errors if read. Other unsafe
+operations that mutate the World from a read-only reference is also unsound. The
+default implementation here is a no-op, as most implementations do not need this
+functionality, and will be optimized out via monomorphization.
+
+[lerp]: https://en.wikipedia.org/wiki/Linear_interpolation
+[slerp]: https://en.wikipedia.org/wiki/Slerp
+
 ### Graph Sampling
 All animated properties on an entity are sampled at the same time.
 Sampling a single value from the current state of the graph has the rough
