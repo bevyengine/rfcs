@@ -43,7 +43,7 @@ it does not always exclusively play one active animation clip, allowing users to
 blend any combination of the clips stored within. This produces a composite
 animation that would otherwise need to be authored by hand.
 
-Each clip has its on assigned weight. As a clips weight grows relative to the
+Each clip has its own assigned weight. As a clips weight grows relative to the
 other clips in the graph, it's influence on the final output grows. These weights
 may evolve over time to allow a smooth transition between animations.
 
