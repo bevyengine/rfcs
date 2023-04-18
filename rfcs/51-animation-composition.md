@@ -156,29 +156,29 @@ is always 0.
 Clip storage decomposes clips based on the properties each clip is animating.
 Instead of using `Handle<AnimationClip>`, each clip is instead internally
 assigned a auto-imcrementing `ClipId` much like `NodeId`. However, instead of
-storing a `Vec<AnimationClip`, a map of property paths to `Track<T>` is stored.
+storing a `Vec<AnimationClip`, a map of property paths to `Track` is stored.
 
-`Track<T>` stores a contiguous sparse array of pointers to all curves associated
+`Track` stores a contiguous sparse array of pointers to all curves associated
 with a given property. Here's a rough outline of how such a struct might look:
 
 ```rust
-struct Track<T> {
-  curves: Vec<Option<Arc<dyn Curve<T>>>>,
+struct VariableCurve<T: Animatable> {
+  keys: Vec<T>,
+  times: Vec<f32>,
+}
+
+enum Track {
+  Translation(Vec<Option<Arc<VariableCurve<Vec3A>>>>),
+  Scale(Vec<Option<Arc<VariableCurve<Vec3A>>>>),
+  Rotation(Vec<Option<Arc<VariableCurve<Quat>>>>),
+  // Optional. Potential representation for reflection based animation.
+  Reflect(Vec<Option<Arc<VariableCurve<Box<dyn Animatable>>>>>),
 }
 ```
 
 The individual curves stored within are indexed by `ClipId`, and each pointer to
 a curve is non-None if and only if the original clip had a curve for the
 corresponding property.
-
-A type erased version of `Track<T>` will be needed to store the track in a
-concrete map. The generic type parameter of the sample function will be used to
-downcast the type erased version into the generic version.
-
-As mentioned in the prior primitives RFC, there will likely need to be a separate
-clip storage dedicated to storing specialized `Transform` curves for the purposes
-of skeletal animation that avoids both the runtime type casting and the dynamic
-dispatch of `Arc<dyn Curve<T>>`.
 
 ### Graph Evaluation
 ```rust
@@ -205,7 +205,8 @@ and `B -> C` have the weights 0.5 and 0.25 respectively, the final weight for
 clip C is 0.125. If multiple paths to a end clip are present, the final weight
 for the clip is the sum of all path's weights.
 
-After traversing the graph, the weights of all active inputs are clamped and normalized.
+After traversing the graph, the weights of all active inputs are clamped and
+normalized.
 
 By default, a dedicated system will run before sampling every app tick that
 evaluates every changed graph, relying on change detection to ensure that any
@@ -224,26 +225,22 @@ struct EntityPath {
 }
 
 struct GraphBindings {
-    paths: BTreeMap<EntityPath, BoneId>,
-    bones: Vec<Bone>,
+    paths: BTreeMap<EntityPath, Bone>,
 }
 
 struct Bone {
-    properties: BTreeMap<FieldPath, Track>,
+    tracks: Vec<Track>,
 }
-
-#[derive(Resource)]
-struct BoneBindings(SparseSet<Entity, SmallVec<[(Entity, BoneId), 2]>>);
 ```
 
-After graph evalution is building a global `BoneBindings` resource. This is a
-newtype over a mapping between an animated entity (the key), and the
-`AnimationGraph`s and corresponding `BoneId`s the entity is bound to.
+After graph evalution is finding the target bones to animate. Each graph keeps a
+map of all animated bones in a map from path to list of tracks.
 
-`BoneBindings` allows us to safely mutate all animated entities in parallel. This
-still requires use of `RefectComponent::reflect_unchecked_mut` or
-`Query::get_unchecked`, but we can be assured that there is no unsound mutable
-aliasing as each entity is only accessed by one thread at any given time.
+All animation graphs will be forbidden from having overlapping hierarchies by
+predicating sampling on an ancestor query from every animation graph for a graph
+in its ancestor entities. This ensures any given animated bone in a entity
+hierarchy is mutably borrowed only by one running animation graph. This allows
+animation binding and sampling to run in parallel.
 
 `BTreeMap`s are used internally as they're typically more iteration friendly
 than `HashMap`. Iteration on `BTreeMap` is `O(size)`, not `O(capacity)` like
@@ -251,30 +248,7 @@ HashMaps, and is array oriented which tends to be much more cache friendly than
 the hash-based scan. It also provides a consistent iteration order for the
 purposes of determinism.
 
-Rough psuedo-code for building `BoneBindings`:
-
-```rust
-fn build_bone_bindings(
-  graphs: Query<(Entity, &AnimationGraph), Changed<AnimationGraph>>,
-  queue: Local<ThreadLocal<...>>, // Parallel queue
-  mut bindings: ResMut<BoneBindings>,
-) {
-    graphs.par_for_each(|(root, graph)| {
-        for (path, bone_id) in graph.bindings() {
-            if let Ok(target) = NameLookup::find(root, path) {
-                queue.push((target, (root, bone_id)))
-            } else {
-                warn!("Could not find bone at {}", path);
-            }
-        }
-    });
-
-    bindings.clear();
-    update_bindings(&mut bindings, parallel_queue);
-}
-```
-
-### `Animatable` Trait
+### Value Blending: `Animatable` Trait
 To define values that can be properly smoothly sampled and composed together, a
 trait is needed to determine the behavior when interpolating and blending values
 of the type together. The general trait may look like the following:
@@ -288,19 +262,14 @@ struct BlendInput<T> {
 trait Animatable {
   fn interpolate(a: &Self, b: &Self, time: f32) -> Self;
   fn blend(inputs: impl Iterator<Item=BlendInput<Self>>) -> Option<Self>;
-  unsafe fn post_process(&mut self, world: &World) {}
 }
 ```
 
 `interpolate` implements interpolation between two values of a given type given a
 time. This typically will be a [linear interpolation][lerp], and have the `time`
-parameter clamped to the domain of [0, 1]. However, this may not necessarily be
-strictly be a continuous interpolation for discrete types like the integral
-types, `bool`, or `Handle<T>`. This may also be implemented as [spherical linear
-interpolation][slerp] for quaternions.  This will typically be required to
-provide smooth sampling from the variety of curve implementations. If it is
-desirable to "override" the default lerp behavior, newtype'ing an underlying
-`Animatable` type and implementing `Animatable` on the newtype instead.
+parameter clamped to the domain of [0, 1]. This may also be implemented as
+[spherical linear interpolation][slerp] for quaternions.  This will typically be
+required to provide smooth sampling from the variety of curve implementations.
 
 `blend` expands upon this and provides a way to blend a collection of weighted
 inputs into one output. This can be used as the base primitive implementation for
@@ -311,24 +280,9 @@ iterator is inherently ordered in some way, the result provided by `blend` must
 be order invariant for all types. If the provided iterator is empty, `None`
 should be returned to signal that there were no values to blend.
 
-A blanket implementation could be done on types that implement `Add +
-Mul<Output=Self>`, though this might conflict with a need for specialized
-implementations for the following types:
- - `Vec3` - needed to take advantage of SIMD instructions via `Vec3A`.
- - `Handle<T>` - need to properly use `clone_weak`.
-
-An unsafe `post_process` trait function is going to be required to build values
-that are dependent on the state of the World. An example of this is `Handle<T>`,
-which requires strong handles to be used properly: a `Curve<HandleId>` can
-implement `Curve<Handle<T>>` by postprocessing the `HandleId` by reading the
-associated `Assets<T>` resource to make a strong handle. This is applied only
-after blending is applied so post processing is only applied once per sampled
-value. This function is unsafe by default as it may be unsafe to read any
-non-Resource or NonSend resource from the World if application is run over
-multiple threads, which may cause aliasing errors if read. Other unsafe
-operations that mutate the World from a read-only reference is also unsound. The
-default implementation here is a no-op, as most implementations do not need this
-functionality, and will be optimized out via monomorphization.
+For the purposes of this RFC, this trait is only required to be implemented on
+`bevy_math::Vec3A` and `bevy_math::Quat`, but it may be implemented on other
+types for the purposes of reflection based animation in the future.
 
 [lerp]: https://en.wikipedia.org/wiki/Linear_interpolation
 [slerp]: https://en.wikipedia.org/wiki/Slerp
@@ -352,8 +306,7 @@ This approach has a number of performance related benefits:
  - The state of the graph does not need to be evaluated for every sampling.
  - Curves can be sampled in `ClipId` order based on the influence map. This
    iteration should be cache friendly.
- - No allocation is inherently required during sampling.  (`Animatable::blend`
-   may require it for some types).
+ - No allocation is inherently required during sampling.
  - This process is (mostly) branch free and can be accelerated easily with SIMD
    compatible `Animatable::blend` implementations.
 
@@ -361,46 +314,48 @@ Rough pseudo-code for sampling values with an exclusive system.
 
 ```rust
 fn sample_animators(
-  world: &mut World, // To ensure exclusive access
-  bindings: Res<BoneBindings>,
+  animation_graphs: Query<(Entity, &AnimationGraph)>,
+  mut transforms: Query<&mut Transform>,
+  children: Query<&Children>,
 ) {
-    let world: &World = &world;
-    let type_registry = world.get_resource::<TypeRegistry>().clone();
-    // Uses bevy_tasks::iter::ParallelIterator internally.
-    bindings.par_for_each_bone(move |bone, bone_id, graph| {
-        let graph = world.get::<AnimatorGraph>();
-        for (field_path, track) in graph.get_bone(bone_id).tracks() {
-            assert!(field_path.type_id() != TypeId::of::<AnimationGraph>());
-            let reflect_component = reflect_component(
-                field_path.type_id(),
-                &type_registry);
-            let component: &mut dyn Reflect = unsafe {
-                reflect_component
-                    .reflect_unchecked_mut(world, bone)
-            };
-            track.sample(
-                &graph.influences(),
-                component.path_mut(field_path));
+    animation_graphsgraphs.par_iter().for_each(|(root, graph)| {
+        let influences = graph.influences();
+        for (entity_path, bone) in graph.bones().iter() {
+            let Some(transform) = get_descendant(root, entity_path,
+                transforms, children) else { continue };
+            for track in bone.tracks() {
+                apply_track(*transform, track, influences);
+            }
         }
     });
 }
 
-impl<T: Animatble + Reflect> Track<T> {
-    fn sample(&self, influences: &GraphInfluences, output: &mut dyn Reflect) {
-        // Samples every track at the graph's targets
-        let tracks = self.curves
-            .zip(&influences)
-            .filter(|(curve, _)| curve.0.is_some())
-            .map(|(curve, influence)| BlendInput {
-                value: curve.sample(influence.time),
-                weight: influence.weight,
-                ...
-            });
-
-        // Blends and uses Reflect to apply the result.
-        let result = T::blend(inputs);
-        output.apply(&mut result);
-    }
+fn apply_track(
+  transform: &mut Transform,
+  track: &Track,
+  influences: &GraphInfluences,
+) {
+  match track {
+      Track::Translation(ref curves) => {
+          let clips = influences.clips().iter();
+          let curves = track.curves().iter();
+          let blend_inputs = curves.zip(clips).map(|(curve, clip)| {
+              BlendInput {
+                  value: curve.sample(clip.time),
+                  weight: clip.weight,
+              }
+          });
+          if let Some(blend_result) = Vec3A::blend(blend_inputs) {
+              transform.translation = blend_result;t dqt ;w
+          }
+      },
+      Track::Scale(...) => {
+          ...
+      },
+      Track::Rotation(...) => {
+          ...
+      },
+  }
 }
 ```
 
@@ -409,20 +364,6 @@ The animation sampling system is an exclusive system and blocks all other system
 from running.
 
 ## Rationale and alternatives
-
-### Transforms only
-An alternative (easier to implement) version that doesn't use `Reflect` can be
-implemented with just a `Query<&mut Transform>` instead of a `&World`, though
-`Query::get_unchecked` will still need to be used. This could be used as an
-intermediate step between the current `AnimationPlayer` and the "animate
-anything" approach described by the implementation above.
-
-### Generic Systems instead of Reflect
-An alternative to the `Reflect` based approach is to use independent generic
-systems that read from `BoneBindings`, but this requires registering each
-animatable component and will not generically work with non-Rust components, it
-will also not avoid the userspace `unsafe` unless the parallel iteration is
-removed.
 
 ### Relatonal `BoneBinding` as a Component
 Instead of using `BoneBindings` as a resource that is continually rebuilt every
@@ -437,12 +378,6 @@ frame, and allows trivial parallel iteration via `Query::par_for_each`. However:
    forces creation of a bottleneck sync point.
  - Using it as a component means there will be secondary archetype moves if a
    name or hierarchy changes, which increases archetype fragmentation.
-
-### Combining Binding and Sampling Steps: Parallelizing on AnimationGraph
-If we use the same `unsafe` tricks while parallelizing on `AnimationGraph`,
-there's a risk of aliased mutable access if the same entity's components are
-animated by two or more `AnimationGraph`s.
-
 
 ## Prior art
 This proposal is largely inspired by Unity's [Playable][playable] API, which has
@@ -488,22 +423,3 @@ graphs or state machines (i.e. Unity's Animation State Machine).
 Another potential extension is to allow this graph-like composition structure for
 non-animation purposes. Using graphs for low level composition of audio
 immediately comes to mind, for example.
-
-### Potential Optimizations
-[#4985](https://github.com/bevyengine/bevy/issues/4985) details one potential
-optionization. `ReflectComponent::reflect_component_unchecked` calls `World::get`
-internally, which requires looking up the entity's location for every component
-that is animated. If an alternative that allows using a cached `Entity{Ref, Mut}`
-can save that lookup from being used repeatedly. Likewise, caching the
-`ComponentId` for a given `TypeId` when fetching the component can save time
-looking up the type to component mapping from `Components`.
-
-Using `bevy_reflect::GetPath` methods on raw strings requires string comparisons,
-which can be expensvie when done repeatedly.
-[#4080](https://github.com/bevyengine/bevy/issues/4080) details an option to
-pre-parse the field path in to a sequence of integer comparisons instead. This
-still incurs the cost of dynamic dispatch at every level, but it's signfigantly
-faster than doing mutliple piecewise string comparisons for every animated field.
-
-A direct path for `Transform` based animation that avoids dynamic dispatch might
-also save on that very common use case for the system.
