@@ -423,3 +423,12 @@ graphs or state machines (i.e. Unity's Animation State Machine).
 Another potential extension is to allow this graph-like composition structure for
 non-animation purposes. Using graphs for low level composition of audio
 immediately comes to mind, for example.
+
+Other engines have a concept of [masked blending][masked_blending]. Moving only
+the arm in a wave animation blending with a general body run, for example.
+This is probably implemented by just omitting the curves from masked out bones
+from the track (i.e. setting it to `None` in the track even if the curve is in
+the original `AnimationClip`) when building the graph. The influence of that curve
+will be entirely omitted from the final result.
+
+[masked_blending]: https://docs.unity3d.com/560/Documentation/Manual/class-AvatarMask.html
