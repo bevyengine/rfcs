@@ -149,14 +149,14 @@ a graph:
 Two main stores are needed internally for the graph: node storage and clip
 storage. Nodes are stored in a flat `Vec<Node>`, and a newtyped `NodeId` is used
 to keep a reference to a node within the graph. Due to this structure, nodes
-cannot be removed from the graph. As a worksaround, a node can be effectively
+cannot be removed from the graph. As a workaround, a node can be effectively
 removed by disconnecting all of it's incoming and outgoing edges. The root NodeId
 is always 0.
 
 Clip storage decomposes clips based on the properties each clip is animating.
 Instead of using `Handle<AnimationClip>`, each clip is instead internally
 assigned a auto-imcrementing `ClipId` much like `NodeId`. However, instead of
-storing a `Vec<AnimationClip`, a map of property paths to `Track` is stored.
+storing a `Vec<AnimationClip>`, a map of property paths to `Track` is stored.
 
 `Track` stores a contiguous sparse array of pointers to all curves associated
 with a given property. Here's a rough outline of how such a struct might look:
@@ -365,7 +365,7 @@ features like animation streaming.
 
 ## Rationale and alternatives
 
-### Relatonal `BoneBinding` as a Component
+### Relational `BoneBinding` as a Component
 Instead of using `BoneBindings` as a resource that is continually rebuilt every
 frame it's changed, `BoneBinding` could be a relational component, much like
 `Parent` or `Children`. This removes the need to scan the named hierarchy every
