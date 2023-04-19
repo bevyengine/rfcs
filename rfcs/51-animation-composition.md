@@ -310,8 +310,6 @@ This approach has a number of performance related benefits:
  - This process is (mostly) branch free and can be accelerated easily with SIMD
    compatible `Animatable::blend` implementations.
 
-Rough pseudo-code for sampling values with an exclusive system.
-
 ```rust
 fn sample_animators(
   animation_graphs: Query<(Entity, &AnimationGraph)>,
@@ -339,14 +337,14 @@ fn apply_track(
       Track::Translation(ref curves) => {
           let clips = influences.clips().iter();
           let curves = track.curves().iter();
-          let blend_inputs = curves.zip(clips).map(|(curve, clip)| {
-              BlendInput {
+          let blend_inputs = curves.zip(clips).filter_map(|(curve, clip)| {
+              curve.map(|curve| BlendInput {
                   value: curve.sample(clip.time),
                   weight: clip.weight,
-              }
+              })
           });
           if let Some(blend_result) = Vec3A::blend(blend_inputs) {
-              transform.translation = blend_result;t dqt ;w
+              transform.translation = blend_result;
           }
       },
       Track::Scale(...) => {
@@ -360,8 +358,10 @@ fn apply_track(
 ```
 
 ## Drawbacks
-The animation sampling system is an exclusive system and blocks all other systems
-from running.
+You cannot remove clips from a loaded animation graph. Even if you unload the
+AnimationClip, the curves stored within are kept alive via the Arcs. This may
+need to change in the future if we need alternative curve representation for
+features like animation streaming.
 
 ## Rationale and alternatives
 
