@@ -61,9 +61,16 @@ Here's a breakdown of the color palette:
 
 - **Background Color** — This is the color used to paint the portion of the UI that goes behind every single major UI element. It's primarily visible in the _gaps_ between UI landmarks such as panels, toolbars, views, acting as some sort of “grout” between the “tiles” of the UI. It should _not_ be used directly in controls, to preserve the sensation of depth.
 - **Foreground Color** — This is the color used for text in controls and labels.
-- **Surface Colors** — These are 5 gray shades, centered around a “base” color, ranging from -2 to +2. Positive shades are used for protuded controls (such as buttons), and negative shades are used for receded controls (such as text fields). The surface shades can be adjusted on a sliding scale (along with inverting the foreground color) to achieve Dark Mode / Light Mode UI, as well as many intermediate schemes suitable to color-sensitive workflows.
-- **Semantic Colors** — These are used sparingly to denote their specific meanings. The accent color is used both to denote selection, as well as a general landmark color for things like folder icons.
+- **Surface Colors** — These are 5 gray shades, centered around a “base” color, ranging from -2 to +2. Positive shades are used for protuded controls (such as buttons), and negative shades are used for receded controls (such as text fields). The surface shades can be adjusted on a sliding scale (along with inverting the foreground color) to achieve Dark Mode / Light Mode UI, as well as many intermediate schemes suitable to color-sensitive workflows. The shades were extracted from the bevy website, with some tweaks.
+- **Semantic Colors** — These are used sparingly to denote their specific meanings:
+  - The accent color is used both to denote selection, as well as a general landmark color for things like folder icons. Light blue/cyan was chosen as it's a fairly generic color in UI design;
+  - Magenta was chosen for Assets due to its association for “reusable components” in 2D Vector tools such as Figma; (Not to be confused with ECS components!)
+  - Yellow was chosen for Light due to the common representation of light bulbs and the sun as yellow;
+  - Rose was chosen as an alternative to pure red (see below) due to the association with the “record” button;
+  - Orange was chosen for Code, since we use Rust; 🦀
+  - Emerald was chosen for Resources as a toss-up due to sheer elimination of available hues. If resources turn out to not be significant enough to warrant their own color, we might choose to re-assign it to something else.
 - **Pure Red, Green and Blue** — These colors are used to denote _themselves_ (e.g. in material/shader inputs) as well as to denote the X, Y and Z 3D axes. The strong, well established association of these colors from other tools is leveraged to help users orient themselves in the 3D space. Importantly, their intensity values are tweaked independently so that they're all _perceptually_ at the same brightness level.
+- **Primary and Destructive** — These pastel shades are intended for primary buttons in modal dialogs, and for destructive actions. (Such as deleting an item)
 
 ## Iconography
 
