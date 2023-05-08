@@ -55,7 +55,7 @@ We work around this by being _very disciplined_ with color usage, and establishi
 
 Furthermore, we use the human tendency to perceive darker shades as being “receded” and lighter shades as being “protuding” from a surface to our favor, to help build a perceived depth-based visual hierarchy.
 
-![Bevy Editor Design System Color Palette](assets/XX-editor-design-system/color-palette.png)
+![Bevy Editor Design System Color Palette](assets/69-editor-design-system/color-palette.png)
 
 Here's a breakdown of the color palette:
 
@@ -79,10 +79,10 @@ Icons are:
 - Whenever “shading” is needed, dotted lines or some other dithering/meshing pattern should be used;
 - Exported at 1x, 2x scale factors, and for the 32x32 variant, also exported at a constant 512x512 size, for “very large” display (e.g. on zoomed in icon grids) or as a texture in the editor world.
 
-![Sample Bevy Editor Design System Icons](assets/XX-editor-design-system/icons.png)
+![Sample Bevy Editor Design System Icons](assets/69-editor-design-system/icons.png)
 
-![Same Icon at Different Sizes](assets/XX-editor-design-system/icon-sizes.png)
+![Same Icon at Different Sizes](assets/69-editor-design-system/icon-sizes.png)
 
 ## 9-Slices
 
-![Sample 9-Slice Images](assets/XX-editor-design-system/nine-slices.png)
+![Sample 9-Slice Images](assets/69-editor-design-system/nine-slices.png)
