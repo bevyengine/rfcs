@@ -21,7 +21,7 @@ Very importantly, this is an **entirely unrelated concept from what we know as a
 1. A _new crate_ (`bevy_editor_ds`) responsible for providing standardized and reusable elements like typography, icons, color schemes, button styles, form inputs, and more;
 2. A set of practices and conventions to ensure consistency in the editor design: a set of Human Interface Guidelines. (HIG)
 
-The _design system_ crate will likely make use of several _ECS systems_.
+The _design system_ crate will likely contain many _ECS systems_, along with components, resources and assets.
 
 For reference, here's a table with some other relevant clashes in terminology one should keep an eye out for:
 
