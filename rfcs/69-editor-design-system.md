@@ -103,11 +103,13 @@ TBA
 
 Colors are a _very powerful signifier_. The human visual system is typically capable of segmenting, identifying and grouping visual elements based on color much more quickly than by shape, texture and other factors. This means that **color-coding** is a very good strategy for helping users read and navigate potentially crowded UIs.
 
-Unfortunately, it also means that color can be _overpowering_ in terms of  attention, distracting users from the content they're creating. Since human color perception is contextual, the presence of nearby colors can even distort the appearance of other colors, leading to a suboptimal, frustrating experience for workflows such as lighting and color-grading.
+Unfortunately, it also means that color can be _overpowering_ in terms of attention, distracting users from the content they're creating. Since human color perception is contextual, the presence of nearby colors can even distort the appearance of other colors, leading to a suboptimal, frustrating experience for workflows such as lighting and color-grading.
 
 We work around this by being _very disciplined_ with color usage, and establishing the **90:9:1 rule** for colors. Most of the UI (90%) should be comprised of unsaturated grays, occasional primary/destructive controls use pastel shades (9%), and highly saturated colors are reserved for their specific consistent semantic meaning, and typically only applied in thin, 1px strokes. (1%)
 
 Furthermore, we use the human tendency to perceive darker shades as being “receded” and lighter shades as being “protuding” from a surface to our favor, to help build a perceived depth-based visual hierarchy.
+
+With all of that said, color alone should _never_ be used in an UI as the _sole_ signifier about the nature of an action, item, or state: Approximately 4.5% of the world population has some form of color-blindness, and even users with typical trichromatic color vision frequently choose to apply OS-level color filters—most commonly for color temperature matching and night-time blue light reduction—that might significantly affect color recognition.
 
 ![Bevy Editor Design System Color Palette](assets/69-editor-design-system/color-palette.png)
 
