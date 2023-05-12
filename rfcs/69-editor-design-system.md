@@ -4,7 +4,7 @@
 
 This RFC proposes a design system for the Bevy editor, and lays out a high-level implementation plan for it.
 
-It is structured in three main parts:
+It is divided in three main parts:
 
 1. Theory;
 2. Design;
@@ -75,6 +75,10 @@ The following are the foundational principles the Bevy Editor design should abid
 
 ## Part 2 — Design
 
+### Design Files and Collaboration
+
+TBA
+
 ### High-Level UI Structure
 
 TBA
@@ -120,7 +124,7 @@ Here's a breakdown of the color palette:
 - **Surface Colors** — These are 5 gray shades, centered around a “base” color, ranging from -2 to +2. Positive shades are used for protuded controls (such as buttons), and negative shades are used for receded controls (such as text fields). The surface shades can be adjusted on a sliding scale (along with inverting the foreground color) to achieve Dark Mode / Light Mode UI, as well as many intermediate schemes suitable to color-sensitive workflows. The shades were extracted from the bevy website, with some tweaks.
 - **Semantic Colors** — These are used sparingly to denote their specific meanings:
   - The accent color is used both to denote selection, as well as a general landmark color for things like folder icons. Light blue/cyan was chosen as it's a fairly generic color in UI design;
-  - Magenta was chosen for Assets due to its association for “reusable components” in 2D Vector tools such as Figma; (Not to be confused with ECS components!)
+  - Magenta was chosen for Assets due to its association for “reusable components” in 2D Vector tools such as Figma; (Not to be confused with ECS components! See the “A Note on Terminology” section on the beginning of this document)
   - Yellow was chosen for Light due to the common representation of light bulbs and the sun as yellow;
   - Rose was chosen as an alternative to pure red (see below) due to the association with the “record” button;
   - Orange was chosen for Code, since we use Rust; 🦀
@@ -144,16 +148,95 @@ Icons are:
 - Drawn with a 1px outline style, with a few exceptions (such as folders) meant to be clear visual landmarks;
 - Either single color, or at most two colors, with one being the foreground color;
 - Whenever “shading” is needed, dotted lines or some other dithering/meshing pattern should be used;
-- Exported at 1x, 2x scale factors, and for the 32x32 variant, also exported at a constant 512x512 size, for “very large” display (e.g. on zoomed in icon grids) or as a texture in the editor world.
 
 ![Sample Bevy Editor Design System Icons](assets/69-editor-design-system/icons.png)
 
 ![Same Icon at Different Sizes](assets/69-editor-design-system/icon-sizes.png)
 
+### Standard Widgets
+
+#### Button
+
+TBA
+
+#### Checkbox
+
+TBA
+
+#### Radio Button
+
+TBA
+
+#### ScrollView
+
+TBA
+
+#### TextInput
+
+TBA
+
+#### ColorInput
+
+TBA
+
+#### NumericInput
+
+TBA
+
+#### SelectInput
+
+TBA
+
+#### Slider
+
+TBA
+
+
+####
+
 ## Part 3 — Implementation
 
 ### The `bevy_editor_ds` Crate
 
+A new `bevy_editor_ds` crate is introduced, with the purpose of housing the reusable standard widgets built on top of `bevy_ui`, colors, typography styles, icons and other assets that make up the Bevy Editor Design System.
+
+This crate is intended to be consumed both by a future `bevy_editor` crate, as well as by unofficial Bevy Editor plugins, so that they can both match the visual style of the editor and tightly integrate with it.
+
+### Standard Widget Patterns
+
+#### Bundle Structure
+
+Standard widgets from `bevy_editor_ds` adhere to a standard bundle structure. For a standard widget named `MyWidget`:
+
+| Component | Required? |  Role  | Access By Widget's Systems | Access By Widget's User  | Reactive?
+|:----------|:----------|:-------|:---------------------------|:-------------------------|:-----------
+| `my_widget: MyWidget` |  _Required_ | “Identifies” the Widget, and provides configurable properties for controlling its appearance and operation. (e.g. a button's label, or a slider's maximum value). The widget is expected to update its own internal hierarchy in response to a change in this component. | Read | Write | Yes
+| `my_widget_state: MyWidgetState` | _Optional_ | Internal state data meant to be manipulated only by the widget's systems. Can only be initialized to `Default::default()` by the user of the widget. | Read, Write | — | No
+| `my_widget_out: MyWidgetOut` | _Optional_ | Data the widget systems wants to expose to the user (e.g. a slider's current numeric value) | Write | Read | _Optional_
+| `..NodeBundle` | _Required_ | All of the components provided by `NodeBundle`. | Read | Read, Write | Some
+
+#### Delegate Trait Pattern
+
+TBA
+
+#### The `SlottedChildren<T>` Component
+
+TBA
+
+### Assets
+
+### Icons
+
+Icons are exported as bitmaps at 1x, 2x scale factors, and for the 32x32 variant, also exported at a constant 512x512 size, for “very large” display (e.g. on zoomed in icon grids) or as a texture in the editor world.
+
+#### Directory Structure
+
+#### Naming Convention
+
 ### 9-Slices
 
 ![Sample 9-Slice Images](assets/69-editor-design-system/nine-slices.png)
+
+#### Directory Structure
+
+#### Naming Convention
