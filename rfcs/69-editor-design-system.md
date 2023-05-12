@@ -18,7 +18,7 @@ This RFC pertains to the creation of a **Design System**, widely understood by t
 
 Very importantly, this is an **entirely unrelated concept from what we know as a “System” in the ECS sense**. What's proposed boils down to the introduction of:
 
-1. A _new crate_ (`bevy_editor_ds`) responsible for providing standardized and reusable elements like typography, icons, color schemes, button styles, form inputs, and more;
+1. A _new crate_ (`bevy_editor_ui`) responsible for providing standardized and reusable elements like typography, icons, color schemes, button styles, form inputs, and more;
 2. A set of practices and conventions to ensure consistency in the editor design: a set of Human Interface Guidelines. (HIG)
 
 The _design system_ crate will likely contain many _ECS systems_, along with components, resources and assets.
@@ -196,9 +196,9 @@ TBA
 
 ## Part 3 — Implementation
 
-### The `bevy_editor_ds` Crate
+### The `bevy_editor_ui` Crate
 
-A new `bevy_editor_ds` crate is introduced, with the purpose of housing the reusable standard widgets built on top of `bevy_ui`, colors, typography styles, icons and other assets that make up the Bevy Editor Design System.
+A new `bevy_editor_ui` crate is introduced, with the purpose of housing the reusable standard widgets built on top of `bevy_ui`, colors, typography styles, icons and other assets that make up the Bevy Editor Design System.
 
 This crate is intended to be consumed both by a future `bevy_editor` crate, as well as by unofficial Bevy Editor plugins, so that they can both match the visual style of the editor and tightly integrate with it.
 
@@ -206,7 +206,7 @@ This crate is intended to be consumed both by a future `bevy_editor` crate, as w
 
 #### Bundle Structure
 
-Standard widgets from `bevy_editor_ds` adhere to a standard bundle structure. For a standard widget named `MyWidget`:
+Standard widgets from `bevy_editor_ui` adhere to a standard bundle structure. For a standard widget named `MyWidget`:
 
 | Component | Required? |  Role  | Access By Widget's Systems | Access By Widget's User  | Reactive?
 |:----------|:----------|:-------|:---------------------------|:-------------------------|:-----------
