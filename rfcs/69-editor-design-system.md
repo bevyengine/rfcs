@@ -2,11 +2,38 @@
 
 ## Summary
 
-This document proposes and describes a design system for the Bevy editor. From the [Wikipedia article](https://en.wikipedia.org/wiki/Design_system):
+This RFC proposes a design system for the Bevy editor, and lays out a high-level implementation plan for it.
 
-> A Design system is a collection of reusable components, guided by clear standards, that can be assembled together to build any number of applications.
+It is structured in three main parts:
 
-## Motivation
+1. Theory;
+2. Design;
+3. Implementation.
+
+### A Note on Terminology
+
+Before getting started, it's crucial to acknowledge clashes between typical UI design/development lingo and Bevy's own ECS terminology:
+
+This RFC pertains to the creation of a **Design System**, widely understood by the UI design/development community to refer to _“a collection of reusable components, guided by clear standards, that can be assembled together to build any number of applications.”_ ([Wikipedia](https://en.wikipedia.org/wiki/Design_system))
+
+Very importantly, this is an **entirely unrelated concept from what we know as a “System” in the ECS sense**. What's proposed boils down to the introduction of:
+
+1. A _new crate_ (`bevy_editor_ds`) responsible for providing standardized and reusable elements like typography, icons, color schemes, button styles, form inputs, and more;
+2. A set of practices and conventions to ensure consistency in the editor design: a set of Human Interface Guidelines. (HIG)
+
+The _design system_ crate will likely make use of several _ECS systems_.
+
+For reference, here's a table with some other relevant clashes in terminology one should keep an eye out for:
+
+| UI Design/Development Term | Bevy ECS / UI Term      | Meaning
+|:---------------------------|:------------------------|:--------------------------------------------------------
+| _Component_                | _Widget_                | Self-contained, _reusable_ piece of UI, often with predefined interactive behaviors, such as a button or slider.
+| _Layer_/_Element_/_View_   | _Entity_/_Node_         | Fundamental building block of the UI hierarchy.
+| ...                        | ...                     | ...
+
+## Part 1 — Theory
+
+### Motivation
 
 A high-quality editor tool is crucial for enabling broad industry adoption of a game engine, as it can streamline workflows that are laborious purely via code, and make the engine more approachable to developers and creatives from various backgrounds.
 
@@ -16,7 +43,7 @@ Most importantly, a game engine editor is a sizeable piece of software with hund
 
 **Note:** There are still several technical challenges to be addressed in order to enable the underlying functionality of the editor, such as IPC, Data Model and Hot Reloading, to name a few. This RFC focuses solely on the UI/UX concerns, as we believe now is the good time to start exploring what the editor will look like and how it will behave, and we expect the findings of this exploration will help inform new Bevy UI features and help us uncover any papercuts and limitations.
 
-## Principles
+### Principles
 
 The following are the key principles the Bevy editor's design should abide to:
 
@@ -27,13 +54,13 @@ The following are the key principles the Bevy editor's design should abide to:
 - **Familiar** — Whenever possible, the UI should feel familiar to the user. This means acknowledging the baggage of 30+ years of 2D, 3D graphics and developer tools, and leveraging established patterns, such as terminology, shortcuts, symbols, modifiers, layouts, information hierarchy and behaviors. There's of course a wide range of variability across different tools, so _some_ decisions will have to be made to establish a reasonable common denominator for the default settings. While we won't be using native UI frameworks to build the editor, we should honor native OS conventions, whenever possible.
 - **Recognizable** — The Bevy editor should be instantly recognizeable as the Bevy editor, when seen in screenshots, and ideally even at a distance. For example, when watching a developer interview with a computer screen in the background, you should be able to point and say “Ha! That's Bevy!” This is of course, achieved tastefully by reusing subtle brand elements from the website, _not_ adding a giant watermark. The goal is to build a stronger sense of community, identity and trust with the users, (And as a bonus also making us feel like we're leaving a mark! 😉)
 
-## Intended Audience
+### Intended Audience
 
-### This Document
+#### This Document
 
 This document is geared towards people who will (eventually) be building the Bevy Editor UI, and also to those interested in making mockups and explorations of new editor features.
 
-### The Editor
+#### The Editor
 
 The Editor is designed with three main audiences in mind:
 
@@ -45,7 +72,7 @@ Additionally, whenever possible without compromising the usability and feature-r
 
 - **Complete Beginners** — People who just got started with game development or design, are just curious to try a game engine for the first time, or have a game or hobby project idea but don't know how to get started.
 
-## Color
+### Color
 
 Colors are a _very powerful signifier_. The human visual system is typically capable of segmenting, identifying and grouping visual elements based on color much more quickly than by shape, texture and other factors. This means that **color-coding** is a very good strategy for helping users read and navigate potentially crowded UIs.
 
@@ -72,7 +99,7 @@ Here's a breakdown of the color palette:
 - **Pure Red, Green and Blue** — These colors are used to denote _themselves_ (e.g. in material/shader inputs) as well as to denote the X, Y and Z 3D axes. The strong, well established association of these colors from other tools is leveraged to help users orient themselves in the 3D space. Importantly, their intensity values are tweaked independently so that they're all _perceptually_ at the same brightness level.
 - **Primary and Destructive** — These pastel shades are intended for primary buttons in modal dialogs, and for destructive actions. (Such as deleting an item)
 
-## Iconography
+### Iconography
 
 Our icon style is heavily influenced by Blender's, but further simplified, with the primary goal being to make icon creation as economical as possible. Specifically, a single icon should _not_ take more than **10 minutes** to be created and fully fleshed out by someone comfortable with a vector tool.
 
@@ -90,6 +117,6 @@ Icons are:
 
 ![Same Icon at Different Sizes](assets/69-editor-design-system/icon-sizes.png)
 
-## 9-Slices
+### 9-Slices
 
 ![Sample 9-Slice Images](assets/69-editor-design-system/nine-slices.png)
