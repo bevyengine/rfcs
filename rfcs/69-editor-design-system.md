@@ -75,7 +75,31 @@ The following are the foundational principles the Bevy Editor design should abid
 
 ## Part 2 — Design
 
-### Color
+### High-Level UI Structure
+
+TBA
+
+#### Panels
+
+TBA
+
+#### Toolbar
+
+TBA
+#### Command Palette
+
+TBA
+#### Menu Bar
+
+TBA
+
+#### Status Bar
+
+TBA
+
+### Visual Style
+
+#### Colors
 
 Colors are a _very powerful signifier_. The human visual system is typically capable of segmenting, identifying and grouping visual elements based on color much more quickly than by shape, texture and other factors. This means that **color-coding** is a very good strategy for helping users read and navigate potentially crowded UIs.
 
@@ -102,7 +126,11 @@ Here's a breakdown of the color palette:
 - **Pure Red, Green and Blue** — These colors are used to denote _themselves_ (e.g. in material/shader inputs) as well as to denote the X, Y and Z 3D axes. The strong, well established association of these colors from other tools is leveraged to help users orient themselves in the 3D space. Importantly, their intensity values are tweaked independently so that they're all _perceptually_ at the same brightness level.
 - **Primary and Destructive** — These pastel shades are intended for primary buttons in modal dialogs, and for destructive actions. (Such as deleting an item)
 
-### Iconography
+#### Typography
+
+TBA
+
+#### Iconography
 
 Our icon style is heavily influenced by Blender's, but further simplified, with the primary goal being to make icon creation as economical as possible. Specifically, a single icon should _not_ take more than **10 minutes** to be created and fully fleshed out by someone comfortable with a vector tool.
 
@@ -119,6 +147,10 @@ Icons are:
 ![Sample Bevy Editor Design System Icons](assets/69-editor-design-system/icons.png)
 
 ![Same Icon at Different Sizes](assets/69-editor-design-system/icon-sizes.png)
+
+## Part 3 — Implementation
+
+### The `bevy_editor_ds` Crate
 
 ### 9-Slices
 
