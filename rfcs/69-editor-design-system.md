@@ -2,7 +2,13 @@
 
 ## Summary
 
-This RFC proposes a design system for the Bevy Editor UI, and lays out a high-level implementation plan for it.
+This RFC:
+
+- Proposes the creation of a _design system_ for the Bevy Editor UI;
+- Defines a set of foundational principles for this _design system_, and conventions to ensure consistency and usability;
+- Sets up guidelines for organizing and collaborating on the _design system_'s visual assets;
+- Kickstarts the _design system_ with an initial set of reusable _components_ and style assets;
+- Lays out a high-level implementation plan for a new crate (`bevy_editor_ui`) in the Bevy repo;
 
 It is divided in three main parts:
 
@@ -14,22 +20,18 @@ It is divided in three main parts:
 
 Before getting started, it's crucial to acknowledge clashes between typical UI design/development lingo and Bevy's own ECS terminology:
 
-This RFC pertains to the creation of a **Design System**, widely understood by the UI design/development community to refer to _“a collection of reusable components, guided by clear standards, that can be assembled together to build any number of applications.”_ ([Wikipedia](https://en.wikipedia.org/wiki/Design_system))
+This RFC pertains to the creation of a *design system*, as widely understood by the UI design/development community, referring to _“a collection of reusable components, guided by clear standards, that can be assembled together to build any number of applications.”_ ([Wikipedia](https://en.wikipedia.org/wiki/Design_system))
 
-Very importantly, this is an **entirely unrelated concept from what we know as a “System” in the ECS sense**. What's proposed boils down to the introduction of:
+Very importantly, this is an **entirely unrelated concept from what we know as a “system” in the ECS sense**. The crate implementing the _design system_ will likely contain many ECS systems, along with ECS components, resources and assets.
 
-1. A _new crate_ (`bevy_editor_ui`) responsible for providing standardized and reusable elements like typography, icons, color schemes, button styles, form inputs, and more;
-2. A set of practices and conventions to ensure consistency in the editor design: a set of Human Interface Guidelines. (HIG)
+**For clarity, in this RFC, whenever a term is being used outside of the typical Bevy ECS sense it will be _italicized_**. Here's a table with relevant clashes in terminology one should keep an eye out for:
 
-The _design system_ crate will likely contain many _ECS systems_, along with components, resources and assets.
-
-For reference, here's a table with some other relevant clashes in terminology one should keep an eye out for:
-
-| UI Design/Development Term | Bevy ECS / UI Term      | Meaning
-|:---------------------------|:------------------------|:--------------------------------------------------------
-| _Component_                | _Widget_                | Self-contained, _reusable_ piece of UI, often with predefined interactive behaviors, such as a button or slider.
-| _Layer_/_Element_/_View_   | _Entity_/_Node_         | Fundamental building block of the UI hierarchy.
-| ...                        | ...                     | ...
+ UI Design/Development Term   | Comparable Bevy ECS Concept | Meaning
+:-----------------------------|:----------------------------|:-------------------------
+ _Design System_              | Crate / Plugin              | A collection of reusable components, guided by clear standards, that can be assembled together to build any number of applications.
+ _Component_                  | Widget                      | Self-contained, _reusable_ piece of UI, often with predefined interactive behaviors, such as a button or slider.
+ _Layer_ / _Element_ / _View_ | Entity / Node               | Fundamental building block of the UI hierarchy.
+ ...                          | ...                         | ...
 
 ## Part 1 — Theory
 
@@ -39,10 +41,12 @@ A high-quality editor tool is crucial for enabling broad industry adoption of a 
 
 We would like to significantly enhance the appeal of Bevy and help foster an even more vibrant and inclusive community around the project by shipping a state-of-the-art editor tool. Beyond just raw features, user experience will be vital to the Bevy editor's success. (As an example, consider the momentum Blender gained after the 2.80 UI redesign, despite previous versions already being quite capable.)
 
-A game engine editor is a sizeable piece of software with hundreds (or thousands!) of individual UI pieces. While we _could_ build such a UI in an _ad-hoc_ fashion, this would likely yield less-than-optimal results. We would therefore like to come up with a set of foundational principles, guidelines and reusable implementation pieces ahead-of-time to help ensure we stick the landing, efficiently delivering a polished, consistent and user-friendly editor from the get-go.
+Critically, a game engine editor is a sizeable piece of software with hundreds (or thousands!) of individual UI pieces. While we _could_ build such a UI in an _ad-hoc_ fashion, this would likely yield less-than-optimal results. We would therefore like to come up with a set of foundational principles, guidelines and reusable implementation pieces ahead-of-time to help ensure we stick the landing, efficiently delivering a polished, consistent and user-friendly editor from the get-go.
 
 > **Note**
-> There are still several technical challenges to be addressed in order to enable the underlying functionality of the editor, such as IPC, Data Model and Hot Reloading, to name a few. This RFC focuses solely on the UI/UX concerns, as we believe now is the right time to start exploring what the editor will look like and how it will behave. We expect the findings of this exploration will help inform new Bevy UI features and help us uncover any papercuts and limitations.
+> There are still several technical challenges to be addressed in order to enable the underlying functionality of the editor, such as IPC, data model and hot reloading, to name a few. This RFC focuses solely on the UI/UX concerns, as we believe now is the right time to start exploring what the editor will look like and how it will behave.
+>
+> We expect the findings of this exploration will help inform new Bevy UI features and help us uncover any papercuts and limitations.
 
 ### Intended Audiences
 
