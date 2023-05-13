@@ -123,27 +123,48 @@ Here's what the collaboration workflow looks like:
 
 Exported assets, as well as the Community-published Figma design document will be licensed under the [Creative Commons Attribution 4.0 license](https://creativecommons.org/licenses/by/4.0/), which is more suitable for multimedia content than Bevy's MIT/Apache dual license, but roughly as permissive.
 
-### High-Level UI Structure
+### High-Level UI Structure and Layout
 
-TBA
+With default settings, the Bevy Editor UI takes the following high-level structure:
 
-#### Panels
+![Default UI Layout, showing: Menu and action bars at the top. Toolbar at the left. Status bar at the bottom. Several “tiles” in the center for project, scene, viewport and inspector.](assets/69-editor-design-system/default-layout.png)
 
-TBA
+This structure aims to strike a reasonable balance between flexibility, simplicity, self-consistency and familiarity for all editor target audiences, by taking cues from Blender, VS Code and Figma.
+
+The structure is composed of these types of elements:
+
+- **Bars**, which are fixed to the window sides, with limited amount of flexibility/customizability. They can appear only once in the UI, and may only be hidden or swapped to a different “side”, with no further layout customization options;
+- **Tiles** in a nested horizontal/vertical rail system, similar to a Tiling Window Manager, which can either be:
+  - **Unlocked Tiles**, which allow the full range of layout customization: Splitting, closing, resizing, rearranging, stacking via tabs, collapsing;
+  - **Locked Tiles**, which only allow resizing and collapsing, and no other layout customization actions.
+
+Tiles may be locked or unlocked by the user at any time. UI Layouts can be saved and restored, and switched at any time.
+
+#### Menu Bar
+
+The menu bar houses:
+
+- **The “Bevy Button”** — Which when clicked shows the command palette;
+- **A “Traditional” Top Level Menu** — Which houses “File”, ”Edit”, “View” and friends. This can be in one of three possible states:
+  - Disabled (macOS default, to avoid redundancy as we already have the Global menu bar)
+  - Full (Windows and Linux default)
+  - Collapsed (enabled automatically when there isn't enough space)
 
 #### Toolbar
 
-TBA
-#### Command Palette
-
-TBA
-#### Menu Bar
-
-TBA
+The toolbar houses several button for switching the active “Tool”. These are contextual depending on the current UI state.
 
 #### Status Bar
 
-TBA
+Displays on-hover UI element descriptions, keyboard modifier status, progress on long running actions, error/warning counts, contextual statistics. (e.g. Number of entities selected, memory consumption)
+
+#### Actions Bar
+
+Shows buttons for perfoming non-contextual actions, such as running the game, or switching editor layouts.
+
+#### Command Palette
+
+This is a transient, modal floating UI popup that allows globally searching and running actions, switching between open editors, opening new items, and altering properties and settings via keyboard.
 
 ### Visual Style
 
