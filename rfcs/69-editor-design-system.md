@@ -2,7 +2,7 @@
 
 ## Summary
 
-This RFC proposes a design system for the Bevy editor, and lays out a high-level implementation plan for it.
+This RFC proposes a design system for the Bevy Editor UI, and lays out a high-level implementation plan for it.
 
 It is divided in three main parts:
 
@@ -48,7 +48,7 @@ A game engine editor is a sizeable piece of software with hundreds (or thousands
 
 #### This Document
 
-This document is geared towards the people who will (eventually) build the Bevy Editor UI, and also towards those interested in making mockups and explorations of new editor features.
+This document is geared towards the people who will (eventually) build the Bevy Editor UI, Bevy Editor Plugins and also towards those interested in making mockups and explorations of new editor features.
 
 #### The Editor
 
@@ -75,9 +75,37 @@ The following are the foundational principles the Bevy Editor design should abid
 
 ## Part 2 — Design
 
-### Design Files and Collaboration
+### Visual Assets and Collaboration
 
-TBA
+Collaboration on the visual assets of the design system will happen primarily in [Figma](https://figma.com), with coordination taking place via a dedicated Discord channel.
+
+Figma is an online screen design tool and visual collaboration community. It takes on a similar role for designers as that of GitHub for developers, and is widely regarded as the “industry standard” for screen design.
+
+Here's what the collaboration workflow looks like:
+
+1. A new `#editor-ui-dev` Discord channel is set up, to separate technical discussions related to developing the editor's internals from discussions related to developing the Editor UI.
+1. A Figma document will be [published using an official Bevy community profile](https://help.figma.com/hc/en-us/articles/360040035974--Publish-a-File-to-the-Community), for holding the visual assets of the Bevy Editor Design System. Besides a “Cover Page” containing a high level overview of the system and some instructions and links. (Analogous to `README.md`), it will include pages for:
+    - Icons;
+    - Components; (of the UI design kind, _not_ ECS components, see the “A Note on Terminology” section above)
+    - Colors;
+    - Reusable typographical and layer styles;
+
+> **Note**
+> This document represents the canonical state of the Editor Design System, and is analogous to our Git repository's `main` branch. Once published, this document will be accessible by anyone from Figma's [community page](https://www.figma.com/community), which works roughly like GitHub's [Explore page](https://github.com/explore).
+
+3. Maintainers are added to the document, with the ability to make changes and publish updated versions. Most of the actual design work is, however, expected to take place in separate documents via the [Remix feature](https://help.figma.com/hc/en-us/articles/360038510873-Duplicate-Community-files#remix), which is analogous to forking in Git.
+4. Colaborators [duplicate the published Document](https://help.figma.com/hc/en-us/articles/360038510873-Duplicate-Community-files#duplicate) as a Draft, make changes to it and publish it as a Remix to the community. (Remixes are automatically visible from the original document's community page.)
+5. Maintainers discuss the Remix with Collaborators (both via Figma's built-in commenting feature and the `#editor-ui-dev` channel), approve it, integrate the changes back to the original document, and publish a new version.
+
+> **Note**
+> This process is unfortunately more “manual” than Pull Requests, as Figma's branching/merging support is currently not as sophisticated as Git's. (And is in fact currently a _paid feature_) That isn't generally expected to be a problem however, as most changes will be either incremental (new assets) or relatively straightforward to integrate by hand.
+
+6. Asset files (In `.png` and `.json` format) are exported from Figma, commited and merged into the main Bevy Git repository via a GitHub Pull Request, either periodically as a _chore_, or to enable work on a specific `bevy_editor_ui` feature. This will be the step that's “most visible” for developers collaborating on the Bevy codebase, who are not necessarily keeping track of the Design System work on Figma.
+7. At least once per release cycle, the Cloud-based Figma document is also exported in its entirety as a local `.fig` file and commited, in order to prevent future vendor lock-in and ensure long term archival.
+
+#### Licensing
+
+Exported assets, as well as the Community-published Figma design document will be licensed under the [Creative Commons Attribution 4.0 license](https://creativecommons.org/licenses/by/4.0/), which is more suitable for multimedia content than Bevy's MIT/Apache dual license, but roughly as permissive.
 
 ### High-Level UI Structure
 
