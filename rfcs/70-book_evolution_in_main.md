@@ -27,14 +27,14 @@ As a user wanting to contribute to the book, I can do so on the Bevy main reposi
 
 🤷
 
-More non code commits in the main repo maybe? But I think that's good as it gives better visibility to book contributions.
+More non code commits in the main repo maybe? But I think that's good as it gives better visibility to book contributions. The main repo will also gets larger wich can slow down checkout / clones.
 
 ## Rationale and alternatives
 
 - It allows us to start writing the book without worrying it about being public directly, or working in a long lived branch
-- This keeps the book versionning in check with Bevy
+- This keeps the book versioning in check with Bevy
 
 ## Future possibilities
 
 - Publish the book content as part of the rust doc (a `bevy_book` crate?)
-- Publish the book content with versionning
+- Publish the book content with versioning
