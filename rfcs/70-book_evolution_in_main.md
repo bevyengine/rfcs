@@ -2,7 +2,7 @@
 
 ## Summary
 
-Reduce the cost of starting the book, and of book evolutions with new versions of Bevy
+Reduce the cost of starting the book, and of ongoing book evolution with new versions of Bevy.
 
 ## Motivation
 
@@ -27,7 +27,7 @@ As a user wanting to contribute to the book, I can do so on the Bevy main reposi
 
 🤷
 
-More non code commits in the main repo maybe? But I think that's good as it gives better visibility to book contributions. The main repo will also gets larger wich can slow down checkout / clones.
+More non code commits in the main repo maybe? But I think that's good as it gives better visibility to book contributions. The main repo will also gets larger which can slow down checkout / clones.
 
 ## Rationale and alternatives
 
@@ -38,3 +38,4 @@ More non code commits in the main repo maybe? But I think that's good as it give
 
 - Publish the book content as part of the rust doc (a `bevy_book` crate?)
 - Publish the book content with versioning
+- Remove `/docs/` in the main repo and migrate all of that content to the Bevy book
