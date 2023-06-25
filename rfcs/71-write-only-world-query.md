@@ -72,6 +72,25 @@ Consider `ui_layout_system`:
 
 https://github.com/bevyengine/bevy/blob/469a19c290861049ad121aa83d72f830d1ec9b40/crates/bevy_ui/src/layout/mod.rs#L215-L230
 
+```rust
+pub fn ui_layout_system(
+    primary_window: Query<(Entity, &Window), With<PrimaryWindow>>,
+    windows: Query<(Entity, &Window)>,
+    ui_scale: Res<UiScale>,
+    mut scale_factor_events: EventReader<WindowScaleFactorChanged>,
+    mut resize_events: EventReader<bevy_window::WindowResized>,
+    mut ui_surface: ResMut<UiSurface>,
+    root_node_query: Query<Entity, (With<Node>, Without<Parent>)>,
+    style_query: Query<(Entity, Ref<Style>), With<Node>>,
+    mut measure_query: Query<(Entity, &mut ContentSize)>,
+    children_query: Query<(Entity, Ref<Children>), With<Node>>,
+    mut removed_children: RemovedComponents<Children>,
+    mut removed_content_sizes: RemovedComponents<ContentSize>,
+    mut node_transform_query: Query<(Entity, &mut Node, &mut Transform, Option<&Parent>)>,
+    mut removed_nodes: RemovedComponents<Node>,
+) {
+```
+
 We would replace
 
 ```rust
@@ -334,6 +353,19 @@ using `WriteOnly` in `animation_player` would lead to some issue. Let's look
 at its signature:
 
 https://github.com/bevyengine/bevy/blob/469a19c290861049ad121aa83d72f830d1ec9b40/crates/bevy_animation/src/lib.rs#L355-L364
+
+```rust
+pub fn animation_player(
+    time: Res<Time>,
+    animations: Res<Assets<AnimationClip>>,
+    children: Query<&Children>,
+    names: Query<&Name>,
+    transforms: Query<&mut Transform>,
+    morphs: Query<&mut MorphWeights>,
+    parents: Query<(Option<With<AnimationPlayer>>, Option<&Parent>)>,
+    mut animation_players: Query<(Entity, Option<&Parent>, &mut AnimationPlayer)>,
+) {
+```
 
 Notice:
 
