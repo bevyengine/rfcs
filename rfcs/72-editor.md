@@ -4,7 +4,7 @@
 
 This RFC outlines the foundation for Bevy's editor. It describes its basic
 components and how they will interact with Bevy's engine. Following this RFC
-will result in a minimum viable product Bevy Editor.
+will result in a minimum viable product for the Bevy Editor.
 
 This RFC does NOT cover the particular user interface (UI) design for the
 editor. Instead, it provides the building blocks for a proper UI design, with a
