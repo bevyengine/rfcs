@@ -12,7 +12,7 @@ minimal usable interface to place these components in context.
 
 ## Motivation
 
-Unlike most major game engines, Bevy lacks an interactive editor. This lack has
+Unlike most major game engines, Bevy lacks an interactive editor. This has
 three major downsides:
 
 1. it increases the barrier to entry for potential new developers;
