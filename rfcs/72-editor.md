@@ -30,7 +30,7 @@ interactive editor could be built on top of Bevy that takes away this freedom;
 doing so violates the spirit of Bevy's plugin-heavy design, thus robbing it of
 Bevy's expressive nature.
 
-**Bevy's editor must acknowledge the duel nature of Bevy as both a game engine
+**Bevy's editor must acknowledge the dual nature of Bevy as both a game engine
 and a game framework.**
 
 A secondary, smaller challenge, is that Bevy relies on the Cargo build system
