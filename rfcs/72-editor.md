@@ -378,7 +378,7 @@ cargo run -p editor
 
 ### Asset management
 
-1. Template management can be done using terra.
+1. Template management can be done using `terra`.
 2. Downloading static assets can be managed by reqwest.
 3. Downloading code assets can be done with cargo.
 4. Downloading template assets can be done with libgit2.
