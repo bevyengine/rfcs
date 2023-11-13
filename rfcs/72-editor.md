@@ -62,7 +62,7 @@ This tool allows us to create new projects, manage assets, edit projects, and
 even publish games. Note that `bevy` is not meant to replace `cargo`, but to
 work alongside it.
 
-Also, just like Cargo, the Bevy version used in a project does not need to match
+Also, just like Cargo, the Bevy library version used in a project does not need to match
 the version of `bevy` you have installed. You can upgrade and downgrade them
 independently. Therefore, we recommend you always use the latest version of the
 `bevy` tool.
