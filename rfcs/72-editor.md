@@ -45,7 +45,7 @@ The easiest way to get started with Bevy's editor by downloading it with Cargo:
 $ cargo install bevy
 ```
 
-(Note the use of `install`, not `add`!)
+*Note the use of `install`, not `add`!* This means Bevy's editor for your entire rust environment. In the future you may also be able to download it from external sources such as Steam.
 
 This will add `bevy` to our path:
 
