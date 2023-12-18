@@ -3,7 +3,8 @@
 ## Summary
 
 This RFC describes the data model and API that the Editor uses in memory,
-and the basis for communicating with the Game process and for serializing that data to disk
+and the basis for communicating with the Game process
+and for serializing that data to disk
 (although the serialization format to disk is outside of the scope of this RFC).
 The data model is largely inspired by the one of [Our Machinery](https://ourmachinery.com/),
 as described in [this blog post](https://web.archive.org/web/20220727114600/https://ourmachinery.com/post/the-story-behind-the-truth-designing-a-data-model/).
@@ -20,18 +21,130 @@ In this RFC, the following terms are used:
 
 ## Motivation
 
-The Bevy Editor needs a _data model_, that is a way to organize the data it manipulates,
-and more precisely here the Game data that it creates and edits
-for the purpose of transforming it into a final shippable form to be loaded by the Game at runtime.
-The data model defines the structure of this data, and the APIs to manipulate it.
+### Editor MVP
 
-We want to make the Editor data model decoupled from the runtime data model that the Game uses
-to avoid the Editor depending on the Game.
-This avoids having to rebuild the Editor, or even restart its process, when the Game code changes.
+The Bevy Editor is an application focusing on visual editing of Bevy scenes,
+which are collections of entities and components.
+As an MVP (Minimal Valuable Product), this is its primary function.
 
-We also want to make that data structured in the Editor data model format _transportable_,
-that is serializable with the intent to transport it over any inter-process communication (IPC) mechanism,
-so that the Editor process can dialog with the Game process.
+There are currently two major classes of approaches being considered for the Editor:
+
+- embedding the Editor into the Game itself, for example as a `Plugin`; and
+- having a separate Editor application independent from the Game.
+
+This RFC assumes the Editor is a standalone application.
+The motivating argument is that an Editor for a game engine
+is typically a standalone application downloaded and installed by the user,
+and reused multiple times to create many different Games.
+This is the case for all the major game engines (Unity3D, UnrealEditor, Godot).
+The data model described by this RFC could be use with an embedded Editor,
+although some of its rationales might be less relevant in that scenario.
+
+In the context of a standalone Editor application,
+the ability to quickly iterate on saving the scene
+and reloading it inside the (separate) runtime Game application
+is also generally considered part of an MVP.
+This is to ensure some decent productivity for the Editor user.
+
+In any case however, editing a scene includes the ability to:
+
+- Create new empty scenes
+- Save to disk and reload the scene
+- Add entities and components to the scene
+- Visualize the list of existing entities and their components
+- Inspect the data associated with components, modify that data with a UI
+- Visual placement in 3D (for entities with a `Transform` component)
+  is generally considered an MVP feature too
+- Undo / redo actions
+
+This RFC argues that the latter point (undo/redo) is critical for an MVP,
+as editing without Undo can quickly become as painful as building a scene from code.
+A workaround could be to reload from disk, but an MVP won't focus on load speed,
+so this can quickly become a time sink.
+
+### Undo / redo
+
+Undo / redo systems can take many forms.
+In its simplest form,
+an _ad hoc_ system allows undos and redos for a specific type of editing.
+For example, adding an entity or component can have a simple undo system
+which deletes that item.
+For redo, things are slightly more complex,
+as the system needs to remember how to re-create the entity or component.
+Again, there are various options here,
+but they all require some form of serializing of the data to save it for a later redo.
+
+Ad hoc systems generally have the advantage of being simpler,
+as they're focused on a single type of editing.
+For example, an undo / redo system for adding and removing components
+only requires being able to manipulate components,
+and doesn't care for example about manipulating audio clips or animation tracks.
+However, the multiplying of those specialized systems means that
+the same kind of code is written again and again with slight variations,
+as all undo / redo systems need some form of diffing for example.
+
+An alternative design to undo / redo solving this issue
+is to create a global undo system for any kind of user action in the Editor.
+This offers several advantages:
+
+- Single code to maintain and debug
+- Consistent user experience (key binding, undo UI, _etc._)
+- Adding support for a new kind of edits is vastly simpler,
+  as it requires only an adapter to the global undo / redo system,
+  but most other functions are already shared and available.
+- Ability to have a single unified _command palette_,
+  which shows all actions (edits) available to the user,
+  and is as such a great tool for learning.
+
+This global approach does bear however the inconvenient of an initial larger effort
+to build such global system and its abstraction of all user actions.
+
+Because of the advantages mentioned above,
+this RFC proposes that a global unified undo / redo system be adopted for the Editor.
+
+### Data Model
+
+The _data model_ defines the abstraction that the Editor uses
+to represent the user actions and manipulate the scene data as a result.
+
+An abstraction is desirable for several reasons:
+
+- As a separate process, the Editor doesn't have direct knowledge of the Game types.
+  This means for example that it doesn't know any custom Game component.
+  However the user still expects being able to edit their own components,
+  in addition to the Bevy built-in ones.
+  So those custom components need to be abstracted in a way the Editor can edit them
+  without having to load and execute the actual Game code inside the Editor process,
+  which would pose many issues with Rust compiler version, dynamic loading, _etc._.
+- The undo / redo system should ideally be able to work with any kind of action/edit,
+  without having to know the underlying types those actions apply to.
+  This ability greatly simplifies writting such a system,
+  and make it automatically extensible to new actions in the future.
+- Similarly, any system working globally, like a command palette,
+  becomes automatically extensible by using a single shared abstraction.
+- Looking forward, having an abstraction which allows serializing user actions
+  enables _transporting_ those actions and executing them somewhere else.
+  In the context of an Editor talking to a live Game process,
+  the abstaction enables building some form of inter-process communication (IPC) mechanism,
+  which allows live editing, both locally and remotely (server, console devkit, ...).
+
+Based on this abstraction, the overall editing process for users becomes:
+
+1. Users generate actions (click, _etc._) to edit the scene data.
+1. Those actions produce _edits_, with associated editing data.
+   For example, adding a new component generates an "Add Component" edit,
+   which contains the type of component to add and the target entity to add it to.
+1. Edits are optionally recorded by the undo / redo system for later undo.
+   That system can also act as an edit producer during redo.
+1. Edits are finally consumed by the Editor and applied to the scene data to modify it.
+
+Note that this data model abstraction stragegy is the same strategy adopted by `serde`
+to ensure different incompatible formats of serialization and deserialization
+can all work together and manipulate the same data,
+without requiring all formats to understand each other.
+See the [Serde data model](https://serde.rs/data-model.html) for reference.
+To some extent, it's also similar to how `DynamicScene` represents a scene
+without actually knowing at build time the types of its components.
 
 ## User-facing explanation
 
@@ -651,10 +764,10 @@ and would be best addressed by a separate RFC focused on that interaction.
 
 The data model adds a layer of abstraction over the "native" data the Game uses,
 which makes most operations indirected and more abstract.
-For example, setting a value involves invoking a setter method
-(or equivalent binary offset write),
-possibly after locking an object for write access,
-as opposed to simply assigning the value to the object (`c.x = 5;`).
+For example, setting the `Transform` of a component involves creating an edit
+and associating the value the user wants to assign,
+then letting the Editor apply that edit to the actual component instance,
+as opposed to simply accessing the component directly through the `World`.
 
 ## Rationale and alternatives
 
