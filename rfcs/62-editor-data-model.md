@@ -318,8 +318,7 @@ Diffs in details are out of the scope of this RFC,
 which assumes they already exist for both `Reflect` and `DynamicScene`.
 See for example [#5563](https://github.com/bevyengine/bevy/issues/5563).
 
-In the following, we assume the existence of an `EditDiff` type representing the diff itself,
-and an `EditEvent` type representing the diff and a specific target.
+In the following, we assume the existence of an `EditDiff` type representing that diff.
 
 ```rust
 struct EditDiff {
@@ -334,60 +333,78 @@ impl EditDiff {
     /// Apply the current diff by in-place mutating a target object.
     fn apply_inplace(&self, target: &mut dyn Reflect);
 }
-
-#[derive(Event)]
-struct EditEvent {
-    target: Entity,
-    diff: EditDiff,
-}
 ```
 
 ### Data model API
 
-#### `EditScene`
+#### `EditObject`
 
-The primary editing object is the `EditScene`.
-Each `EditScene` represents a single scene being edited.
-From a user's perspective, this corresponds to an "open" scene document.
-The `EditScene` is a Bevy component, and is manipulated with the ECS API;
-spawning an entity with an `EditScene` opens a particular scene file,
-while despawning it closes the scene.
+The primary editing object is the `EditObject`.
+Each `EditObject` represents a single data source being edited.
+From a user's perspective, this corresponds to an "open" document.
+The `EditObject` is a Bevy component, and is manipulated with the ECS API;
+spawning an entity with an `EditObject` opens a particular asset file,
+while despawning it closes the asset.
+Saving the asset is a separate action from closing it.
 
-The `EditScene` internally wraps a `DynamicScene` describing its content,
-and an `AssetPath` defining where that scene is saved as an asset.
+The `EditObject` internally wraps an `EditData` field describing its content,
+and an `AssetPath` defining where that data source is saved as an asset.
 It's not an `Asset` itself however,
 because the data model needs to control and observe mutating operations
 and handle load from and save to disk.
 
+The `EditData` is either a `DynamicScene` or a simple `Box<dyn Reflect>`.
+This is a workaround for the fact `DynamicScene` doesn't implement `Reflect`.
+
 ```rust
-#[derive(Component)]
-pub struct EditScene {
-    path: Option<AssetPath>,
-    data: DynamicScene,
+/// Editable data source.
+pub enum EditData {
+    pub Scene(DynamicScene),
+    pub Reflect(Box<dyn Reflect>),
 }
 
-impl EditScene {
-    /// Create a new empty scene.
+/// Editing object, representing an asset open for editing.
+#[derive(Component)]
+pub struct EditObject {
+    path: Option<AssetPath>,
+    data: EditData,
+}
+
+impl EditObject {
+    /// Create a new empty `Reflect` object.
     pub fn new() -> Self;
-    /// Get the asset path where the scene is saved to, if any.
+    /// Create a new empty scene.
+    pub fn new_scene() -> Self;
+    /// Open an existing asset.
+    pub fn open(path: AssetPath) -> Self;
+    /// Get the asset path where the object is saved to, if any.
     pub fn path(&self) -> Option<&AssetPath>;
-    /// Set the asset path where the scene is saved to.
+    /// Set the asset path where the object is saved to.
     pub fn set_path(&mut self, path: AssetPath);
-    /// Get read-only access to the scene content.
-    pub fn data(&self) -> &DynamicScene;
-    /// Apply a diff to mutate the scene content.
+    /// Get read-only access to the object content.
+    pub fn data(&self) -> &EditData;
+    /// Apply a diff to mutate the object content.
     pub fn apply_diff(&mut self, diff: EditDiff);
 }
 
 // Example: create a new empty scene with a given path
 fn new_scene(mut commands: Commands) {
-    let mut scene = EditScene::new();
+    let mut scene = EditObject::new_scene();
+    // Setting a path is optional until the scene is first saved.
     scene.set_path("scenes/level1.scene");
     commands.spawn(scene);
 }
 
+// Example: open a `.meta` file for editing
+fn open_meta_asset(
+    mut commands: Commands,
+) {
+    let obj = EditObject::open("textures/wall.meta");
+    commands.spawn(obj);
+}
+
 // Example: enumerate all open scenes
-fn list_scenes(q_scenes: Query<&EditScene>) {
+fn list_scenes(q_scenes: Query<&EditObject>) {
     for scene in q_scenes {
         info!("Scene: {} resources, {} entities, path={:?}",
             scene.data().resources.len(),
@@ -398,7 +415,7 @@ fn list_scenes(q_scenes: Query<&EditScene>) {
 
 // Example: save and close a scene
 fn save_and_close(
-    q_scenes: Query<&EditScene>,
+    q_scenes: Query<&EditObject>,
     mut commands: Commands,
     mut events: EventReader<SaveAndCloseSceneEvent>,
 ) {
@@ -407,23 +424,26 @@ fn save_and_close(
         let Ok(scene) = q_scenes.get(scene_entity) else {
             continue;
         };
-        if scene.save().is_ok() {  // saves to scene.path()
-            // Close the scene by destroying the EditScene
+        // Save the scene as asset to its scene.path()
+        if scene.save().is_ok() {
+            // Close the scene by destroying the EditObject
             commands.entity_mut(scene_entity).despawn_recursive();
         }
     }
 }
 ```
 
-As usual, ECS change detection allows a system to be notified
-when a scene has been mutated.
+As usual, ECS change detection (`Added`, `Changed`, `RemovedComponent`, _etc._)
+allows a system to be notified when a scene has been added (= opened for edits),
+mutated, or removed (= closed).
 
 #### `EditEvent`
 
-Applying an `EditDiff` to an `EditScene` is done via _events_.
+Applying an `EditDiff` to an `EditObject` is done via _events_.
 An edit system sends an `EditEvent` with the `EditDiff` to apply
-and the target entity owning the `EditScene` to mutate.
-The event is sent as usual, typically with `EventWriter<EditEvent>`.
+and the target entity owning the `EditObject` to mutate.
+The event is sent with the usual event mechanisms,
+typically through the use of `EventWriter<EditEvent>`.
 
 ```rust
 #[derive(Event)]
@@ -433,64 +453,37 @@ struct EditEvent {
 }
 ```
 
+The use of events allows many systems to collaborate on edits,
+by producing `EditEvent`s and/or consuming them,
+while benefiting from the existing event machinery
+to pipeline those edits into a single stream of changes,
+and keep the overall architecture extensible to new features.
+
 Internally, the Editor runs a system to consume those events
-and apply the diffs to the various `EditScene` targets.
-This ensures changes to a scene are sequential and ordered.
+and apply the diffs to the various `EditObject` targets.
 Careful ordering of editing systems through ECS schedules
-allows prioritizing some edits over others.
+allows prioritizing some edits over others if needed,
+for example to ensure saving to an asset only after all edits are applied.
 
 ```rust
-fn apply_scene_edits(
-    mut q_scenes: Query<&mut EditScene>,
+fn apply_edits(
+    mut q_objects: Query<&mut EditObject>,
     mut reader: EventReader<EditEvent>,
 ) {
     for ev in reader {
-        let Ok(mut scene) = q_scenes.get_mut(ev.target) else {
+        let Ok(mut obj) = q_objects.get_mut(ev.target) else {
             continue;
         };
-        scene.apply_diff(ev.diff);
+        obj.apply_diff(ev.diff);
     }
 }
 ```
 
 By leveraging the lower level functionalities `Events`,
 and the ordering of ECS schedules,
-an edit system can also observe some edits,
+an edit system can also observe all edits,
 for example to record them (undo system),
 and rewrite them or inject new edits (redo system).
-
-------------
-v TODO from here v
-
-
-```rust
-pub struct DataModel {
-    // [...]
-}
-
-impl DataModel {
-    pub fn mutate_scene(&mut self, )
-}
-```
-
-```rust
-pub trait Action {
-    fn exec(&mut self, scene: &EditScene) -> EditDiff;
-}
-
-pub trait DataModel {
-    // Scenes
-    fn new_scene(&mut self) -> EditScene;
-    fn open_scene(&mut self, path: AssetPath) -> Result<EditScene, OpenSceneError>;
-    fn close_scene(&mut self, path: AssetPath);
-    fn scenes(&self) -> impl Iterator<Item = &EditScene>;
-    fn scenes_mut(&mut self) -> impl Iterator<Item = &mut EditScene>;
-
-    // Actions
-    fn register_action(&mut self, action: Action, name: String);
-    fn unregister_action(&mut self, name: &str);
-}
-```
 
 ## Drawbacks
 
@@ -498,12 +491,29 @@ pub trait DataModel {
 
 ### Abstraction complexity
 
-The data model adds a layer of abstraction over the "native" data the Game uses,
-which makes most operations indirected and more abstract.
+The data model adds a layer of abstraction over the `Asset` API the Game uses,
+and the diff-based editing makes most operations indirected and more abstract.
 For example, setting the `Transform` of a component involves creating an edit
 and associating the value the user wants to assign,
 then letting the Editor apply that edit to the actual component instance,
 as opposed to simply accessing the component directly through the `World`.
+
+### Prerequisite: reflection diffs
+
+The core of the design of this RFC rests on `EditDiff`,
+which we assume can be implemented with all the necessary features.
+This has been attempted a few times in the past,
+so there's definitely an interest for it,
+although today we don't have any implementation or RFC for it.
+
+### Performance of the `Reflect` API
+
+The use of the `Reflect` API to mutate objects in a type erased way
+is the standard pattern in Bevy,
+and the rationale for that `Reflect` API to exist in the first place.
+Performance may be a concern if the number of edits is large,
+as reflection-based access is always slower than direct access,
+but there's no data today to tell.
 
 ## Rationale and alternatives
 
@@ -515,24 +525,21 @@ as opposed to simply accessing the component directly through the `World`.
 
 This design is thought to be the best in space because it adapts to the Bevy architecture the design of Our Machinery,
 which was built by a team of experts with years of experience and 2 shipped game engines.
-Our Machinery is also a relatively new game engine,
-so is not constrained by legacy choices which would make its design arguably outdated or not optimal.
+Our Machinery was also at the time they published tech docs a relatively new game engine,
+not constrained by legacy choices which would make its design arguably outdated or not optimal.
 
-The impact of not doing this is obvious: we need to do _something_ about the Editor data model,
+The impact of not doing this is obvious:
+we need to do _something_ about the Editor data model,
 so if not this RFC then we need another design anyway.
 
-The RFC is targeted at the Bevy Editor, so the change is to be implemented within that crate (or set of crates),
-with any additional changes to Bevy itself to catter for possible missing features in reflection.
-The data model constitutes the core of the Bevy Editor so implementation in an ecosystem crate is not suited.
-
-- **Alternative**: Use the current `Reflect` architecture as-is,
-with `Path`-based property manipulation.
-This is the most simple way, as it avoids the complexity of type layouts and byte stream values (and the `unsafe` associated).
-The drawback is that calling a virtual (trait) method for each get and set of each value
-is reasonable for manual edits in the Editor (execution time much smaller than user reaction time)
-but might become a performance issue when automated edits come into play,
-like for an animation system with a timeline window
-allowing to scroll current time and update all animated properties of all objects in the scene at once.
+The RFC is targeted at the Bevy Editor,
+so the change is to be implemented within that crate (or set of crates),
+with any additional changes to Bevy itself
+to catter for possible missing features in reflection.
+The data model constitutes the core of the Bevy Editor
+so implementation in an ecosystem crate is not suited.
+It's likely self-contained enough though for a dedicated crate,
+which would be core to the Editor, like the built-in Bevy crates.
 
 ## Prior art
 
