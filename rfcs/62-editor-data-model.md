@@ -769,9 +769,17 @@ They list some pros and cons of this approach:
 - What parts of the design do you expect to resolve through the implementation of this feature before the feature PR is merged?
 - What related issues do you consider out of scope for this RFC that could be addressed in the future independently of the solution that comes out of this RFC? -->
 
-1. How do we store string instances? Storing a `String` requires an extra heap allocation per string
-and makes `GameObject` non-copyable.
-Interning and using an ID would solve this.
+1. How do we implement `EditDiff`?
+   This is out of scope of this RFC,
+   but is a prerequisite to implement it.
+
+2. How cumbersome is it to work with `Reflect`?
+   Do we need some utilities for common operations,
+   like adding or removing entities,
+   addding or removing components,
+   or accessing a component field by name?
+   This is probably out of scope,
+   and will be made clear during implementation.
 
 ## Future possibilities
 
@@ -792,7 +800,8 @@ Because the Editor data model provides a centralized source of truth for all edi
 this enables building a unique undo/redo system and a unique copy/paste system shared by all other editing systems,
 without the need for each of those editing systems to design their own.
 
-I expect the following future RFCs to build on top of this one:
+I expect the following future RFCs (or direct feature implementations)
+to build on top of this one:
 
 - Game/Editor communication (IPC)
 - Undo/redo system
