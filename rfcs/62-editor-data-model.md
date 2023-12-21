@@ -143,148 +143,11 @@ to ensure different incompatible formats of serialization and deserialization
 can all work together and manipulate the same data,
 without requiring all formats to understand each other.
 See the [Serde data model](https://serde.rs/data-model.html) for reference.
-To some extent, it's also similar to how `DynamicScene` represents a scene
-without actually knowing at build time the types of its components.
+For Bevy, we already have the `Reflect` API and the `DynamicScene` type,
+which allow manipulating objects in a generic way
+without actually knowing at build time the types being edited.
 
 ## User-facing explanation
-
-The Bevy Editor creates and edits Game data to build scenes and other assets,
-and eventually organize all those Game assets into some cohesive game content.
-
-### Type exchange
-
-The Editor and the Game have different data models.
-The Game data is baked into a format optimized for runtime consumption
-(fast loading from persistent storage and minimal transformation before use),
-often with platform-specific choices.
-In contrast, the Editor manipulates a higher-level format independent of the Game itself or the target platform.
-Therefore the two must exchange Game types and data to enable conversions
-between the data encoded in the two data models.
-Because the Game and the Editor are separate processes,
-this exchange occurs through an inter-process communication (IPC) mechanism.
-
-During development, the Game links and uses the `EditorClientPlugin`.
-This is a special plugin provided as part of the Editor ecosystem,
-and which enables the Game and the Editor to communicate via IPC.
-This plugin is not linked in release builds, and therefore does not ship with the Game.
-The Game only loads the `EditorClientPlugin` when launched into a special _edit mode_
-via a mechanism outside of the scope of this RFC (possibly some environment variable,
-or command-line argument, or any other similar mechanism).
-
-When writing the Game code, the Author(s) define new Rust types to represent components,
-resources, _etc._ specific to that Game (for example, `MainPlayer` or `SpaceGun`).
-Because the Editor does not depend on the Game, those Game types are sent at runtime to the Editor via IPC.
-This allows the Editor to understand the binary format of the Game objects
-and convert them into its data model and back.
-
-### Editing workflow
-
-The general editing workflow is as follows:
-
-- The Author starts the Editor executable and create a new project or loads an existing project.
-- The Editor launches the Game executable in _edit mode_ to use the `EditorClientPlugin` for Game/Editor communication.
-- The Editor queries via IPC the Game for all its Game types, including components and resources.
-- The Editor builds a database of all the (dynamic) types received,
-and make them available through the type API of its data model.
-- The Author creates new object instances from any of those types,
-and manipulates the data of those instances via the various Editor functionalities,
-themselves using the data model API of the Editor.
-- Optionally, the Author saves the project,
-which makes the Editor serialize the data model to persistent storage
-for later Editor sessions on the same project.
-
-### Data model
-
-The _data model_ of the Editor refers to the way the Editor manipulates this Game data,
-their representation in memory while the Editor executable is running,
-and the API to do those manipulations.
-The Editor at its core defines a centralized data model,
-and all the ECS systems of the Editor use the same API to access that data model,
-making it the unique source of truth while the Editor process is running.
-This unicity prevents desynchronization between various subsystems,
-since they share a same view of the editing data.
-It also enables global support for common operations such as copy/paste and undo/redo,
-since all ECS systems will observe the same copy/paste/undo/redo changes to that unique source of truth.
-
-When writing the Game code, the Author(s) define new Rust types
-to represent components, resources, _etc._ specific to that Game (for example, `MainPlayer` or `SpaceGun`).
-At runtime, those Rust types are used to allocate _instances_ (allocated objects).
-The representation of the instances in memory
-(_e.g._ `SpaceGun.fireSpeed` field takes 4 bytes starting at 28 bytes from the start of the object instance),
-also called the _layout_,
-is optimal in terms of read and write access speed by the CPU,
-but it is _static_, that is the type layout is defined during compilation and cannot be changed afterward.
-
-In contrast, we want to enable the Editor to observe changes in the Game code without rebuilding or even restarting the Editor process,
-in order to enable fast iteration for the Authors.
-This feature, referred to as _hot-reloading_, requires the Editor to support type changes,
-which is not possible with static types like the Game uses.
-Therefore, to allow this flexibility, the Editor data model is based on _dynamic types_
-defined exclusively during Editor execution.
-The data model defines an API to instantiate objects from dynamic types,
-manipulates the data of those instances,
-but also modify the types themselves while objects are instantiated.
-This latter case is made possible through a set of migration rules
-allowing to transform an object instance from a version of a type
-to another modified version of that type.
-
-The data model supports various intrinsic types: boolean, integral, floating-point, strings,
-arrays, dictionaries, enums and flags, and objects (references to other types).
-Objects can be references to entities or components or resources.
-Dynamic types extend those by composition;
-they define a series of _properties_, defined by their name and a type themselves.
-Conceptually, a property can look like (illustrative pseudo-code):
-
-```txt
-type "MyVec2" {
-  property x : float32,
-  property y : float32,
-}
-
-type "MyPlayerComponent" {
-  // owned data
-  property "name"   : string
-  property "health" : float32
-  property "forward": type "MyVec2"
-  // references to other objects
-  property "target" : entity          // reference to another Entity
-  property "text"   : ref type "Text" // reference to a Text component
-}
-```
-
-_Note:_ An `Entity` in Bevy is just an index, so is conceptually already a reference.
-The `Entity` type doesn't store the entity itself and its component;
-it stores the index (reference) to it.
-This is why the pseudo-code above doesn't read `ref entity`, which would be redundant.
-
-The data model offers an API (the _object API_) to manipulate object instances:
-
-- get the type of an object instance
-- get and set property values of a type instance
-- lock an object for exclusive write access;
-this allows making a set of writes transactional (see below for details)
-
-The object API is most commonly used to populate a User Interface (UI) with data.
-That UI allows the Authors to edit the data via the Editor itself.
-It's also used by Editor systems to manipulate object instances where needed.
-
-The data model also offers an API (the _property API_) to manipulate the types themselves:
-
-- get a type's name
-- enumerate the properties of a type
-- add a new property
-- remove an existing property
-
-The property API is most commonly used when reloading the Game after editing its code and rebuilding it,
-to update the Editor's dynamic types associated with the custom Game types.
-
-The data model guarantees the integrity of its data by allowing concurrent reading of data
-but ensuring exclusive write access.
-This allows concurrent use of the data, for example for remote collaboration,
-so long as write accesses to objects are disjoints.
-Each object for which write access was given is locked for any other access.
-This is similar in concept to the Rust borrow model,
-and to that respect the Editor data model plays the role of the Rust borrow checker.
 
 <!-- Explain the proposal as if it was already included in the engine and you were teaching it to another Bevy user. That generally means:
 
@@ -293,6 +156,133 @@ and to that respect the Editor data model plays the role of the Rust borrow chec
 - Explaining how Bevy users should *think* about the feature, and how it should impact the way they use Bevy. It should explain the impact as concretely as possible.
 - If applicable, provide sample error messages, deprecation warnings, or migration guidance.
 - If applicable, explain how this feature compares to similar existing features, and in what situations the user would use each one. -->
+
+The Editor data model is the API by which the various Editor parts edit the Game data.
+It's a global abstraction of the various data sources (scenes, assets, ...),
+and the various editing systems (3D view, `Parent`-based hierarchy, asset inspector, ...) manipulating them.
+
+### Overview
+
+A _data source_ is some Game data which the Editor can create and modify. The Editor supports a few built-in data sources corresponding to common Bevy engine types:
+
+- Scenes are collections of entities and components.
+  They correspond to the `Scene` Bevy type.
+- Components are ECS `Component`s`, structured collections of individual fields.
+- Assets are any other type of reusable data referenced by the Game,
+  like meshes, images, fonts, audio clips, animation tracks, ...
+  They correspond to the `Asset` Bevy trait.
+
+Thanks to the data source abstraction,
+the Editor can handle custom components and assets defined in Game code.
+
+An _editing system_ is any data consumer
+using the data model API to query and modify data from one or more data sources.
+Typical examples include:
+
+- a 3D view allowing the user to place objects in space,
+  which requires editing the `Transform` of entities.
+- an asset inspector to list the various `Asset`s in use by the Game,
+  and edit their import settings (`.meta` files).
+- a hierarchy view to group and reorganize entities based on their `Parent` hierarchy.
+
+This abstracted editing model offers many advantages:
+
+- Robust: the sharing of common steps like edit diffing means less code to maintain,
+  and less code to test and debug.
+- Extensible: new data sources and new editing systems can easily be added,
+  without the need for changing existing ones.
+- Observable: an editing system can list all possible registered editing actions
+  (command palette),
+  or observe all data changes, and record and replay them
+  (undo / redo system, automation / scripting system).
+  This replay can also be remote (live editing).
+
+### Game type discovery
+
+In order to allow the user to edit custom Game types (components, assets, ...),
+the Editor needs to discover those types.
+
+There are two main strategies for this:
+
+1. The Editor builds the Game code and extracts from it metadata about the types.
+   This requires some tooling to access the type system of a Rust build.
+   However, this provides the best user experience, as discovery is automated
+   and exhaustive.
+
+2. The Editor runs the Game in a separate process, and communicates with it,
+   requesting a serialized dump of all registered types.
+   This is somewhat easier to implement that the previous strategy,
+   in particular because Bevy requires registering all types before starting the app,
+   so an `EditorPlugin` could automatically read the `TypeRegistry` once the app runs.
+   However, from a user experience perspective,
+   this means types have to be actively registered before the Editor can "see" them.
+
+Once the types are gathered, they are serialized and sent to the Editor.
+This makes them available to the data model API
+to create instances of those types, and edit them.
+
+### Data sources
+
+The three built-in Editor data sources are:
+
+- Scenes
+- Components
+- Asset import settings (`.meta` files)
+
+Scenes are the main editing unit, and contain a collection of entities and components.
+Bevy already supports scenes with types unknown at build time
+via the `DynamicScene` type and related API.
+That API is largely based on the Bevy reflection (`Reflect`) API.
+
+Components are structured collections of fields, implementing the `Component` trait.
+They can be accessed via the reflection API.
+
+Assets are serialized to disk accompanied with their import settings.
+Those settings are written in `.meta` files alongside the assets.
+The import settings are also accessed via the reflection API.
+
+### Editing systems
+
+The Editor is composed of a variety of editing systems.
+Each editing system manipulates some Game data via the data model API.
+They provide the basic building blocks for the user to edit the Game data.
+
+Each editing system uses the same basic workflow.
+Let's take the example of a hierarchy panel,
+which shows the list of entities in a scene as a hierarchy
+based on the relationship defined by the `Parent` component.
+The hierarchy panel allows the user to edit this hierarchy by reparenting entities.
+To achieve this, the hierarchy panel uses the data model API to:
+
+- query the list of entities in the current scene;
+- for each entity, query the data of its `Parent` component (if any);
+- set new data to the `Parent` component when the user edits the hierarchy.
+
+For each user action, the editing system generates an _edit diff_,
+which represents the difference between the "before" and "after" state of an object.
+For our example, the diff contains the old and new values of the `Parent` component data,
+which are the old and new parent entities.
+Next, the editing system asks the Editor to apply this diff to a target object,
+like for example the `Parent` component of entity `3v0`.
+Conceptually, we can represent the edit diff as:
+
+```txt
+EditDiff {
+    target: 3v0/Parent
+    old: 18v0,
+    new: 34v1,
+}
+```
+
+This diff is used to mutate the actual scene being edited.
+It's also recorded by the undo system, to allow the user to undo their action. Because the scene is mutated via diffs only,
+there's no concern about ordering multiple Bevy systems mutating it,
+which prevents complex coordination issues between various plugins
+and simplifies writing robust third-party plugins to extend the Editor.
+
+Editing components and asset import settings,
+or any other kind of data source,
+follows the exact same scheme.
 
 ## Implementation strategy
 
@@ -312,449 +302,195 @@ When writing this section be mindful of the following [repo guidelines](https://
 - **RFCs should avoid ambiguity:** Two developers implementing the same RFC should come up with nearly identical implementations.
 - **RFCs should be "implementable":** Merged RFCs should only depend on features from other merged RFCs and existing Bevy features. It is ok to create multiple dependent RFCs, but they should either be merged at the same time or have a clear merge order that ensures the "implementable" rule is respected. -->
 
-### Names
+### Edit diffs
 
-Being data-heavy, and forfeiting the structural access of Rust types,
-the data model makes extensive use of strings to reference items.
-In order to make those operations efficient, we define a `Name` type to represent those strings.
-The implementation of `Name` is outside of the scope of this RFC and left as an optimization,
-and should be considered as equivalent to a `String` wrapper:
+Edit diffs representing the difference between two versions of a same object.
+they allow a set of basic operations:
 
-```rust
-struct Name(pub String);
-// -or-
-type Name = String;
-```
+- calculate the difference between two `Reflect` objects,
+- apply a diff onto a `Reflect` object to obtain another `Reflect` object,
+- serialize and deserialize the diff itself,
 
-The intent is to explore some optimization strategies like string interning for fast comparison.
-Those optimizations are left out of the scope of this RFC.
+such that calculating the edit diff between an old and a new object,
+and applying that diff to the old object, yields the new object.
 
-### Built-in types
+Diffs in details are out of the scope of this RFC,
+which assumes they already exist for both `Reflect` and `DynamicScene`.
+See for example [#5563](https://github.com/bevyengine/bevy/issues/5563).
 
-The data model supports a number of built-in types, corresponding to common Rust built-in types.
+In the following, we assume the existence of an `EditDiff` type representing the diff itself,
+and an `EditEvent` type representing the diff and a specific target.
 
 ```rust
-enum SignedIntegralType {
-    Int8, Int16, Int32, Int64, Int128,
+struct EditDiff {
+    // [...]
 }
 
-enum UnsignedIntegralType {
-    Uint8, Uint16, Uint32, Uint64, Uint128,
+impl EditDiff {
+    /// Make a new diff from an old and new objects.
+    fn make(old: &dyn Reflect, new: &dyn Reflect) -> EditDiff;
+    /// Apply the current diff to a target, yielding a new object.
+    fn apply(&self, target: &mut dyn Reflect) -> Box<dyn Reflect>;
+    /// Apply the current diff by in-place mutating a target object.
+    fn apply_inplace(&self, target: &mut dyn Reflect);
 }
 
-enum FloatingType {
-    Float32, Float64,
-}
-
-enum SimpleType {
-    Bool,
-    Int8, Int16, Int32, Int64, Int128,
-    Uint8, Uint16, Uint32, Uint64, Uint128,
-    Float32, Float64,
-}
-
-enum BuiltInType {
-    Bool,
-    Int8, Int16, Int32, Int64, Int128,
-    Uint8, Uint16, Uint32, Uint64, Uint128,
-    Float32, Float64,
-    Name,
-    Enum(UnsignedIntegralType), // C-style enum, not Rust-style
-    Array(AnyType),
-    Dict(AnyType), // key type is Name
-    ObjectRef(Option<Entity>),
+#[derive(Event)]
+struct EditEvent {
+    target: Entity,
+    diff: EditDiff,
 }
 ```
 
-_Note_: We explicitly handle all integral and floating-point bit variants
-to ensure tight value packing and avoid wasting space
-both in structs (`GameObject`; see below) and collections (arrays, _etc._).
+### Data model API
 
-The simple types have a defined byte size:
+#### `EditScene`
 
-| Simple type | Byte size |
-|---|---|
-| `Bool` | 1 Byte |
-| `Int8`, `Uint8` | 1 Byte |
-| `Int16`, `Uint16` | 2 Bytes |
-| `Int32`, `Uint32` | 4 Bytes |
-| `Int64`, `Uint64` | 8 Bytes |
-| `Float32` | 4 Bytes |
-| `Float64` | 8 Bytes |
+The primary editing object is the `EditScene`.
+Each `EditScene` represents a single scene being edited.
+From a user's perspective, this corresponds to an "open" scene document.
+The `EditScene` is a Bevy component, and is manipulated with the ECS API;
+spawning an entity with an `EditScene` opens a particular scene file,
+while despawning it closes the scene.
 
-`ObjectRef` is a reference to any object, custom or built-in.
-This allows referencing components built-in inside Bevy or the Editor
-(TBD depending on design of that part).
-The reference needs to be valid (non-null) when the data gets processed for baking,
-but can temporarily (including while serialized to disk and later reloaded)
-be left invalid (`None`) for editing flexibility.
-Nullable references require a `NullableRef` component to be added
-to mark the reference as valid even if null.
+The `EditScene` internally wraps a `DynamicScene` describing its content,
+and an `AssetPath` defining where that scene is saved as an asset.
+It's not an `Asset` itself however,
+because the data model needs to control and observe mutating operations
+and handle load from and save to disk.
 
 ```rust
 #[derive(Component)]
-struct NullableRef;
-```
-
-This allows filtering out nullable references,
-and collect invalid `ObjectRef` instances easily via a `Query`,
-for example to emit some warning to the user.
-
-The `AnyType` is defined as either a built-in type
-or a reference to a custom Game type (see [Game types](#game-types)).
-
-```rust
-enum AnyType {
-    BuiltIn(BuiltInType),
-    Custom(Entity), // with GameType component
+pub struct EditScene {
+    path: Option<AssetPath>,
+    data: DynamicScene,
 }
-```
 
-### Game world
-
-The data model uses dynamic types, so it can be represented purely with data,
-without any build-time types.
-Bevy already has an ideal storage for data: the `World` ECS container.
-This RFC introduces a new struct to represent the data model, the `GameWorld`:
-
-```rust
-struct GameWorld(pub World);
-```
-
-Since the underlying `World` already offers guarantees about concurrent mutability prevention,
-via the Rust language guarantees themselves,
-those guarantees transfer to the `GameWorld`
-allowing safe concurrent read-only access or exclusive write access to all data of the data model.
-
-**TODO - Explain where the `GameWorld` lives. Idea was as a resource on the Editor's `World`, but that means regular Editor systems cannot directly write queries into the `GameWorld` ergonomically. See how extract does it for the render world though.**
-
-### Game types
-
-The game world is populated with the dynamic types
-coming from the various sources described in [User-facing explanation](#user-facing-explanation).
-
-This RFC introduces a `GameType` component that stores the description of a single dynamic type from the Game.
-We use the name `GameType` to hint at the link with the `GameWorld`,
-and avoid the term "dynamic" to prevent any confusion with any pre-existing dynamic object
-from the `bevy_reflect` crate (_e.g._ `DynamicScene` or `DynamicEntity`).
-
-```rust
-#[derive(Component)]
-struct GameType {
-    name: Name,
-    instances: Vec<Entity>,
+impl EditScene {
+    /// Create a new empty scene.
+    pub fn new() -> Self;
+    /// Get the asset path where the scene is saved to, if any.
+    pub fn path(&self) -> Option<&AssetPath>;
+    /// Set the asset path where the scene is saved to.
+    pub fn set_path(&mut self, path: AssetPath);
+    /// Get read-only access to the scene content.
+    pub fn data(&self) -> &DynamicScene;
+    /// Apply a diff to mutate the scene content.
+    pub fn apply_diff(&mut self, diff: EditDiff);
 }
-```
 
-The `GameType` itself only contains the name of the type.
-Other type characteristics depend on the kind of type (struct, enum, _etc._)
-and are defined in other kind-specific components attached to the same `Entity`;
-see [sub-types](#sub-types) below for details.
+// Example: create a new empty scene with a given path
+fn new_scene(mut commands: Commands) {
+    let mut scene = EditScene::new();
+    scene.set_path("scenes/level1.scene");
+    commands.spawn(scene);
+}
 
-The game type contains an array of entities defining all the instances of this type for easy reference,
-since this information is not encoded in any Rust type (see [Data instances](#data-instances))
-so cannot be queried via the usual `Query` mechanism.
+// Example: enumerate all open scenes
+fn list_scenes(q_scenes: Query<&EditScene>) {
+    for scene in q_scenes {
+        info!("Scene: {} resources, {} entities, path={:?}",
+            scene.data().resources.len(),
+            scene.data().entities.len(),
+            scene.path());
+    }
+}
 
-#### Type origin
-
-Some marker components are added to the same `Entity` holding the `GameType` itself,
-to declare the _origin_ of the type:
-
-```rust
-// Built-in type compiled from the Bevy version the Game is built with.
-#[derive(Component)]
-struct BevyType;
-
-// Type from the Game user code of the currently open project.
-#[derive(Component)]
-struct UserType;
-```
-
-_Note that the Editor itself may depend on a different Bevy version. The built-in Bevy types of that version are not present in the `GameWorld`; only types from the Game are._
-
-This strategy allows efficiently querying for groups of types,
-in particular to update them when the Game or a library is reloaded.
-
-```rust
-fn update_game_type_instances(
-    mut query: Query<
-        &GameType,
-        (With<UserType>, Changed<GameType>)
-    >) {
-    for game_type in query.iter_mut() {
-        // apply migration rules to all instances of this type
-        for instance in &mut game_type.instances {
-            // [...]
+// Example: save and close a scene
+fn save_and_close(
+    q_scenes: Query<&EditScene>,
+    mut commands: Commands,
+    mut events: EventReader<SaveAndCloseSceneEvent>,
+) {
+    for ev in events.read() {
+        let scene_entity = ev.0;
+        let Ok(scene) = q_scenes.get(scene_entity) else {
+            continue;
+        };
+        if scene.save().is_ok() {  // saves to scene.path()
+            // Close the scene by destroying the EditScene
+            commands.entity_mut(scene_entity).despawn_recursive();
         }
     }
 }
 ```
 
-### Sub-types
+As usual, ECS change detection allows a system to be notified
+when a scene has been mutated.
 
-Various kinds of types have additional data attached to a separate component specific to that kind.
-This is referred to as _sub-types_.
+#### `EditEvent`
 
-The sub-type components allow, via the `Query` mechanism,
-to batch-handle all types of a certain kind,
-like for example listing all enum types:
+Applying an `EditDiff` to an `EditScene` is done via _events_.
+An edit system sends an `EditEvent` with the `EditDiff` to apply
+and the target entity owning the `EditScene` to mutate.
+The event is sent as usual, typically with `EventWriter<EditEvent>`.
 
 ```rust
-fn list_enum_types(query: Query<&GameType, With<EnumType>>) {
-    for game_type in query.iter() {
-        println!("Enum {}", game_type.name);
+#[derive(Event)]
+struct EditEvent {
+    target: Entity,
+    diff: EditDiff,
+}
+```
+
+Internally, the Editor runs a system to consume those events
+and apply the diffs to the various `EditScene` targets.
+This ensures changes to a scene are sequential and ordered.
+Careful ordering of editing systems through ECS schedules
+allows prioritizing some edits over others.
+
+```rust
+fn apply_scene_edits(
+    mut q_scenes: Query<&mut EditScene>,
+    mut reader: EventReader<EditEvent>,
+) {
+    for ev in reader {
+        let Ok(mut scene) = q_scenes.get_mut(ev.target) else {
+            continue;
+        };
+        scene.apply_diff(ev.diff);
     }
 }
 ```
 
-#### Enums and flags
+By leveraging the lower level functionalities `Events`,
+and the ordering of ECS schedules,
+an edit system can also observe some edits,
+for example to record them (undo system),
+and rewrite them or inject new edits (redo system).
 
-Enums are sets of named integral values called _entries_.
-They are conceptually similar to so-called "C-style" enums.
-An enum has an underlying integral type called its _storage type_ containing the actual integral value of the enum.
-The storage type can be any integral type, signed or unsigned, with at most 64 bits
-(so, excluding `Int128` and `Uint128`).
-The enum type defines a mapping between that value and its name.
-An enum value is stored as its storage type, and is equal to exactly one of the enum entries.
+------------
+v TODO from here v
 
-**TODO - think about support for Rust-style enums...**
-
-Flags are like enums, except the value can be any bitwise combination of entries,
-instead of being restricted to a single entry.
-The storage type is always an unsigned integral type.
-
-The `EnumEntry` defines a single enum or flags entry with a `name`
-and an associated integral `value`.
-The value is encoded in the storage type,
-then stored in the 8-byte memory space offered by `value`.
-This means reading and writing the value generally involves reinterpreting the bit pattern.
 
 ```rust
-struct EnumEntry {
-    name: Name,
-    value: u64,
+pub struct DataModel {
+    // [...]
+}
+
+impl DataModel {
+    pub fn mutate_scene(&mut self, )
 }
 ```
 
-The `EnumType` component defines the set of entries of an enum or flags, the storage type,
-and a boolean indicating whether the type is an enum or a flags.
-
 ```rust
-#[derive(Component)]
-struct EnumType {
-    entries: Vec<EnumEntry>,
-    storage_type: IntegralType,
-    is_flags: bool,
+pub trait Action {
+    fn exec(&mut self, scene: &EditScene) -> EditDiff;
+}
+
+pub trait DataModel {
+    // Scenes
+    fn new_scene(&mut self) -> EditScene;
+    fn open_scene(&mut self, path: AssetPath) -> Result<EditScene, OpenSceneError>;
+    fn close_scene(&mut self, path: AssetPath);
+    fn scenes(&self) -> impl Iterator<Item = &EditScene>;
+    fn scenes_mut(&mut self) -> impl Iterator<Item = &mut EditScene>;
+
+    // Actions
+    fn register_action(&mut self, action: Action, name: String);
+    fn unregister_action(&mut self, name: &str);
 }
 ```
-
-#### Arrays
-
-Arrays are dynamically-sized homogenous collections of _elements_.
-The `ArrayType` defines the element type, which can be any valid game type.
-
-```rust
-#[derive(Component)]
-struct ArrayType {
-    elem_type: AnyType,
-}
-```
-
-Array values store their elements contiguously in the byte storage (see [Game objects](#game-objects)),
-without padding between elements.
-
-#### Dictionaries
-
-Dictionaries are dynamically-sized homogenous collections mapping _keys_ to _values_,
-where each key is unique in the instance.
-The key type is always a string (`Name` type). The `DictType` defines the value type.
-
-```rust
-#[derive(Component)]
-struct DictType {
-    value_type: AnyType,
-}
-```
-
-Dictionary values store their (key, value) pairs contiguously in the byte storage (see [Game objects](#game-objects)),
-key first followed by value, without padding.
-
-#### Structs
-
-A _struct_ is an heterogenous aggregation of other types (like a `struct` in Rust).
-The `StructType` component contains the _properties_ of the struct.
-
-```rust
-#[derive(Component)]
-struct StructType {
-    properties: Vec<Property>, // sorted by `byte_offset`
-}
-```
-
-Properties themselves are defined by a name and the type of their value.
-The type also stores the byte offset of that property from the beginning of a struct instance,
-which allows packing property values for a struct into a single byte stream,
-and enables various optimizations regarding diff'ing/patching and serialization.
-
-```rust
-struct Property {
-    name: Name,
-    value_type: AnyType,
-    byte_offset: u32,
-    validate: Option<Box<dyn Validate>>,
-}
-```
-
-The _type layout_ refers to the collection of property offsets and types of an `StructType`,
-which together define:
-
-- the order in which the properties are listed in the struct type (the properties are sorted in increasing byte offset order), and any instance value stored in a `GameObject`.
-- the size in bytes of each property value, based on its type.
-- eventual gaps between properties, known as _padding bytes_, depending on their offsets and sizes.
-
-Unlike Rust, the Editor data model guarantees that **padding bytes are zeroed**.
-This property enables efficient instance comparison via `memcmp()`-like byte-level comparison,
-without the need to rely on individual properties inspection
-nor any equality operator (`PartialEq` and `Eq` in Rust).
-It also enables efficient copy and serialization via direct memory reads and writes,
-instead of relying on getter/setter methods.
-
-The `Property` type contains also an optional validation function
-used to validate the value of a property for things like range and bounds check, nullability, _etc._
-which is used both when the user (via the Editor UI) attempts to set a value,
-and when a value is set automatically (_e.g._ during deserialization).
-
-```rust
-trait ValidateProperty {
-    /// Check if a value is valid for the property.
-    fn is_valid(&self, property: &Property, value: &[u8]) -> bool;
-
-    /// Try to assign a value to a property of an instance.
-    fn try_set(&mut self, instance: &mut GameObject, property: &Property, value: &[u8]) -> bool;
-}
-```
-
-### Game objects
-
-Instances of any type of the Game are represented by the `GameObject` component:
-
-```rust
-#[derive(Component)]
-struct GameObject {
-    game_type: Entity, // with GameType component
-    values: Vec<u8>,
-}
-```
-
-The type of an instance is stored as the `Entity` holding the `GameType`, which can be accessed with the usual `Query` mechanisms:
-
-```rust
-fn get_data_instance_type(
-    q_instance: Query<&GameObject, [...]>,
-    q_types: Query<&GameType>)
-{
-    for data_inst in q_instances.iter() {
-        let game_type = q_types
-            .get_component::<GameType>(&data_inst.game_type).unwrap();
-        // [...]
-    }
-}
-```
-
-The property values are stored in a raw byte array,
-at the property's offset from the beginning of the array.
-The size of each property value is implicit, based on its type.
-Any extra byte (padding byte) in `GameObject.values` is set to zero.
-For example:
-
-```rust
-#[repr(C)] // for the example clarity only
-struct S {
-    f: f32,
-    b: u8,
-    u: u64,
-}
-```
-
-has its values stored in `GameObject.values` as:
-
-```txt
-[0 .. 3 | 4  | 5 ... 7 | 8 .. 11 ]   bytes
-[  f32  | u8 | padding |   u64   ]   values
-```
-
-_Note: The Rust compiler, as per Rust language rules, will reorder fields of any non-`#[repr(C)]` type to optimize the type layout and avoid padding in the Game process. This native type layout of each Game type is then transferred to the Editor to create dynamic types. We expect as a result minimal padding bytes, and therefore do not attempt to further tightly pack the values ourselves, for the sake of simplicity._
-
-### Migration rules
-
-The _migration rules_ are a set of rules applied when transforming a `GameObject` from one `GameType` to another `GameType`.
-The rules define if such conversion can successfully take place, and what is its result.
-
-Given a setup where a migration of a `src_inst: GameObject` is to be performed
-from a `src_type: GameType` to a `dst_type: GameType`
-to produce a new `dst_inst: GameObject`,
-the migration rules are:
-
-1. If `src_type == dst_type`, then set `dst_inst = src_inst`.
-2. Otherwise, create a new empty `dst_inst` and then for each property present in either `src_type` or `dst_type`:
-   - If the property is present on `src_type` only, ignore that property (so it will not be present in `dst_inst`).
-   - If the property is present on `dst_type` only, add a new property with a default-initialized value to `dst_inst`.
-   - If the property is present on both, then apply the migration rule based on the type of the property.
-3. A value migrated from `src_type` to `dst_type == src_type` is unmodified.
-4. A value is migrated from `src_type` to `dst_type != src_type` by attempting to coerce the value into `dst_type`:
-   - For the purpose of coercion rules, boolean values act like an integral type with a value of 0 or 1.
-   - Any integral or floating-point value (numeric types) is coerced to the destination property type according to the Rust coercion rules, with possibly some loss. This means there's no guarantee of round-trip.
-   - Numeric types are coerced into `String` by applying a conversion equivalent to `format!()`.
-   - String types are coerced into numeric types via the `ToString` trait.
-   - Enums are coerced into their underlying unsigned integral type first, then any integral coercion applies.
-   - Integral types can be coerced into an enum provided an enum variant with the same value exists and the integral type can be coerced into the underlying unsigned integral type of the enum.
-   - A single value is coerced into a single-element array.
-   - An array of values is coerced into a single value by retaining the first element of the array, if and only if this element exists and has a type that can be coerced into the destination type.
-   - A single value is coerced into a dictionary with a key corresponding to the coercion to `String` of its value, and a value corresponding to the coercion to the dictionary value type. If any of these fail, the entire coercion to dictionary fails.
-   - A dictionary with a single entry is coerced into a value by extracting the single-entry value and coercing it, discarding the entry key. If the dictionary is empty, or has more than 1 entry, the coercion fails.
-   - Coercions from and to `ObjectRef` are invalid.
-
-_Note: the migration rules are written in terms of two distinct `src_inst` and `dst_inst` objects for clarity, but the implementation is free to do an in-place modification to prevent an allocation, provided the result is equivalent to migrating to a new instance then replacing the source instance with it._
-
-### Reflection extraction
-
-The reflection data needed to create a `GameType` is extracted from the Game process launched by the Editor,
-with the help of the `EditorClientPlugin`.
-The plugin allows communicating with the Editor process to send it the data needed to create the `GameType`s,
-which is constituted of the list of types of the Game, with for each type:
-
-- its kind (sub-type)
-- any additional kind-specific data like the list of properties for a struct
-
-For properties, the plugin extracts the byte offsets of all properties
-by listing the struct fields and using a runtime `offsetof` implementation
-like the one proposed by @TheRawMeatball:
-
-```rust
-macro_rules! offset_of {
-    ($ty:ty, $field:ident) => {
-        unsafe {
-            let uninit = MaybeUninit::<$ty>::uninit();
-            let __base = uninit.as_ptr();
-            let __field = std::ptr::addr_of!((*__base).$field);
-            __field as usize - __base as usize
-        }
-    };
-}
-```
-
-See also the [rustlang discussion](https://internals.rust-lang.org/t/pre-rfc-add-a-new-offset-of-macro-to-core-mem/9273) on the matter.
-There is currently no Rust `offset_of()` macro,
-and not custom implementation known to work in a `const` context with the `stable` toolchain.
-However we only intend to use that macro at runtime, so are not blocked by this limitation.
-
-The details of:
-
-1. how to connect to the Game process from the Editor process via the `EditorClientPlugin`,
-2. what format to serialize the necessary type data into to be able to create `GameType`s,
-
-are left outside the scope of this RFC,
-and would be best addressed by a separate RFC focused on that interaction.
 
 ## Drawbacks
 
