@@ -1,82 +1,170 @@
-# Feature Name: (fill me in with a unique ident, `my_awesome_feature`)
+# Feature Name: Macro-derived Substates
 
 ## Summary
 
-One paragraph explanation of the feature.
+Support for nested states (substates) as an extension of `States` derive macro.
 
 ## Motivation
 
-Why are we doing this? What use cases does it support?
+Currently Bevy support flat states very well, but using any sort of nested states is heavily limited.
 
 ## User-facing explanation
 
-Explain the proposal as if it was already included in the engine and you were teaching it to another Bevy user. That generally means:
+We need to tell apart states in the hierarchy:
+- Root state - Top-level state object, stored directly in the world as a `State<S>` resource, can contain sub-states.
+- Sub-state - Not top-level state object, stored as part of some root state or another sub-state (which is eventually stored in a root state), can contain sub-states.
 
-- Introducing new named concepts.
-- Explaining the feature, ideally through simple examples of solutions to concrete problems.
-- Explaining how Bevy users should *think* about the feature, and how it should impact the way they use Bevy. It should explain the impact as concretely as possible.
-- If applicable, provide sample error messages, deprecation warnings, or migration guidance.
-- If applicable, explain how this feature compares to similar existing features, and in what situations the user would use each one.
+Let's use a simple game as an example.
+We have a menu and gameplay which can be paused.
+
+```rs
+#[derive(States, ...)]
+enum AppState {
+    MainMenu,
+    Gameplay(GameplayState),
+}
+
+#[derive(States, ...)]
+enum GameplayState {
+    Running,
+    Paused,
+}
+```
+
+The problem we'll immediatelly run into is, when we change `GameplayState`, we will experience a bunch of transition events for `AppState`.
+
+To fix this, I propose 2 major changes to the `States` derive macro:
+1. It will use a sub-macro `#[substate]` for marking sub-state fields.
+  The marked field's type has to implement `States`.
+1. If the struct/enum contains the macro above, a new object will be derived.
+  The new object will be the same as original, but without the marked fields.
+  If no sub-state macro is used, a type alias will be created instead for API continuity.
+  I will refer to the derivatory object as `Just<original name>`, for example `JustAppState`, since it contains no other states. *the name needs bikeshedding*
+
+The previous example will now look as following:
+```rs
+#[derive(States, ...)]
+enum AppState {
+    MainMenu,
+    Gameplay(#[substate] GameplayState),
+}
+// enum JustAppState {
+//     MainMenu,
+//     Gameplay,
+// }
+
+#[derive(States, ...)]
+enum GameplayState {
+    Running,
+    Paused,
+}
+// type JustGameplayState = GameplayState;
+```
+
+Adding the root state is unchanged.
+```rs
+app.add_state::<AppState>();
+```
+
+We can now use `OnExit`, `OnTransition` and `OnEnter` using the derivatory `JustAppState`, which will not trigger if a sub-state field changes.
+```rs
+app.add_system(OnEnter(JustAppState::Gameplay), generate_level)
+app.add_system(OnExit(JustAppState::Gameplay), delete_level)
+```
+
+Changing state is still done through `NextState<AppState>`.
+```rs
+fn update_state(state: ResMut<NextState<AppState>>) {
+    state.set(AppState::Gameplay);
+}
+```
+
+`From<GameplayState>` can be implemented for `AppState` to simplify the usage.
+```rs
+impl NextState<S: States> {
+    fn set<T: Into<S>>(state: T);
+}
+// [...]
+fn update_state(state: ResMut<NextState<AppState>>) {
+    state.set(GameplayState::Paused);
+}
+```
 
 ## Implementation strategy
 
-This is the technical portion of the RFC.
-Try to capture the broad implementation strategy,
-and then focus in on the tricky details so that:
+The derive `States` macro will require a major rework, it needs to:
+- allow for `#[substate]` macro,
+- create the derivatory type or alias,
+- work on structs and enums,
+- implement methods for running state transition logic.
 
-- Its interaction with other features is clear.
-- It is reasonably clear how the feature would be implemented.
-- Corner cases are dissected by example.
+The sub-state macro is very simple, it has to check whether the field is of type that implements `States`.
 
-When necessary, this section should return to the examples given in the previous section and explain the implementation details that make them work.
+The derivatory type/alias is easy as well, it will copy the original type, possibly implement a new trait like `JustStates` for usage in transition schedules.
+Additionaly, the original type has to allow for conversion to the derivatory type (e.g. `AppState` -> `JustAppState`).
+```rs
+pub trait States {
+    fn just(&self) -> JustSelf;
+    ...
+}
+```
 
-When writing this section be mindful of the following [repo guidelines](https://github.com/bevyengine/rfcs):
+Structs will be treated as described above, for enums, each variant will be trated as a standalone struct.
 
-- **RFCs should be scoped:** Try to avoid creating RFCs for huge design spaces that span many features. Try to pick a specific feature slice and describe it in as much detail as possible. Feel free to create multiple RFCs if you need multiple features.
-- **RFCs should avoid ambiguity:** Two developers implementing the same RFC should come up with nearly identical implementations.
-- **RFCs should be "implementable":** Merged RFCs should only depend on features from other merged RFCs and existing Bevy features. It is ok to create multiple dependent RFCs, but they should either be merged at the same time or have a clear merge order that ensures the "implementable" rule is respected.
+The hardest part is state transition logic, which runs transition schedules.
+It has to be implemented through a set of trait methods, so it can run recursively over sub-states.
+```rs
+pub trait States {
+    fn just(&self) -> JustSelf;
+    fn run_transition(&self, next: &Self, world: &mut World);
+    fn run_exit(&self, &mut World);
+    fn run_enter(&self, &mut World);
+}
+```
+
+`run_transition` has to look as following:
+1. Check if the state actually changed, return if it didn't.
+1. Check whether it was this state or it sub-states that changed, by comparing derivatory types.
+1. If only sub-state changed
+    1. Run this function for sub-state.
+1. If this state changed
+    1. Run exit for all old sub-states.
+    1. Run exit for this state.
+    1. Run transition for this state.
+    1. Run enter for this state.
+    1. Run enter for all new sub-states.
+
+`run_exit` and `run_enter` will run respective `OnExit` and `OnEnter` for all sub-states recursively.
 
 ## Drawbacks
 
-Why should we *not* do this?
+One complex macro.
+
+The derivatory type can be confusing.
 
 ## Rationale and alternatives
 
-- Why is this design the best in the space of possible designs?
-- What other designs have been considered and what is the rationale for not choosing them?
-- What objections immediately spring to mind? How have you addressed them?
-- What is the impact of not doing this?
-- Why is this important to implement as a feature of Bevy itself, rather than an ecosystem crate?
+For alternatives check [Prior art](#prior-art).
 
-## \[Optional\] Prior art
+This solution combines a single point of entry root state, with simple API.
 
-Discuss prior art, both the good and the bad, in relation to this proposal.
-This can include:
+All complxeity is hidden in the derive macro.
 
-- Does this feature exist in other libraries and what experiences have their community had?
-- Papers: Are there any published papers or great posts that discuss this?
+## Prior art
 
-This section is intended to encourage you as an author to think about the lessons from other tools and provide readers of your RFC with a fuller picture.
+[State pattern matching.](https://github.com/bevyengine/bevy/pull/10088)  
+Solves the issue, but obfuscates states and heavily relies on function macros.
 
-Note that while precedent set by other engines is some motivation, it does not on its own motivate an RFC.
+[Sub-states through system ordering.](https://github.com/MiniaczQ/bevy-design-patterns/blob/better-states/patterns/instant-states-hierarchy/README.md)  
+Simple and similar to existing API, but sub-states are stored in separate resources.
+
+Ideally we'd want a similar API to the existing one, because it's easier to migrate and the current API is very user-friendly.
+
+We also don't want to store the sub-states separately, because it introduces a risk of desynchronizing them with their parent states.
 
 ## Unresolved questions
 
-- What parts of the design do you expect to resolve through the RFC process before this gets merged?
-- What parts of the design do you expect to resolve through the implementation of this feature before the feature PR is merged?
-- What related issues do you consider out of scope for this RFC that could be addressed in the future independently of the solution that comes out of this RFC?
+Using the same sub-state type multiple times. This can result in weird exit-enter transitions for that state.
 
-## \[Optional\] Future possibilities
-
-Think about what the natural extension and evolution of your proposal would
-be and how it would affect Bevy as a whole in a holistic way.
-Try to use this section as a tool to more fully consider other possible
-interactions with the engine in your proposal.
-
-This is also a good place to "dump ideas", if they are out of scope for the
-RFC you are writing but otherwise related.
-
-Note that having something written down in the future-possibilities section
-is not a reason to accept the current or a future RFC; such notes should be
-in the section on motivation or rationale in this or subsequent RFCs.
-If a feature or change has no direct value on its own, expand your RFC to include the first valuable feature that would build on it.
+The scope of this RFC is relatively well defined and atomic.
+The RFC is complete when the implementation is done.
