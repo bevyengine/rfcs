@@ -153,8 +153,7 @@ Additional trait `SsfStates` may be introduced to help filter types in `OnExit`,
 which currently use the `States` trait as their generic requirements.
 
 Any state can be turned into it's SSF variant through a `ssf(&self)` method.
-This is intended for internal usage, users should create SSF variants directly during schedule matching.
-
+This is intended for internal usage.
 ```rs
 trait States {
     type Ssf: Eq + Hash + Clone,
@@ -163,6 +162,11 @@ trait States {
 
     // Rest of trait
 }
+```
+
+Users should create SSF variants directly during schedule matching.
+```rs
+app.add_system(OnEnter(SsfGameplayState::Running), resume_music)
 ```
 
 ### Core transition logic
