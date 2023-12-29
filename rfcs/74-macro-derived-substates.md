@@ -8,11 +8,12 @@ Support for nested states (substates) as an extension of `States` derive macro.
 
 Currently Bevy support flat states very well, but using any sort of nested states is heavily limited.
 
-The 2 main problems are:
-- Parent state transition schedules detect changes to substates,
-- Substate transition schedules need to be described as part of the root state, possibly with it's other substates.
+In general, attempting to detect change to specific level of state hierarchy will fail, either due to changes in a substate or parent state.
+In other words:
+- Parent state transition schedules detect changes in substates,
+- Substate transition schedules detect changes in parent states.
 
-The goal of this RFC is to address those problems, while keeping all substates stored in the root state.
+The goal of this RFC is to address those problems, while still keeping all substates stored in the root state.
 
 Ideally we'd want a similar API to the existing one.
 It's user-friendly and easier to migrate.
@@ -20,14 +21,10 @@ It's user-friendly and easier to migrate.
 ## User-facing explanation
 
 Few definitions that are used through the RFC:
-- **Root state**
-  Top-level state object, stored directly in the world as a `State<S>` resource, can contain substates.
-- **Substate**
-  Not top-level state object, stored as part of some root state or another substate (which is eventually stored in a root state), can contain substates.
-- **Leaf state**
-  State at the end of hierarchy, does not contain substates.
-- **Substate-free** (**SSF**)
-  Type derived from a state type, with all substate fields removed.
+- **Root state** - Top-level state object, stored directly in the world as a `State<S>` resource, can contain substates.
+- **Substate** - Not top-level state object, stored as part of some root state or another substate (which is eventually stored in a root state), can contain substates.
+- **Leaf state** - State at the end of hierarchy, does not contain substates.
+- **Substate-free** (**SSF**) - Type derived from a state type, with all substate fields removed.
 
 Let's use the following states as an example.
 ```rs
@@ -73,8 +70,8 @@ app.add_system(OnExit(SsfAppState::Gameplay), delete_level)
 
 The same applies to any substate.
 ```rs
-app.add_system(OnEnter(SsfGameplayState::Gameplay), generate_level)
-app.add_system(OnExit(SsfGameplayState::Gameplay), delete_level)
+app.add_system(OnEnter(SsfGameplayState::Running), resume_music)
+app.add_system(OnExit(SsfGameplayState::Running), stop_music)
 ```
 
 Changing state is still done through `NextState<S>` of the root state. (`S` is `AppState` in our case)
