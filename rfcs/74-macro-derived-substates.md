@@ -8,139 +8,211 @@ Support for nested states (substates) as an extension of `States` derive macro.
 
 Currently Bevy support flat states very well, but using any sort of nested states is heavily limited.
 
+The 2 main problems are:
+- Parent state transition schedules detect changes to substates,
+- Substate transition schedules need to be described as part of the root state, possibly with it's other substates.
+
+The goal of this RFC is to address those problems, while keeping all substates stored in the root state.
+
+Ideally we'd want a similar API to the existing one.
+It's user-friendly and easier to migrate.
+
 ## User-facing explanation
 
-We need to tell apart states in the hierarchy:
-- Root state - Top-level state object, stored directly in the world as a `State<S>` resource, can contain sub-states.
-- Sub-state - Not top-level state object, stored as part of some root state or another sub-state (which is eventually stored in a root state), can contain sub-states.
+Few definitions that are used through the RFC:
+- **Root state**
+  Top-level state object, stored directly in the world as a `State<S>` resource, can contain substates.
+- **Substate**
+  Not top-level state object, stored as part of some root state or another substate (which is eventually stored in a root state), can contain substates.
+- **Leaf state**
+  State at the end of hierarchy, does not contain substates.
+- **Substate-free** (**SSF**)
+  Type derived from a state type, with all substate fields removed.
 
-Let's use a simple game as an example.
-We have a menu and gameplay which can be paused.
-
-```rs
-#[derive(States, ...)]
-enum AppState {
-    MainMenu,
-    Gameplay(GameplayState),
-}
-
-#[derive(States, ...)]
-enum GameplayState {
-    Running,
-    Paused,
-}
-```
-
-The problem we'll immediatelly run into is, when we change `GameplayState`, we will experience a bunch of transition events for `AppState`.
-
-To fix this, I propose 2 major changes to the `States` derive macro:
-1. It will use a sub-macro `#[substate]` for marking sub-state fields.
-  The marked field's type has to implement `States`.
-1. If the struct/enum contains the macro above, a new object will be derived.
-  The new object will be the same as original, but without the marked fields.
-  If no sub-state macro is used, a type alias will be created instead for API continuity.
-  I will refer to the derivatory object as `Just<original name>`, for example `JustAppState`, since it contains no other states. *the name needs bikeshedding*
-
-The previous example will now look as following:
+Let's use the following states as an example.
 ```rs
 #[derive(States, ...)]
 enum AppState {
     MainMenu,
     Gameplay(#[substate] GameplayState),
 }
-// enum JustAppState {
-//     MainMenu,
-//     Gameplay,
-// }
 
 #[derive(States, ...)]
 enum GameplayState {
     Running,
     Paused,
 }
-// type JustGameplayState = GameplayState;
 ```
+
+The updated `States` derive macro will generate the following additional types.
+```rs
+enum SsfAppState {
+    MainMenu,
+    Gameplay,
+}
+
+// Possibly type alias, check unanswered questions section
+enum SsfGameplayState {
+    Running,
+    Paused,
+}
+```
+which have all the `#[substate]` marked fields removed.
 
 Adding the root state is unchanged.
 ```rs
 app.add_state::<AppState>();
 ```
 
-We can now use `OnExit`, `OnTransition` and `OnEnter` using the derivatory `JustAppState`, which will not trigger if a sub-state field changes.
+`OnExit`, `OnTransition` and `OnEnter` schedules will now use the new SSF state type variants instead.
+This allows us to target changes of particular level in the state hierarchy, rather than all of them at once.
 ```rs
-app.add_system(OnEnter(JustAppState::Gameplay), generate_level)
-app.add_system(OnExit(JustAppState::Gameplay), delete_level)
+app.add_system(OnEnter(SsfAppState::Gameplay), generate_level)
+app.add_system(OnExit(SsfAppState::Gameplay), delete_level)
 ```
 
-Changing state is still done through `NextState<AppState>`.
+The same applies to any substate.
 ```rs
-fn update_state(state: ResMut<NextState<AppState>>) {
+app.add_system(OnEnter(SsfGameplayState::Gameplay), generate_level)
+app.add_system(OnExit(SsfGameplayState::Gameplay), delete_level)
+```
+
+Changing state is still done through `NextState<S>` of the root state. (`S` is `AppState` in our case)
+```rs
+fn update_state(mut state: ResMut<NextState<AppState>>) {
     state.set(AppState::Gameplay);
-}
-```
-
-`From<GameplayState>` can be implemented for `AppState` to simplify the usage.
-```rs
-impl NextState<S: States> {
-    fn set<T: Into<S>>(state: T);
-}
-// [...]
-fn update_state(state: ResMut<NextState<AppState>>) {
-    state.set(GameplayState::Paused);
 }
 ```
 
 ## Implementation strategy
 
-The derive `States` macro will require a major rework, it needs to:
-- allow for `#[substate]` macro,
-- create the derivatory type or alias,
-- work on structs and enums,
-- implement methods for running state transition logic.
+The `States` macro needs to do the following:
+- Allow for `#[substate]` statement before fields,
+- Create the substate-free type variant,
+- Implement core transition logic,
+- Implement substate transition logic.
 
-The sub-state macro is very simple, it has to check whether the field is of type that implements `States`.
+`States` trait will take over most of the transition logic from the transition system.
+This allows recursive transition logic for all substates.
 
-The derivatory type/alias is easy as well, it will copy the original type, possibly implement a new trait like `JustStates` for usage in transition schedules.
-Additionaly, the original type has to allow for conversion to the derivatory type (e.g. `AppState` -> `JustAppState`).
+The transition system has to be adjusted to use the `States`-defined transitions.
+
+### `#[substate]` statement
+
+State fields can be annoted with `#[substate]` to signify they hold a substate.
+Annoted field's type has to implement `States`.
+
+Examples:
 ```rs
-pub trait States {
-    fn just(&self) -> JustSelf;
-    ...
+struct Foo {
+    #[substate]
+    bar: Bar,
+}
+
+struct Alice(#[substate] Bob);
+
+enum Food {
+    Pasta {
+        #[substate]
+        sauce: Sauce
+    }
+}
+
+enum Language {
+    English(#[substate] Dialect),
 }
 ```
 
-Structs will be treated as described above, for enums, each variant will be trated as a standalone struct.
+### Substate-free variant (SSF)
 
-The hardest part is state transition logic, which runs transition schedules.
-It has to be implemented through a set of trait methods, so it can run recursively over sub-states.
+Each state needs to have an SSF variant so we can match schedules, without also matching values of substates.
+
 ```rs
-pub trait States {
-    fn just(&self) -> JustSelf;
-    fn run_transition(&self, next: &Self, world: &mut World);
-    fn run_exit(&self, &mut World);
-    fn run_enter(&self, &mut World);
+struct AppState {
+    #[substate]
+    menu: MenuState,
+    #[substate]
+    game: GameState,
+    paused: bool,
+}
+
+// MACRO GENERATED
+struct SsfAppState {
+    paused: bool
 }
 ```
 
-`run_transition` has to look as following:
-1. Check if the state actually changed, return if it didn't.
-1. Check whether it was this state or it sub-states that changed, by comparing derivatory types.
-1. If only sub-state changed
-    1. Run this function for sub-state.
-1. If this state changed
-    1. Run exit for all old sub-states.
-    1. Run exit for this state.
-    1. Run transition for this state.
-    1. Run enter for this state.
-    1. Run enter for all new sub-states.
+This is analogous for tuple structs and enums.
+If no fields are left, the brackets should be collapsed.
 
-`run_exit` and `run_enter` will run respective `OnExit` and `OnEnter` for all sub-states recursively.
+The SSF variant has to satisfy at least `Eq`.
+Additional trait `SsfStates` may be introduced to help filter types in `OnExit`, `OnTransition`, `OnEnter` schedules,
+which currently use the `States` trait as their generic requirements.
+
+Any state can be turned into it's SSF variant through a `ssf(&self)` method.
+This is intended for internal usage, users should create SSF variants directly during schedule matching.
+
+```rs
+trait States {
+    type Ssf: Eq + Hash + Clone,
+
+    fn ssf(&self) -> Self::Ssf;
+
+    // Rest of trait
+}
+```
+
+### Core transition logic
+
+Core transition logic code is substate independent, it's always the same for every `States` implementation.
+It relies on `Eq`, SSF and it's `Eq` implementations to decide whether it was this state that changed, or some substate.
+If it was a substate that changed, we recursively run core transition logic on all substates.
+If it was this state that changed instead, we perform the following steps:
+- exit all current substates,
+- exit current state,
+- transition from current to next state,
+- enter next state,
+- enter all next substates.
+
+```rs
+trait States {
+    fn transition(&self, next: &Self, world: &mut World)
+    {
+        // Impl
+    }
+
+    // Rest of trait
+}
+```
+
+### Substate transition logic
+
+Substate transition logic has to be generated by the derive `States` macro.
+It operates solely on `#[substate]` marked fields, as opposed to SSF.
+
+This logic consists of 3 methods:
+- Transition substates - Run core transition logic for all substate fields,
+- Exit substates - Starting from leaf, run `OnExit` for all substate fields, then self,
+- Enter substates - Starting from leaf, run `OnEnter` for all substate fields, then self.
+
+```rs
+trait States {
+    fn transition_substates(&self, next: &Self, world: &mut World);
+    fn exit_substates(&self, world: &mut World);
+    fn enter_substates(&self, world: &mut World);
+
+    // Rest of trait
+}
+```
 
 ## Drawbacks
 
-One complex macro.
+Hidden complexity of `States` types.
 
-The derivatory type can be confusing.
+Generation of a new type, this can be confusing to users.
+
+Macro complexity, it has to create a new type and implement 4 functions.
+All the rules can be very well defined, but it is quite a lot.
 
 ## Rationale and alternatives
 
@@ -152,19 +224,21 @@ All complxeity is hidden in the derive macro.
 
 ## Prior art
 
+[Prototype without the macro.](https://github.com/MiniaczQ/bevy-design-patterns/tree/better-states-alt/patterns/better-states-alt/src)  
+Proof of concept where all logic is implemented by hand, without the macro.
+
 [State pattern matching.](https://github.com/bevyengine/bevy/pull/10088)  
 Solves the issue, but obfuscates states and heavily relies on function macros.
 
-[Sub-states through system ordering.](https://github.com/MiniaczQ/bevy-design-patterns/blob/better-states/patterns/instant-states-hierarchy/README.md)  
-Simple and similar to existing API, but sub-states are stored in separate resources.
-
-Ideally we'd want a similar API to the existing one, because it's easier to migrate and the current API is very user-friendly.
-
-We also don't want to store the sub-states separately, because it introduces a risk of desynchronizing them with their parent states.
+[Substates through system ordering.](https://github.com/MiniaczQ/bevy-design-patterns/blob/better-states/patterns/instant-states-hierarchy/README.md)  
+Simple and similar to existing API, but substates are stored in separate resources.
 
 ## Unresolved questions
 
-Using the same sub-state type multiple times. This can result in weird exit-enter transitions for that state.
+Using the same substate type multiple times.
+This can result in weird transitions where we exit then immediately enter the same substate.
 
-The scope of this RFC is relatively well defined and atomic.
+Should leaf states generate type aliases for SSF variants or not?
+
+The scope of this RFC is atomic and well defined.
 The RFC is complete when the implementation is done.
