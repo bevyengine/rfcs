@@ -103,13 +103,16 @@ Annoted field's type has to implement `States`.
 
 Examples:
 ```rs
+#[derive(States, ...)]
 struct Foo {
     #[substate]
     bar: Bar,
 }
 
+#[derive(States, ...)]
 struct Alice(#[substate] Bob);
 
+#[derive(States, ...)]
 enum Food {
     Pasta {
         #[substate]
@@ -117,6 +120,7 @@ enum Food {
     }
 }
 
+#[derive(States, ...)]
 enum Language {
     English(#[substate] Dialect),
 }
