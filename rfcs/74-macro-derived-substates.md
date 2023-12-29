@@ -11,7 +11,7 @@ Currently Bevy support flat states very well, but using any sort of nested state
 In general, attempting to detect change to specific level of state hierarchy will fail, either due to changes in a substate or parent state.
 In other words:
 - Parent state transition schedules detect changes in substates,
-- Substate transition schedules detect changes in parent states.
+- Substate transition schedules detect changes in parent states which do not involve them.
 
 The goal of this RFC is to address those problems, while still keeping all substates stored in the root state.
 
@@ -41,7 +41,7 @@ enum GameplayState {
 }
 ```
 
-The updated `States` derive macro will generate the following additional types.
+The updated `States` derive macro will generate the following additional types
 ```rs
 enum SsfAppState {
     MainMenu,
@@ -64,12 +64,14 @@ app.add_state::<AppState>();
 `OnExit`, `OnTransition` and `OnEnter` schedules will now use the new SSF state type variants instead.
 This allows us to target changes of particular level in the state hierarchy, rather than all of them at once.
 ```rs
+// Ignores changes in `GameplayState`
 app.add_system(OnEnter(SsfAppState::Gameplay), generate_level)
 app.add_system(OnExit(SsfAppState::Gameplay), delete_level)
 ```
 
 The same applies to any substate.
 ```rs
+// Ignores changes in `AppState` (if it was a struct; had additional field in `Gameplay` variant; etc.)
 app.add_system(OnEnter(SsfGameplayState::Running), resume_music)
 app.add_system(OnExit(SsfGameplayState::Running), stop_music)
 ```
