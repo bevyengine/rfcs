@@ -171,9 +171,9 @@ app.add_system(OnEnter(SsfGameplayState::Running), resume_music)
 
 ### Core transition logic
 
-Core transition logic code is substate independent, it's always the same for every `States` implementation.
-It relies on `Eq`, SSF and it's `Eq` implementations to decide whether it was this state that changed, or some substate.
-If it was a substate that changed, we recursively run core transition logic on all substates.
+Core transition logic code is type independent, it's the same for every `States` implementation.
+It relies on `Eq` and SSF's `Eq` implementations to decide whether it was this state that changed, or some substate.
+If it was a substate that changed, we run core transition logic on all substates.
 If it was this state that changed instead, we perform the following steps:
 - exit all current substates,
 - exit current state,
@@ -185,7 +185,7 @@ If it was this state that changed instead, we perform the following steps:
 trait States {
     fn transition(&self, next: &Self, world: &mut World)
     {
-        // Impl
+        // Example impl in prototype, check prior art section
     }
 
     // Rest of trait
@@ -200,7 +200,7 @@ It operates solely on `#[substate]` marked fields, as opposed to SSF.
 This logic consists of 3 methods:
 - Transition substates - Run core transition logic for all substate fields,
 - Exit substates - Starting from leaf, run `OnExit` for all substate fields, then self,
-- Enter substates - Starting from leaf, run `OnEnter` for all substate fields, then self.
+- Enter substates - Run `OnEnter` for self, then all substate fields ending at leafs.
 
 ```rs
 trait States {
@@ -216,9 +216,11 @@ trait States {
 
 Hidden complexity of `States` types.
 
+Transition logic moved from systems to `States` implementation.
+
 Generation of a new type, this can be confusing to users.
 
-Macro complexity, it has to create a new type and implement 4 functions.
+Macro complexity, it has to create a new type and implement 4 methods.
 All the rules can be very well defined, but it is quite a lot.
 
 ## Rationale and alternatives
@@ -242,8 +244,8 @@ Simple and similar to existing API, but substates are stored in separate resourc
 
 ## Unresolved questions
 
-Using the same substate type multiple times.
-This can result in weird transitions where we exit then immediately enter the same substate.
+What to do with repeated substate type usage?
+It can result in weird transitions where we exit then immediately enter the same substate.
 
 Should leaf states generate type aliases for SSF variants or not?
 
