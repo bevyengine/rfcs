@@ -121,6 +121,29 @@ The level format and API can be implemented independantly of scenes and ECS worl
 
 Because of this ECS world and scenes can be worked on indipendantly from levels without breaking anything.
 
+Changing levels wouldn't be part of the API and would be something users of the API implement themselves directly.
+Example:
+```rust
+fn change_level(
+    events: EventReader<ChangeLevel>,
+    mut level1: ResMut<Level1>,
+    mut level2: ResMut<Level2>,
+) {
+    for event in events.iter() {
+        match event {
+            ChangeLevel::Lobby => {
+                level2.unload_all_scenes();
+                level1.load_all_scenes();
+            },
+            ChangeLevel::MainLevel => {
+                level1.unload_all_scenes();
+                level2.load_all_scenes();
+            }
+        }
+    }
+}
+```
+
 ### Level File Format
 todo
 
