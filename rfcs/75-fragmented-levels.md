@@ -54,7 +54,7 @@ Asside from development tools, scripts, and editors it has one additional applic
 // Example of loading and unloading parts of a large open world level.
 fn load_region(
     events: EventReader<Region>,
-    level_manager: ResMut<LevelAPI>,
+    mut level_manager: ResMut<MyLevel>,
 ) {
     for region in events.iter() {
         match region {
@@ -69,7 +69,7 @@ fn load_region(
 // Example of changing zones/levels in an MMO like Albion Online or Lost Ark.
 fn change_zone(
     events: EventReader<Zone>,
-    level_manager: ResMut<LevelAPI>,
+    mut level_manager: ResMut<MyLevel>,
 ) {
     for zone in events.iter() {
         match zone {
@@ -98,9 +98,24 @@ If a scene is loaded through the level bevy resource, then it's managed by the l
 
 ## Implementation strategy
 
-`fragmented-levels` would be implemented in a crate called `bevy_level`. (I reserved the name for this encase the RFC is accepted and it's needed [https://crates.io/crates/bevy_level](https://crates.io/crates/bevy_level), if cart/bevy wants it let me know and I can transfer the name.)
+`Fragmented-Levels` would be implemented in a crate called `bevy_level`. (I reserved the name for this encase the RFC is accepted and it's needed [https://crates.io/crates/bevy_level](https://crates.io/crates/bevy_level), if cart/bevy wants it let me know and I can transfer the name.)
 
-The level API would be interacted with via a bevy resource, and only 1 level can be loaded at any given time. API calls on the resource would go to a list, and then get processed by systems in the `bevy_level` crate.
+Levels are loaded via the bevy asset loader and stored inside a resource for easy management.
+```rust
+// LevelAPI adds methods for managing the scene so you don't have to do: handle.0.load_scene(...);
+// SceneComposition is the resource type made from the `.cos`/`.sc` file.
+#[derive(Resource, LevelAPI)]
+struct GameplayLevel(Handle<SceneComposition>);
+
+// Startup system
+fn setup_gameplaylevel(
+    mut commands: Commands,
+    server: Res<AssetServer>
+) {
+    let handle: Handle<SceneComposition> = server.load("level/maze.cos");
+    commands.insert_resource(GameplayLevel(handle));
+}
+```
 
 The level format and API can be implemented independantly of scenes and ECS world. ECS world and scenes don't understand or have any dependancies on level. Because of this levels are an opt in feature that are not be part of the default plugin.
 
@@ -129,6 +144,15 @@ Getting larger companies or dev teams working in bevy would increase funding and
 This feature could be an external ecosystem crate, but it's very simple, has an API many games would use for loading levels or parts of levels, and would be used by the bevy editor. It will also have dependencies to bevy so it wouldn't have any as use an external crate for the wider Rust ecosystem.
 
 You could make it a third party plugin of bevy editor instead of tightly intergrating it, or make another editor that supports the crate. This would be an problem because Bevy would be giving up a strong selling point of using its own editor. Don't want third party editors to all have better features than the bevy editor, otherwise we'll have a fragmented ecosystem which would be undesirable.
+
+
+
+## Prior Art
+
+### Unity
+Unity supports additive scenes and has APIs for managing those scenes and loading more than one scene at once https://github.com/bevyengine/rfcs/pull/75#issuecomment-1873990935.
+
+`Fragmented-Levels` is very similar to Unity additive scenes. This was accidental, but proves that this RFC is a desired feature in a game engine, and we should look into how to best support this feature in bevy.
 
 
 
