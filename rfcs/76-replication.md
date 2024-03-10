@@ -17,7 +17,7 @@ Replication is split up into replication and transport.
 ### Replication
 
 For replication to work, every resource, event or component has to be registered for sending or receiving.
-```
+```rs
 app.add_plugins(ReplicationPlugin);
 app.recv_resource::<Resource>();
 app.send_resource::<Resource>();
@@ -32,7 +32,7 @@ recv requires the DeserializeOwned trait, and send the Serialize trait.
 
 The transport part is responsible for the underlying protocol and how the data is transmitted and received.
 There is a server and client plugin; they don't have any impact on replication itself.
-```
+```rs
 app.add_plugins(ServerPlugin {
     address: todo!(),
 });
@@ -74,7 +74,11 @@ Also supports different transports.
 ## Unresolved questions
 
 - How to implement scoping and prioritization.
-  Unreal Engine, for example, has a way to specify if a property should be replicated (Initial, Owner, Owner+Initial) and what priority an entity has (distance-based).
+  - Unreal Engine, for example, has a way to specify if a property should be replicated (Initial, Owner, Owner+Initial) and what priority an entity has (distance-based).
+- How to handle reliability and ordering.
+  - For out-of-order packets, theoretically only the newest state for a resource or component+entity pair has to be applied, ignoring all datagrams that are older.<br>
+    This also means that the state might not be the same as on the server, for example. (Maybe configurable?)
+  - Events should never be accepted out-of-order, but they can be unreliable for playing animations.
 
 ## Future possibilities
 
