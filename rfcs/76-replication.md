@@ -16,9 +16,10 @@ Replication is split up into replication and transport.
 
 ### Replication
 
-For replication to work, every resource, event or component has to be registered for sending or receiving.
+For replication to work, every resource, event or component has to be registered for sending or receiving. Which would also allow for some configuration, like relevancy or which serializer to use, etc.
 ```rs
 app.add_plugins(ReplicationPlugin);
+
 app.recv_resource::<Resource>();
 app.send_resource::<Resource>();
 app.recv_event::<Event>();
