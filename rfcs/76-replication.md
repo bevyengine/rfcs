@@ -12,7 +12,7 @@ The goal is to be able to replicate resources, events, and components peer-to-pe
 
 ## User-facing explanation
 
-Replication is split up into replication and transport.
+Replication allows for transferring state between multiple instances, either Server-Client, or P2P. And is split up into the actual replication part and transport.
 
 ### Replication
 
@@ -50,6 +50,10 @@ A new crate gets added called bevy_net, or bevy_replication, which contains a re
 
 The replication plugin contains the methods and interfaces for transport to implement and the systems to spawn new connections, send/queue, and handle updates.
 
+To register resources, events, and components, a resource map is created containing hashes of the corresponding types and their serializers and deserializers. Where the deserializers also have the job of handling the state, like inserting resources, sending events, or inserting components,.
+
+It's theoretically possible to also use Reflect, but it would be substantially slower.
+
 The transport plugin interfaces with the replication plugin to handle the queues and send new packets into the queue.
 
 ## Drawbacks
@@ -60,6 +64,10 @@ The transport plugin interfaces with the replication plugin to handle the queues
 ## Rationale and alternatives
 
 Keeping things as-is and recommending external crates.
+
+As stated above, one major benefit of having an in-house solution is that crate authors writing plugins for Bevy may also consider how replication would interact with their plugin. There is less incentive to add support for external plugins.
+
+No replication at all and just adding a way of sending and receiving packets would also be a solution, but then a user could also just write the boilerplate for creating a server and client, which are like 200 LoC, and it also might fit their needs better.
 
 ## Prior art
 
