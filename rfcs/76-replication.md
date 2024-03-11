@@ -38,7 +38,6 @@ app.add_plugins(ServerPlugin {
     address: todo!(),
 });
 app.add_plugins(ClientPlugin {
-    address: todo!(),
 })
 ```
 
