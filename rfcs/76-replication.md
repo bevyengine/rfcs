@@ -16,7 +16,7 @@ Replication allows for transferring state between multiple instances, either Ser
 
 ### Replication
 
-For replication to work, every resource, event or component has to be registered for sending or receiving. Which would also allow for some configuration, like relevancy or which serializer to use, etc.
+For replication to work, every resource, event or component has to be registered for sending or receiving. Which would also allow for some configuration, like relevancy or which serializer to use.
 ```rs
 app.add_plugins(ReplicationPlugin);
 
@@ -42,7 +42,14 @@ app.add_plugins(ClientPlugin {
 })
 ```
 
-A connection is an entity with a connection component, so that the lifetime of the connection component is coupled with the lifetime of the actual connection. The connection also has ownership of the entity, including their children.
+Except for the part that a server listens and a client connects, there are no other differences between client and server, which also allows for all sorts of topologies.
+
+A connection is an entity with a connection component, so that the lifetime of the connection component is coupled with the lifetime of the actual connection. This has the additional effect of ownership, so that an entity is owned by the connection, including their children.
+
+### Events
+
+As there are no RPCs, events are the closest thing to achive similar results. Events can either be send normally, or using the `Directed<Event>` wrapper, which allows for event routing.
+When events are received the event is wrapped inside an `Received<Event>` wrapper.
 
 ## Implementation strategy
 
