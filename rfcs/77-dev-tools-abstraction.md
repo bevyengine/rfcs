@@ -1,5 +1,62 @@
 # Feature Name: `dev-tools-abstraction`
 
+Key questions:
+
+- what are the defining features of a dev tool?
+  - eases Bevy development experience, typically be presenting information about the app or its function
+  - not intended for end-user use
+    - must be able to be disabled at compile time
+  - contextually useful based on encountered weirdness in the app
+    - must be able to be toggled on and off at runtime without a reboot
+  - should not interfere with normal operation of the app
+  - can be customized to meet the needs of both the app and the developer
+- what are clear examples of dev tools that we might want?
+  - system graph visualizer
+  - bevy_inspector_egui
+  - fly camera
+  - UI node visualizer
+  - FPS display
+  - resetting a level
+  - toggling god mode
+- who creates dev tools?
+  - Bevy itself: FPS display
+  - third-party crates: bevy_rapier collider overlay
+  - end users: toggle god mode
+- who creates dev tool consumers?
+  - Bevy itself: scene editor
+  - third-party crates: dev console
+  - end users: custom level editors
+- how might dev tools be toggled and consumed?
+  - Quake-style dev console
+  - unified set of hot keys
+  - menu bar from scene editor
+- how might dev tools be displayed?
+  - screen overlay
+  - pop-out window
+  - embedded panel widget
+  - cli
+- how might dev tools be configured?
+  - color palettes
+  - fonts
+  - font size
+  - screen location
+  - dev tool specific features: camera speed, entities to ignore etc
+- why do dev tools need to be aware of each other?
+  - overlays can clash: toggle off current overlay before enabling next
+- how can we make it easy for third-party consumers and producers to play nice together?
+  - Cart's suggestion: let each consumer decide which tools it wants to use
+    - creates a quadratic problem: must wire up plumbing separately for each tool and consumer
+  - define a standard API for available dev tools and essential operations
+    - existing tools will have to conform to this in some way
+
+Out of scope:
+
+- [where should dev tools live](https://github.com/bevyengine/bevy/pull/12354)?
+  - where the primitives used are defined? e.g. bevy_gizmos
+  - where they're used for debugging? e.g. bevy_sprite
+  - in bevy_dev_tools?
+  - in dedicated crates, saving bevy_dev_tools for higher level abstractions?
+
 ## Summary
 
 One paragraph explanation of the feature.
