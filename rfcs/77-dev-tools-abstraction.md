@@ -64,13 +64,20 @@ One paragraph explanation of the feature.
 
 ## Motivation
 
-[`bevy_dev_tools`](gh link) was recently added to Bevy, giving us a home for first-party tools to ease the developer experience.
-However, since its inception, it has been plagued by debate over "what is a dev tool?"
-and every **tool** within both Bevy and its ecosystem follows its own ad hoc conventions about how it might be enabled and configured.
+[`bevy_dev_tools`](https://github.com/bevyengine/bevy/tree/main/crates/bevy_dev_tools) was recently added to Bevy, giving us a home for first-party tools to ease the developer experience.
+However, since its inception, it has been plagued by debate over ["what is a dev tool?"](https://github.com/bevyengine/bevy/issues/12358)
+and every **tool** within both Bevy and its ecosystem follows its own ad hoc conventions about [how it might be enabled and configured](https://github.com/bevyengine/bevy/issues/12368).
 
 This is frustrating to navigate as an end user: every tool has its own way to configure it, with no rhyme, reason or way to set the same property to the same value across tools.
 It also makes the creation of **toolboxes**, interfaces designed to collect multiple dev tools in a single place (such as a Quake-style dev console)
-needlessly painful, requiring manual glue work for every new tool that's added to it.
+needlessly painful, requiring manual glue work by either the toolbox creator or application developer for every new tool that's added to it.
+
+This problem is particularly nasty when combined with the orphan rule: Rust's restriction that traits can only be implemented in crates that own either the type or the trait.
+Suppose that `bevy_xr_dev_console` (a hypothetical promising new toolbox crate!) requires its own `XrConsoleCommand` trait on the config for each of the dev tools that they want to add to their XR game.
+If we want to integrate this with beloved existing tools like `bevy_inspector_egui`, we need to special-case either the tool or the toolbox in the third-party crates.
+There's no path forward for the end users who wants to create the simple unified interface they want.
+Instead, for every new tool, they have to newtype the existing configuration, and then add systems to carefully synchronize the settings.
+By providing a standard interface in Bevy itself, we can ensure the ecosystem plays nicely together.
 
 In some cases, tools can actively interfere with the function of other tools.
 A prime example of this are text-based overlays, like you might see in an FPS meter.
@@ -78,7 +85,7 @@ Toggling one tool might completely cover (or distort the layout) of another, and
 
 ## User-facing explanation
 
-**Dev tools**, or simply **tools**, are an eclectic collection of features used by developers to inspect and manipulate their game at runtime.
+**Dev tools** are an eclectic collection of features used by developers to inspect and manipulate their game at runtime.
 These arise naturally to aid debugging and testing: setting up test scenarios.
 Some examples include:
 
@@ -88,11 +95,26 @@ Some examples include:
 - a fly camera, to examine the environment around the player avatar
 - system stepping, to walk through the evaluation of system logic
 - adding items to the player's inventory
+- warping to a given level
 - toggling god mode
 
-As you can see, these tools are currently and will continue to be created by the creators of indidvidual games, third-party crates in Bevy's ecosystem, and Bevy itself.
+Some tools, while useful for development, *don't* match this pattern!
+For example:
 
-As a result of this usage pattern, dev tools are:
+- a system graph visualizer like [`bevy_mod_debugdump`](https://github.com/jakobhellermann/bevy_mod_debugdump): this doesn't rely on information about a running game
+- the [`perfetto`](https://ui.perfetto.dev/) performance profiler or a time travel debugger like [rerun-io's Revy](https://github.com/rerun-io/revy/tree/main): these relies on logs created, although in-process equivalents could be built
+- a scene editor, pixel art tool or audio workstation: these are used to create assets, and do not need to be accessible at runtime
+- gizmos: while these are commonly used for *making* dev tools, they don't inherently provide a way to inspect or manipulate the game world
+
+As you can see, these tools are currently and will continue to be created by the creators of indidvidual games, third-party crates in Bevy's ecosystem, and Bevy itself.
+Looking at the usage examples more closely, we can classify them into two patterns: **modal dev tools** and **dev commands**.
+
+- Modal dev tools (like an FPS meter): can be toggled off and on, and want persistent configuration.
+- Dev commands (like adding items): immediately alter the game world
+
+As a result, we require two distinct (but inter-related) abstractions to handle these patterns.
+
+Regardless of this classification, dev tools are:
 
 - not intended to be shipped to end users
   - as a result, they can be enabled or disabled at compile time, generally behind a single `dev` flag in the application
@@ -106,20 +128,13 @@ As a result of this usage pattern, dev tools are:
 - expansive and ad hoc: it's common to end up with dozens of assorted dev tools in a finished game, added to help solve specific problems as they occur
   - some structure is generally needed to present these options to the developer, and avoid ovewhelming them with dozens of chorded hotkeys
 
-Some tools, while useful for development, *don't* match this pattern!
-For example:
-
-- a system graph visualizer like [`bevy_mod_debugdump`](https://github.com/jakobhellermann/bevy_mod_debugdump): this doesn't rely on information about a running game
-- the [`perfetto`](https://ui.perfetto.dev/) performance profiler or a time travel debugger like [rerun-io's Revy](https://github.com/rerun-io/revy/tree/main): these relies on logs created, although in-process equivalents could be built
-- a scene editor, pixel art tool or audio workstation: these are used to create assets, and do not need to be accessible at runtime
-- gizmos: while these are commonly used for *making* dev tools, they don't inherently provide a way to inspect or manipulate the game world
-
 In order to manage the complexity of an eclectic collection of one-off debugging tools, dev tools are commonly organized into a **toolbox**: an abstraction used to provide a unified interface over the available dev tools.
 This might be:
 
 - an in-game dev console (like in Quake)
 - special developer commands entered into the chat box, commonly with a `/` to denote their non-textual effect
 - cheat codes
+- a unified set of hotkeys
 - game editor widgets
 
 Regardless of the exact interface used, toolboxes have a few shared needs:
@@ -129,7 +144,127 @@ Regardless of the exact interface used, toolboxes have a few shared needs:
 - execute one-time commands (like spawning enemies or setting the player's gold)
 - list the various options for the user, ideally with help text
 
-### A shared abstraction
+### Toggling modes: `ModalDevTool`
+
+In order to facilitate the creation of toolboxes, Bevy provides the `ModalDevTool` trait.
+
+```rust
+/// Modal dev tools are used by developers to inspect their application in a toggleable way,
+/// such as an FPS meter or a fly camera.
+/// 
+/// Their configuration is stored as a resource (the type that this trait is implemented for),
+/// and they can be enabled, disabled and reconfigured at runtime.
+/// 
+/// The documentation on this struct is reflected, and can be read by toolboxes to provide help text to users.
+trait ModalDevTool: Resource + Reflect {
+    /// Turns this dev tool on (true) or off (false).
+    fn set_enabled(&mut self, enabled: bool);
+
+    /// Is this dev tool currently enabled?
+    fn is_enabled(&self) -> bool;
+
+    /// Enables this dev tool.
+    fn enable(&mut self) {
+        self.toggle(true);
+    }
+
+    /// Disables this dev tool.
+    fn disable(&mut self) {
+        self.toggle(false);
+    }
+
+    /// Enables this dev tool if it's disabled, or disables it if it's enabled.
+    fn toggle(&mut self){
+        if self.is_enabled(){
+            self.disable();
+        } else {
+            self.enable();
+        }
+    }
+}
+```
+
+Modal dev tools are registered via `app.init_modal_dev_tool::<D>()` (to use default config based on the `FromWorld` implementation) or via `app.insert_modal_dev_tool(config: D)`.
+This adds them as a resource (just like ), but also registers their `ComponentId` with the central `DevToolsRegistry`, which can be consumed by toolboxes to get a list of the available dev tools.
+
+To build your own modal dev tool, simply create a configuration resource, implement the `ModalDevTool` trait, and then register it in the app when the correct feature flag is enabled.
+
+```rust
+/// A flying camera controller that lets you disconnect your camera from the player to freely explore the environment.
+/// 
+/// When this mode is disabled
+#[derive(Resource, Reflect)]
+struct DevFlyCamera {
+    enabled: bool,
+    /// How fast the camera travels forwards, backwards, left, right, up and down, in world units.
+    movement_speed: f32,
+    /// How fast the camera turns, in radians per second.
+    turn_speed: f32,
+}
+
+impl ModalDevTool for DevFlyCamera {
+    fn set_enabled(&mut self, enabled: bool) {
+        self.enabled = enabled;
+    }
+
+    fn is_enabled(&self) -> bool {
+        self.enabled
+    }
+}
+```
+
+To configure a dev tool at runtime, simply access the resource, and either mutate or overwrite the `ModalDevTools` struct.
+
+### Immediate dev tools
+
+Immediate dev tools modify the world a single time, and can be called with arguments.
+To model this, we leverage Bevy's existing `Command` trait, which exists to perform complex one-off modifications to the world.
+
+```rust
+/// Dev commands are used by developers to modify the `World` in order to easily debug and test their application.
+/// 
+/// Dev commands can be called with arguments to specify the exact behavior: if you are creating a toolbox, parse the provided arguments 
+/// to construct an instance of the type that implements this type, and then send it as a `Command` to execute it.
+/// 
+/// The documentation on this struct is reflected, and can be read by toolboxes to provide help text to users.
+trait DevCommand: Command + Reflect;
+
+/// `DevCommand` uses a blanket implementation over all appropriate commands, as it has no special requirements.
+impl <C: Command + Reflect> DevCommand for C {}
+```
+
+Creating your own dev command is simple! Create a struct for any config, implement `Command` for it and then register it using `app.register_dev_command::<C>()`, making it available for various toolboxes to inspect and send.
+
+```rust
+/// Sets the player's gold to the provided value.
+#[derive(Reflect)]
+struct SetGold {
+    amount: u64,
+}
+
+impl Command for SetGold {
+    fn apply(&self, world: &mut World){
+        let mut current_gold = world.resource_mut::<Gold>();
+        current_gold.0 = self.amount;
+    }
+}
+```
+
+### Building toolboxes
+
+TODO
+
+### Conventions for building dev tools
+
+Not everything can or should be defined by a trait! To supplement the `DevTool` trait, we recommend that Bevy and its ecosystem follow the following conventions:
+
+1. Dev tools can be toggled at compile time.
+2. Dev tools can be toggled at run time.
+3. Dev tools implement the `DevTool` trait, and if the corresponding feature is enabled, are added to the app via `.init_dev_tool` or `.insert_dev_tool`.
+   1. This can be done either in the main plugin or a dedicated dev tools plugin.
+   1. If configuration is required, splitting this into a dedicated dev tools plugin is preferred.
+4. Dev tools are disabled by default, both at compile and run-time.
+5. Each dev tools should be configured independently via a single resource.
 
 ## Implementation strategy
 
@@ -149,17 +284,21 @@ When writing this section be mindful of the following [repo guidelines](https://
 - **RFCs should avoid ambiguity:** Two developers implementing the same RFC should come up with nearly identical implementations.
 - **RFCs should be "implementable":** Merged RFCs should only depend on features from other merged RFCs and existing Bevy features. It is ok to create multiple dependent RFCs, but they should either be merged at the same time or have a clear merge order that ensures the "implementable" rule is respected.
 
+### What is a `DevToolsRegistry`?
+
+TODO
+
 ## Drawbacks
 
-Why should we *not* do this?
+1. Third-party and end user dev tools will be pushed to conform to this standard. Without the use of a toolbox, this is added work for no benefit.
+2. This abstraction may not fit all possible tools and toolboxes. The manual wiring approach is more flexible, and so if our abstraction is overly prescriptive, it may not work correctly.
 
 ## Rationale and alternatives
 
-- Why is this design the best in the space of possible designs?
-- What other designs have been considered and what is the rationale for not choosing them?
-- What objections immediately spring to mind? How have you addressed them?
-- What is the impact of not doing this?
-- Why is this important to implement as a feature of Bevy itself, rather than an ecosystem crate?
+### Why should we use commands rather than one-shot systems for immediate dev tools?
+
+Immediate dev tools commonly require input from the developer to take effect: what level to warp to, what item to spawn, what to set the player's gold to.
+This pattern is very straightforward with commands, and quite complex to do with one-shot systems, requiring an associated type for the input.
 
 ## \[Optional\] Prior art
 
@@ -181,15 +320,16 @@ Note that while precedent set by other engines is some motivation, it does not o
 
 ## \[Optional\] Future possibilities
 
-Think about what the natural extension and evolution of your proposal would
-be and how it would affect Bevy as a whole in a holistic way.
-Try to use this section as a tool to more fully consider other possible
-interactions with the engine in your proposal.
+Related but out-of-scope questions:
 
-This is also a good place to "dump ideas", if they are out of scope for the
-RFC you are writing but otherwise related.
+- [where should dev tools live](https://github.com/bevyengine/bevy/pull/12354#issuecomment-1982284605)?
+  - where the primitives used are defined? e.g. bevy_gizmos
+  - where they're used for debugging? e.g. bevy_sprite
+  - in bevy_dev_tools?
+  - in dedicated crates, saving bevy_dev_tools for higher level abstractions?
+- should dev tools be embedded in each application or should testing be done through an editor which controls these dev tools?
+  - this is one of the [key questions](https://github.com/bevyengine/bevy_editor_prototypes/discussions/1) for the bevy_editor efforts
 
-Note that having something written down in the future-possibilities section
-is not a reason to accept the current or a future RFC; such notes should be
-in the section on motivation or rationale in this or subsequent RFCs.
-If a feature or change has no direct value on its own, expand your RFC to include the first valuable feature that would build on it.
+Future possibilities:
+
+1. Over time, we can extend the `ModalDevTool` trait with optional methods like `set_font`, enabling gradual unification of more complex shared configuration.
