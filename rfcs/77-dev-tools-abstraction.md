@@ -56,6 +56,7 @@ Out of scope:
   - where they're used for debugging? e.g. bevy_sprite
   - in bevy_dev_tools?
   - in dedicated crates, saving bevy_dev_tools for higher level abstractions?
+- should dev tools be embedded in each application or should testing be done through an editor which controls these dev tools?
 
 ## Summary
 
@@ -67,8 +68,8 @@ One paragraph explanation of the feature.
 However, since its inception, it has been plagued by debate over "what is a dev tool?"
 and every **tool** within both Bevy and its ecosystem follows its own ad hoc conventions about how it might be enabled and configured.
 
-This is frustrating to navigate as an end user, but more critically,
-makes the creation of **toolboxes**, interfaces designed to collect multiple dev tools in a single place (such as a Quake-style dev console)
+This is frustrating to navigate as an end user: every tool has its own way to configure it, with no rhyme, reason or way to set the same property to the same value across tools.
+It also makes the creation of **toolboxes**, interfaces designed to collect multiple dev tools in a single place (such as a Quake-style dev console)
 needlessly painful, requiring manual glue work for every new tool that's added to it.
 
 In some cases, tools can actively interfere with the function of other tools.
@@ -77,13 +78,58 @@ Toggling one tool might completely cover (or distort the layout) of another, and
 
 ## User-facing explanation
 
-Explain the proposal as if it was already included in the engine and you were teaching it to another Bevy user. That generally means:
+**Dev tools**, or simply **tools**, are an eclectic collection of features used by developers to inspect and manipulate their game at runtime.
+These arise naturally to aid debugging and testing: setting up test scenarios.
+Some examples include:
 
-- Introducing new named concepts.
-- Explaining the feature, ideally through simple examples of solutions to concrete problems.
-- Explaining how Bevy users should *think* about the feature, and how it should impact the way they use Bevy. It should explain the impact as concretely as possible.
-- If applicable, provide sample error messages, deprecation warnings, or migration guidance.
-- If applicable, explain how this feature compares to similar existing features, and in what situations the user would use each one.
+- displaying the FPS or other performance characteristics
+- an entity inspector like `bevy_inspector_egui`, to understand the state of the `World`
+- a UI node visualizer, to debug issues with layout
+- a fly camera, to examine the environment around the player avatar
+- system stepping, to walk through the evaluation of system logic
+- adding items to the player's inventory
+- toggling god mode
+
+As you can see, these tools are currently and will continue to be created by the creators of indidvidual games, third-party crates in Bevy's ecosystem, and Bevy itself.
+
+As a result of this usage pattern, dev tools are:
+
+- not intended to be shipped to end users
+  - as a result, they can be enabled or disabled at compile time, generally behind a single `dev` flag in the application
+- highly application specific: the tools needed for a 3D FPS, a 2D tilemap game, or a puzzle game are all very different
+  - adding these to your game should be done granularly at compile time
+- enabled or operated one at a time, on an as-needed basis, when problems arise
+  - toggling dev tools needs to be done at runtime: without recompiling or restarting the game
+- intended to avoid interfering with the games ordinary operation, especially when disabled
+  - keybindings must be configurable to avoid conflicting with actual gameplay
+  - while off, performance costs should be low or zero
+- expansive and ad hoc: it's common to end up with dozens of assorted dev tools in a finished game, added to help solve specific problems as they occur
+  - some structure is generally needed to present these options to the developer, and avoid ovewhelming them with dozens of chorded hotkeys
+
+Some tools, while useful for development, *don't* match this pattern!
+For example:
+
+- a system graph visualizer like [`bevy_mod_debugdump`](https://github.com/jakobhellermann/bevy_mod_debugdump): this doesn't rely on information about a running game
+- the [`perfetto`](https://ui.perfetto.dev/) performance profiler or a time travel debugger like [rerun-io's Revy](https://github.com/rerun-io/revy/tree/main): these relies on logs created, although in-process equivalents could be built
+- a scene editor, pixel art tool or audio workstation: these are used to create assets, and do not need to be accessible at runtime
+- gizmos: while these are commonly used for *making* dev tools, they don't inherently provide a way to inspect or manipulate the game world
+
+In order to manage the complexity of an eclectic collection of one-off debugging tools, dev tools are commonly organized into a **toolbox**: an abstraction used to provide a unified interface over the available dev tools.
+This might be:
+
+- an in-game dev console (like in Quake)
+- special developer commands entered into the chat box, commonly with a `/` to denote their non-textual effect
+- cheat codes
+- game editor widgets
+
+Regardless of the exact interface used, toolboxes have a few shared needs:
+
+- turn on and off various modes
+- ensure that the active modes don't interfere with each other
+- execute one-time commands (like spawning enemies or setting the player's gold)
+- list the various options for the user, ideally with help text
+
+### A shared abstraction
 
 ## Implementation strategy
 
