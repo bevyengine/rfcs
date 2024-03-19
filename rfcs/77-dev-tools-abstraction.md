@@ -2,7 +2,12 @@
 
 ## Summary
 
-One paragraph explanation of the feature.
+Dev tools are an essential but poorly-defined part of the game development experience.
+Designed to allow developers (but generally not end users) to quickly inspect and manipulate the game world,
+they accelerate debugging and testing by allowing common operations to be done at runtime, without having to write and then delete code.
+To support a robust ecosystem of dev tools,
+`bevy_dev_tools` comes with two core traits: `ModalDevTool` (for tools that can be toggled) and `DevCommand` (for operations with an immediate effect on the game world).
+These are registered in the `DevToolsRegistry` via methods on `App`, allowing tool boxes (such as a dev console) to easily identify the available options and interact with them without the need for ad-hoc user glue code.
 
 ## Motivation
 
