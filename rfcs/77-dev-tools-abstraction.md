@@ -103,7 +103,7 @@ For example:
 
 - a system graph visualizer like [`bevy_mod_debugdump`](https://github.com/jakobhellermann/bevy_mod_debugdump): this doesn't rely on information about a running game
 - the [`perfetto`](https://ui.perfetto.dev/) performance profiler or a time travel debugger like [rerun-io's Revy](https://github.com/rerun-io/revy/tree/main): these relies on logs created, although in-process equivalents could be built
-- a scene editor, pixel art tool or audio workstation: these are used to create assets, and do not need to be accessible at runtime
+- a scene editor, pixel art tool, asset preprocessing solutions or audio workstation: these are used to create assets, and do not need to be accessible at runtime
 - gizmos: while these are commonly used for *making* dev tools, they don't inherently provide a way to inspect or manipulate the game world
 
 As you can see, these tools are currently and will continue to be created by the creators of indidvidual games, third-party crates in Bevy's ecosystem, and Bevy itself.
@@ -156,7 +156,18 @@ In order to facilitate the creation of toolboxes, Bevy provides the `ModalDevToo
 /// and they can be enabled, disabled and reconfigured at runtime.
 /// 
 /// The documentation on this struct is reflected, and can be read by toolboxes to provide help text to users.
-trait ModalDevTool: Resource + Reflect {
+trait ModalDevTool: Resource + Reflect + FromReflect + Debug {
+    /// The name of this tool, as might be supplied by a command line interface.
+    fn name() -> &'static str {
+        Self::type_name().to_snake_case()
+    }
+
+    /// Attempts to create an object of type `Self` from a provided string,
+    /// as might be supplied by a command-line style interface.
+    fn parse_from_str(string: &str) -> Result<Self, DevToolParseError> {
+        Err(DevToolParseError::NotImplemented)
+    }
+
     /// Turns this dev tool on (true) or off (false).
     fn set_enabled(&mut self, enabled: bool);
 
@@ -193,16 +204,53 @@ To build your own modal dev tool, simply create a configuration resource, implem
 /// A flying camera controller that lets you disconnect your camera from the player to freely explore the environment.
 /// 
 /// When this mode is disabled
-#[derive(Resource, Reflect)]
+#[derive(Resource, Reflect, FromReflect, Debug)]
 struct DevFlyCamera {
     enabled: bool,
     /// How fast the camera travels forwards, backwards, left, right, up and down, in world units.
-    movement_speed: f32,
+    movement_speed: Option<f32>,
     /// How fast the camera turns, in radians per second.
-    turn_speed: f32,
+    turn_speed: Option<f32>,
+}
+
+impl Default for DevFlyCamera {
+    fn default() -> Self {
+        DevFlyCamera {
+            enabled: false,
+            movement_speed: 3.,
+            turn_speed: 10.
+        }
+    }
 }
 
 impl ModalDevTool for DevFlyCamera {
+    /// Expects a call that looks like `dev_fly_camera` (default settings)
+    /// or `dev_fly_camera 5 10` (to specify settings)
+    fn parse_from_str(string: &str) -> Result<Self, DevToolParseError>{
+        let parts = string.split_whitespace();
+        let name = parts.iter.next()?;
+        if name != self.name() {
+            return Err(DevToolParseError::InvalidName);
+        }
+
+        let movement_speed: f32 = match parts.iter.next() {
+            Some(string) = parse(string)?,
+            None => Self::default().movement_speed,
+        };
+
+        let turn_speed: f32 = match parts.iter.next() {
+            Some(string) = parse(string)?,
+            None => Self::default().turn_speed,
+        };
+
+        Ok(DevFlyCamera {
+                enabled: true,
+                movmeent_speed,
+                turn_speed,
+            }
+        )
+    }
+
     fn set_enabled(&mut self, enabled: bool) {
         self.enabled = enabled;
     }
@@ -215,9 +263,9 @@ impl ModalDevTool for DevFlyCamera {
 
 To configure a dev tool at runtime, simply access the resource, and either mutate or overwrite the `ModalDevTools` struct.
 
-### Immediate dev tools
+### Dev commands
 
-Immediate dev tools modify the world a single time, and can be called with arguments.
+Dev commands modify the world a single time, and can be called with arguments.
 To model this, we leverage Bevy's existing `Command` trait, which exists to perform complex one-off modifications to the world.
 
 ```rust
@@ -227,17 +275,36 @@ To model this, we leverage Bevy's existing `Command` trait, which exists to perf
 /// to construct an instance of the type that implements this type, and then send it as a `Command` to execute it.
 /// 
 /// The documentation on this struct is reflected, and can be read by toolboxes to provide help text to users.
-trait DevCommand: Command + Reflect;
+trait DevCommand: Command + Reflect + FromReflect + Debug + 'static {
+    /// The name of this tool, as might be supplied by a command line interface.
+    fn name() -> &'static str {
+        Self::type_name().to_snake_case()
+    }
 
-/// `DevCommand` uses a blanket implementation over all appropriate commands, as it has no special requirements.
-impl <C: Command + Reflect> DevCommand for C {}
+    /// The metadata for this dev command.
+    fn metadata() -> DevToolMetaData {
+        DevToolMetaData {
+            name: self.name(),
+            type_id: Self::type_id(),
+            type_info: Self::type_info(),
+            // A function pointer, based on the parse_from_str method
+            parse_from_str_fn: Self::parse_from_str
+        }
+    }
+
+    /// Attempts to create an object of type `Self` from a provided string,
+    /// as might be supplied by a command-line style interface.
+    fn parse_from_str(string: &str) -> Result<Self, DevToolParseError> {
+        Err(DevToolParseError::NotImplemented)
+    }
+}
 ```
 
-Creating your own dev command is simple! Create a struct for any config, implement `Command` for it and then register it using `app.register_dev_command::<C>()`, making it available for various toolboxes to inspect and send.
+Creating your own dev command is straightforward! Create a struct for any config, implement `Command` for it and then register it using `app.register_dev_command::<C>()`, making it available for various toolboxes to inspect and send.
 
 ```rust
 /// Sets the player's gold to the provided value.
-#[derive(Reflect)]
+#[derive(Reflect, FromReflect, Debug)]
 struct SetGold {
     amount: u64,
 }
@@ -248,11 +315,26 @@ impl Command for SetGold {
         current_gold.0 = self.amount;
     }
 }
+
+impl DevCommand for SetGold {
+    /// We're fine using Bevy's built-in error type for this.
+    type StringParseError = DevToolParseError;
+
+    /// Expects a call that looks like `set_gold 500`
+    fn parse_from_str(string: &str) -> Result<Self, DevToolParseError>{
+        let parts = string.split_whitespace();
+        let name = parts.iter.next()?;
+        if name != self.name() {
+            return Err(DevToolParseError::InvalidName);
+        }
+
+        let amount_string = parts.iter.next()?;
+        let amount = amount_string.parse()?;
+
+        Ok(SetGold {amount} )
+    }
+}
 ```
-
-### Building toolboxes
-
-TODO
 
 ### Conventions for building dev tools
 
@@ -265,33 +347,213 @@ Not everything can or should be defined by a trait! To supplement the `DevTool` 
    1. If configuration is required, splitting this into a dedicated dev tools plugin is preferred.
 4. Dev tools are disabled by default, both at compile and run-time.
 5. Each dev tools should be configured independently via a single resource.
+6. If a meaningful defaults exist for fields on dev commands, that field should be modelled as an `Option`.
+   1. This allows CLI-style toolboxes to more easily populate your struct.
+
+### Building toolboxes
+
+Let's take a look at how this all fits together by attempting to build a Quake-style dev console, much like [`bevy-console`](https://github.com/RichoDemus/bevy-console).
+Obviously, this is too big to cover properly in an RFC example, so we're going to hand-wave the user input side of things by showing how you might deal with the parsed events, and simplify output by just logging to `println!`.
+
+Our first task is getting the list of dev tools.
+
+```rust
+#[derive(Event)]
+struct ListDevTools;
+
+fn list_dev_tools(mut event_reader: EventReader<ListDevTools>, dev_tools_registry: Res<DevToolsRegistry>){
+    // Clear the events, and act if at least one is found
+    if event_reader.drain().next().is_some() {
+        println!("Available modal dev tools:");
+        for (_component_id, modal_dev_tool) in dev_tools_registry.iter_modal_dev_tools() {
+            println!("{}", modal_dev_tool.type_name());
+            println!("{}", modal_dev_tool.docs());
+
+            for field in modal_dev_tools.fields(){
+                println!("{}", field.type_name());
+                println!("{}", field.docs())
+            }
+        }
+    }
+}
+```
+
+Next, we want to be able to toggle each modal tool by name.
+
+```rust
+#[derive(Event)]
+struct ToggleDevTool{
+    name: String,
+}
+
+fn toggle_dev_tools(world: &mut World){
+    // Move the events out of the world, clearing them and avoiding a persistent borrow
+    let events = world.resource_mut::<Events<ToggleDevTool>>().drain();
+
+    // Use a resource scope to allow us to access both the dev tools registry and the rest of the world at the same time
+    world.resource_scope(|(world, dev_tools_registry: Mut<DevToolsRegistry>)|{
+        for event in events {
+            // This gives us a mutable reference to the underlying resource as a `&mut dyn ModalDevTool`
+            let Some(dev_command_metadata) = dev_tools_registry.get_command_by_name(world, event.name) else {
+                warn!("No dev tool was found for {}). Did you forget to register it?", event.name);
+                continue;
+            };
+
+            // Create a concrete instance of our dev command from the supplied string.
+            let Ok(command) = dev_command_metadata.parse_from_str(&event.0) else {
+                warn!("Could not parse the command from the supplied string");
+                continue;
+            }
+
+            // Now we can run the command directly on the `World` using `Command::apply`!
+            command.apply(world);
+        }
+    })
+}
+```
+
+Finally, we want to be able to pass in a user supplied string, parse it into a dev command and then evaluate it on the world.
+
+```rust
+#[derive(Event)]
+struct DevCommandInput(String);
+
+fn parse_and_run_dev_commands(world: &mut World){
+    // Move the events out of the world, clearing them and avoiding a persistent borrow
+    let events = world.resource_mut::<Events<ToggleDevTool>>().drain();
+
+    // Use a resource scope to allow us to access both the dev tools registry and the rest of the world at the same time
+    world.resource_scope(|(world, dev_tools_registry: Mut<DevToolsRegistry>)|{
+        for event in events {
+            // This gives us a mutable reference to the underlying resource as a `&mut dyn ModalDevTool`
+            let Some(dev_tool) = dev_tools_registry.get_command_mut_by_name(world, event.name) else {
+                warn!("No dev command was found for {}). Did you forget to register it?", event.name);
+                continue;
+            };
+
+            // Since we know that this object always implements `ModalDevTool`,
+            // we can use any of the methods on it, or the traits that it requires (like `Reflect`)
+            dev_tool.toggle();
+        }
+    })
+
+}
+```
+
+While a number of other features could sensibly be added to this API (configuring modal dev tools, a `--help` flag, saving and loading config to disk),
+this MVP should be sufficient to prove out the viability of the core architecture.
 
 ## Implementation strategy
 
-This is the technical portion of the RFC.
-Try to capture the broad implementation strategy,
-and then focus in on the tricky details so that:
+### What metadata do toolboxes need?
 
-- Its interaction with other features is clear.
-- It is reasonably clear how the feature would be implemented.
-- Corner cases are dissected by example.
+We can start simple:
 
-When necessary, this section should return to the examples given in the previous section and explain the implementation details that make them work.
+- the type name of the dev tool
+- any doc strings on the dev tool struct
+- the value and types of any configuration that must be supplied
 
-When writing this section be mindful of the following [repo guidelines](https://github.com/bevyengine/rfcs):
+By relying on simple structs to configure both our modal dev tools and commands, we can extract this information automatically, via reflection.
+Additional dev tool specific metadata (such as a classification scheme) can be added to the traits on an opt-in basis in the future.
 
-- **RFCs should be scoped:** Try to avoid creating RFCs for huge design spaces that span many features. Try to pick a specific feature slice and describe it in as much detail as possible. Feel free to create multiple RFCs if you need multiple features.
-- **RFCs should avoid ambiguity:** Two developers implementing the same RFC should come up with nearly identical implementations.
-- **RFCs should be "implementable":** Merged RFCs should only depend on features from other merged RFCs and existing Bevy features. It is ok to create multiple dependent RFCs, but they should either be merged at the same time or have a clear merge order that ensures the "implementable" rule is respected.
+Optional methods on both `ModalDevTool` and `DevCommand` will allow us to override the supplied defaults if needed.
 
-### What is a `DevToolsRegistry`?
+### What do the registries for our dev tools look like?
 
-TODO
+Keeping track of the registered dev tools without storing them all in a dedicated collection is quite challenging!
+How can we keep track of it under the hood?
+
+```rust
+#[derive(Resource)]
+struct DevToolsRegistry {
+    /// The stored collection of modal dev tools, tracked in a type-erased way using [`ComponentId`]
+    /// 
+    /// The key is the `name()` provided by the `ModalDevTool` trait.
+    modal_dev_tools: HashMap<String, ComponentId>,
+    /// The metadata for all registered dev commands.
+    /// 
+    /// The key is the `name()` provided by the `DevCommand` trait.
+    dev_commands: HashMap<String, DevCommandMetaData> 
+}
+```
+
+There are a few key operations that we will need to perform:
+
+```rust
+impl DevToolsRegistry {
+    /// Gets a reference to the specified modal dev tool by `ComponentId`.
+    fn get_tool_by_id(world: &World, component_id: ComponentId) -> Option<&dyn ModalDevTool> {
+        let resource = world.get_resource_by_id(component_id)?;
+        resource.downcast_ref()
+    }
+
+    /// Gets a mutable reference to the specified modal dev tool by `ComponentId`.
+    fn get_tool_mut_by_id(mut world: &mut World, component_id: ComponentId) -> Option<&mut dyn ModalDevTool> {
+        let resource = world.get_resource_mut_by_id(component_id)?;
+        resource.downcast_mut()
+    }
+
+    /// Looks up the `ComponentId` associated with the given name, as supplied by the `ModalDevTool` trait.
+    fn lookup_tool_component_id(&self, name: &str) -> Option<ComponentId> {
+       self.modal_dev_tools.get(name).copied()
+    }
+
+    /// Gets a reference to the specified modal dev tool by type name, as supplied by the `ModalDevTool` trait.
+    fn get_tool_by_name(&self, world: &World, name: &str) -> Option<&dyn ModalDevTool> {
+        let component_id = self.lookup_tool_component_id(name)?;
+        DevToolsRegistry::get_by_id(world, component_id)
+    }
+
+    /// Gets a mutable reference to the specified modal dev tool by name.
+    fn get_tool_mut_by_name(&self, mut world: &mut World, component_id: ComponentId) -> Option<&mut dyn ModalDevTool> {
+        let component_id = self.lookup_tool_component_id(name)?;
+        DevToolsRegistry::get_mut_by_id(world, component_id)
+    }
+    
+    /// Iterates over the list of registered modal dev tools.
+    fn iter_tools(&self, world: &World) -> impl Iterator<Item = (ComponentId, &dyn ModalDevTool)> { 
+        self.modal_dev_tools.iter().map(|&id| (id, self.get(world, id)))
+    }
+
+    /// Mutably iterates over the list of registered modal dev tools.
+    fn iter_tools_mut(&self, mut world: &mut World) -> impl Iterator<Item = (ComponentId, &mut dyn ModalDevTool)> { 
+        self.modal_dev_tools.iter_mut().map(|&id| (id, self.get(world, id)))
+    }
+
+    /// Gets the `DevCommandMetadata` for a given dev tool by name.
+    /// 
+    /// The supplied name should match the `DevCommand::name()` method.
+    fn get_command(name: &str) -> Option<&DevCommandMetadata> {
+        self.dev_commands.get(name)
+    }
+
+    /// Iterates over the list registered dev commands, returning their name and `DevCommandMetadata`.
+    fn iter_commands(&self) -> impl Iterator<Item = (&str, `DevCommandMetadata)> {
+        self.dev_commands.iter()
+    }
+}
+```
+
+Once the user has a `dyn ModalDevTool`, they can perform whatever operations they'd like: enabling and disabling it, reading metadata and so on.
+There's no need to add further duplicate API: users building toolboxes are generally sophisticated, and the number of calls should be quite small.
+
+While we can use the [dynamic resource APIs](https://docs.rs/bevy/latest/bevy/ecs/world/struct.World.html#method.get_resource_by_id) and trait casting to get references to the list of modal dev tools, we cannot do the same for the dev commands!
+While this may seem unintuitive, the reason for this is fairly simple: modal configuration is always present, while the configuration for each dev command is generated when it is sent.
+As a result, we can only access its metadata: the arguments it takes, its doc strings and so on.
+
+```rust
+#[derive(Resource)]
+struct DevCommandsRegistry {
+    /// The set of modal dev tools, tracked in a type-erased way using [`ComponentId`]
+    modal_dev_tools: HashMap<String, ComponentId>,
+}
+```
 
 ## Drawbacks
 
 1. Third-party and end user dev tools will be pushed to conform to this standard. Without the use of a toolbox, this is added work for no benefit.
 2. This abstraction may not fit all possible tools and toolboxes. The manual wiring approach is more flexible, and so if our abstraction is overly prescriptive, it may not work correctly.
+3. The parse-from-string methods are currently quite heavy on boilerplate. A `clap`-inspired derive macro would be lovely here.
 
 ## Rationale and alternatives
 
@@ -300,25 +562,48 @@ TODO
 Immediate dev tools commonly require input from the developer to take effect: what level to warp to, what item to spawn, what to set the player's gold to.
 This pattern is very straightforward with commands, and quite complex to do with one-shot systems, requiring an associated type for the input.
 
-## \[Optional\] Prior art
+### Why should we store the configuration in resources?
 
-Discuss prior art, both the good and the bad, in relation to this proposal.
-This can include:
+As [Cart pointed out](https://github.com/bevyengine/bevy/pull/12427#issuecomment-2005328288), using a dedicated collection to store information about the state of various dev tools has several drawbacks:
 
-- Does this feature exist in other libraries and what experiences have their community had?
-- Papers: Are there any published papers or great posts that discuss this?
+- unidiomatic: these are currently configured via stand-alone resources, and changing that would require either synchronization or the imposition of this pattern on every tool that could be used as a dev tool
+- breaks the granularity of change detection: we can't determine *which* dev tool's config has changed
+- accessing information about the current config of a dev tool requires an added layer of indirection, and will simply fail if the dev tool was not registered, even in cases where no toolbox is being used
 
-This section is intended to encourage you as an author to think about the lessons from other tools and provide readers of your RFC with a fuller picture.
+While this makes our internals more complex, that's a trade-off we're willing to accept.
 
-Note that while precedent set by other engines is some motivation, it does not on its own motivate an RFC.
+### Why not use trait queries?
+
+If we need to access a set of objects, all of which implement the same ttrait, why not simple use [trait queries](https://github.com/bevyengine/rfcs/pull/39).
+
+There are two arguments against this:
+
+1. While [`bevy_trait_query`] exists,  it is currently third-party, and upstreaming it would be a major initiative.
+2. This config is idiomatically stored in resources, not singleton entities.
+3. This still doesn't solve the problem of how to track the set of registered dev commands.
+
+### Why not add a `Display` bound to `ModalDevTool` and `DevCommand`?
+
+We want to be able to directly display their value to users in a generic way: why not rely on the `Display` trait?
+
+There are three arguments against this:
+
+1. Implementing `Display` is relatively tedious due to string formatting.
+2. We can get good enough results to print via `Reflect` and `Debug`.
+3. Toolkits will typically rely on their own custom UI for formatting this information, and need more structured data than a simple string.
 
 ## Unresolved questions
 
-- What parts of the design do you expect to resolve through the RFC process before this gets merged?
-- What parts of the design do you expect to resolve through the implementation of this feature before the feature PR is merged?
-- What related issues do you consider out of scope for this RFC that could be addressed in the future independently of the solution that comes out of this RFC?
+1. Are the provided methods (along with those on `Reflect`) sufficient to allow toolkits to populate and run a wide range of dev tools without requiring an additional trait and manual registration?
+2. Is the use of `downcast_ref` / `downcast_mut` correct in `DevToolsRegistry::get`?
+3. Are `ModalDevTool` and `DevCommand` the best names?
+4. How, precisely, can we achieve the sort of API shown in [Building toolboxes] using reflection?
+   1. A prototype would be great here.
+5. Should we replace our custom `parse_from_str` methods with a dependency on `clap`?
+6. Does the function pointer approach used by `DevCommandMetadata` compile and work successfully?
+   1. Again, prototype please!
 
-## \[Optional\] Future possibilities
+## Future possibilities
 
 Related but out-of-scope questions:
 
@@ -332,4 +617,9 @@ Related but out-of-scope questions:
 
 Future possibilities:
 
-1. Over time, we can extend the `ModalDevTool` trait with optional methods like `set_font`, enabling gradual unification of more complex shared configuration.
+1. Over time, we can extend the `ModalDevTool` and `DevCommand` traits with optional methods, enabling:
+   1. Gradual unification of more complex shared configuration (e.g. a `set_font` method).
+   2. Opt-in metadata about the type of tool they are (e.g. an overlay, a camera controller, a 2D vs. 3D tool), allowing toolkits to seamlessly organize the options.
+   3. Parsing from a `.bsn` file.
+2. Add support for a trait-queries-on-resources operation, and stop storing modal dev tools in the `DevToolsRegistry`.
+3. A derive macro for `DevCommand`, that aligns with `clap`'s calling conventions.
