@@ -63,7 +63,17 @@ One paragraph explanation of the feature.
 
 ## Motivation
 
-Why are we doing this? What use cases does it support?
+[`bevy_dev_tools`](gh link) was recently added to Bevy, giving us a home for first-party tools to ease the developer experience.
+However, since its inception, it has been plagued by debate over "what is a dev tool?"
+and every **tool** within both Bevy and its ecosystem follows its own ad hoc conventions about how it might be enabled and configured.
+
+This is frustrating to navigate as an end user, but more critically,
+makes the creation of **toolboxes**, interfaces designed to collect multiple dev tools in a single place (such as a Quake-style dev console)
+needlessly painful, requiring manual glue work for every new tool that's added to it.
+
+In some cases, tools can actively interfere with the function of other tools.
+A prime example of this are text-based overlays, like you might see in an FPS meter.
+Toggling one tool might completely cover (or distort the layout) of another, and so some level of coordination is required for a smooth user experience.
 
 ## User-facing explanation
 
