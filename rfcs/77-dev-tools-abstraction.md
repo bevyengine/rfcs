@@ -123,12 +123,12 @@ trait ModalDevTool: Resource + Reflect + FromReflect + Debug {
 
     /// Enables this dev tool.
     fn enable(&mut self) {
-        self.toggle(true);
+        self.set_enabled(true);
     }
 
     /// Disables this dev tool.
     fn disable(&mut self) {
-        self.toggle(false);
+        self.set_enabled(false);
     }
 
     /// Enables this dev tool if it's disabled, or disables it if it's enabled.
@@ -521,7 +521,7 @@ While this makes our internals more complex, that's a trade-off we're willing to
 
 ### Why not use trait queries?
 
-If we need to access a set of objects, all of which implement the same ttrait, why not simple use [trait queries](https://github.com/bevyengine/rfcs/pull/39).
+If we need to access a set of objects, all of which implement the same trait, why not simple use [trait queries](https://github.com/bevyengine/rfcs/pull/39).
 
 There are two arguments against this:
 
