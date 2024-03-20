@@ -602,6 +602,16 @@ There are three arguments against this:
 2. We can get good enough results to print via `Reflect` and `Debug`.
 3. Toolkits will typically rely on their own custom UI for formatting this information, and need more structured data than a simple string.
 
+### Why not add information about layout to our traits?
+
+This sort of information is really helpful for toolboxes like editors to ensure that dev tools don't overlap each other: allowing them to be laid out beside each other or enabled one at a time when necessary.
+
+However:
+
+1. This RFC is complex enough: keeping its scope small will make it easier to review and implement.
+2. Unlike with a CLI-style interface the correct abstractions aren't immediately obvious: we should prototype more toolkits and tools to explore the needs of the space further.
+3. Not all dev tools need layout information: we would need to use optional methods and/or subtraits to fill this need, adding further complexity.
+
 ## Unresolved questions
 
 1. Are the provided methods (along with those on `Reflect`) sufficient to allow toolkits to populate and run a wide range of dev tools without requiring an additional trait and manual registration?
@@ -626,9 +636,11 @@ Related but out-of-scope questions:
 
 Future possibilities:
 
-1. Over time, we can extend the `ModalDevTool` and `DevCommand` traits with optional methods, enabling:
+1. Over time, we can extend the `ModalDevTool` and `DevCommand` traits with more methods (mandatory and optional), enabling:
    1. Gradual unification of more complex shared configuration (e.g. a `set_font` method).
-   2. Opt-in metadata about the type of tool they are (e.g. an overlay, a camera controller, a 2D vs. 3D tool), allowing toolkits to seamlessly organize the options.
-   3. Parsing from a `.bsn` file.
+   2. Serializing and deserializing structs from a `.bsn` file, rather than simple CLI-style strings, allowing toolboxes to build abstractions for persistent config.
 2. Add support for a trait-queries-on-resources operation, and stop storing modal dev tools in the `DevToolsRegistry`.
 3. A derive macro for `DevCommand`, that aligns with `clap`'s calling conventions.
+4. Add specialized types of dev tools, likely each with their own trait to establish conventions and resolve conflicts between them.
+    1. For example, we may want to coordinate between various UI elements or overlays to avoid positioning conflicts, dev tools that change the materials of objects, or camera controllers.
+    2. This could be queried via Opt-in metadata about the type of tool they are (e.g. an overlay, a camera controller, a 2D vs. 3D tool), allowing toolkits to seamlessly organize the options.
