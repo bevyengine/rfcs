@@ -103,16 +103,10 @@ In order to facilitate the creation of toolboxes, Bevy provides the `ModalDevToo
 /// and they can be enabled, disabled and reconfigured at runtime.
 /// 
 /// The documentation on this struct is reflected, and can be read by toolboxes to provide help text to users.
-trait ModalDevTool: Resource + Reflect + FromReflect + Debug {
+trait ModalDevTool: Resource + Reflect + FromReflect + FromStr<DevToolParseError> + Debug {
     /// The name of this tool, as might be supplied by a command line interface.
     fn name() -> &'static str {
         Self::type_name().to_snake_case()
-    }
-
-    /// Attempts to create an object of type `Self` from a provided string,
-    /// as might be supplied by a command-line style interface.
-    fn parse_from_str(string: &str) -> Result<Self, DevToolParseError> {
-        Err(DevToolParseError::NotImplemented)
     }
 
     /// Turns this dev tool on (true) or off (false).
@@ -171,10 +165,18 @@ impl Default for DevFlyCamera {
 }
 
 impl ModalDevTool for DevFlyCamera {
-    /// Expects a call that looks like `dev_fly_camera` (default settings)
-    /// or `dev_fly_camera 5 10` (to specify settings)
-    fn parse_from_str(string: &str) -> Result<Self, DevToolParseError>{
-        let parts = string.split_whitespace();
+    fn set_enabled(&mut self, enabled: bool) {
+        self.enabled = enabled;
+    }
+
+    fn is_enabled(&self) -> bool {
+        self.enabled
+    }
+}
+
+impl FromStr for DevFlyCamera {
+    fn from_str(s: &str) -> Result<Self, DevToolParseError>{
+        let parts = s.split_whitespace();
         let name = parts.iter.next()?;
         if name != self.name() {
             return Err(DevToolParseError::InvalidName);
@@ -197,14 +199,6 @@ impl ModalDevTool for DevFlyCamera {
             }
         )
     }
-
-    fn set_enabled(&mut self, enabled: bool) {
-        self.enabled = enabled;
-    }
-
-    fn is_enabled(&self) -> bool {
-        self.enabled
-    }
 }
 ```
 
@@ -222,7 +216,7 @@ To model this, we leverage Bevy's existing `Command` trait, which exists to perf
 /// to construct an instance of the type that implements this type, and then send it as a `Command` to execute it.
 /// 
 /// The documentation on this struct is reflected, and can be read by toolboxes to provide help text to users.
-trait DevCommand: Command + Reflect + FromReflect + Debug + 'static {
+trait DevCommand: Command + Reflect + FromReflect + FromStr<Error=DevToolParseError> + Debug + 'static {
     /// The name of this tool, as might be supplied by a command line interface.
     fn name() -> &'static str {
         Self::type_name().to_snake_case()
@@ -235,14 +229,8 @@ trait DevCommand: Command + Reflect + FromReflect + Debug + 'static {
             type_id: Self::type_id(),
             type_info: Self::type_info(),
             // A function pointer, based on the parse_from_str method
-            parse_from_str_fn: Self::parse_from_str
+            parse_from_str_fn: <Self as FromStr>::from_str
         }
-    }
-
-    /// Attempts to create an object of type `Self` from a provided string,
-    /// as might be supplied by a command-line style interface.
-    fn parse_from_str(string: &str) -> Result<Self, DevToolParseError> {
-        Err(DevToolParseError::NotImplemented)
     }
 }
 ```
@@ -263,13 +251,11 @@ impl Command for SetGold {
     }
 }
 
-impl DevCommand for SetGold {
-    /// We're fine using Bevy's built-in error type for this.
-    type StringParseError = DevToolParseError;
+impl DevCommand for SetGold {}
 
-    /// Expects a call that looks like `set_gold 500`
-    fn parse_from_str(string: &str) -> Result<Self, DevToolParseError>{
-        let parts = string.split_whitespace();
+impl FromStr for SetGold {
+    fn from_str(s: &str) -> Result<Self, DevToolParseError>{
+        let parts = s.split_whitespace();
         let name = parts.iter.next()?;
         if name != self.name() {
             return Err(DevToolParseError::InvalidName);
