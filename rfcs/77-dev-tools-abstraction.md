@@ -110,6 +110,17 @@ trait ModalDevTool: Resource + Reflect + FromReflect + FromStr<Err=DevToolParseE
         Self::type_name().to_snake_case()
     }
 
+    /// The metadata for this modal dev tool.
+    fn metadata() -> DevToolMetaData {
+        DevToolMetaData {
+            name: self.name(),
+            type_id: Self::type_id(),
+            type_info: Self::type_info(),
+            // A function pointer, based on the std::str::from_str method
+            from_str_fn: <Self as FromStr>::from_str
+        }
+    }
+
     /// Turns this dev tool on (true) or off (false).
     fn set_enabled(&mut self, enabled: bool);
 
@@ -224,8 +235,8 @@ trait DevCommand: Command + Reflect + FromReflect + FromStr<Err=DevToolParseErro
     }
 
     /// The metadata for this dev command.
-    fn metadata() -> DevToolMetaData {
-        DevToolMetaData {
+    fn metadata() -> DevCommandMetadata {
+        DevCommandMetadata {
             name: self.name(),
             type_id: Self::type_id(),
             type_info: Self::type_info(),
