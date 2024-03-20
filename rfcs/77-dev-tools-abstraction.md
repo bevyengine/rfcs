@@ -79,6 +79,7 @@ In order to manage the complexity of an eclectic collection of one-off debugging
 This might be:
 
 - an in-game dev console (like in Quake)
+- a command palette in an editor
 - special developer commands entered into the chat box, commonly with a `/` to denote their non-textual effect
 - cheat codes
 - a unified set of hotkeys
