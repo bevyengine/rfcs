@@ -283,11 +283,11 @@ impl FromStr for SetGold {
 
 ### Conventions for building dev tools
 
-Not everything can or should be defined by a trait! To supplement the `DevTool` trait, we recommend that Bevy and its ecosystem follow the following conventions:
+Not everything can or should be defined by a trait! To supplement the `ModalDevTool` trait, we recommend that Bevy and its ecosystem follow the following conventions:
 
 1. Dev tools can be toggled at compile time.
 2. Dev tools can be toggled at run time.
-3. Dev tools implement the `DevTool` trait, and if the corresponding feature is enabled, are added to the app via `.init_dev_tool` or `.insert_dev_tool`.
+3. Dev tools implement the `ModalDevTool` trait, and if the corresponding feature is enabled, are added to the app via `.init_dev_tool` or `.insert_dev_tool`.
    1. This can be done either in the main plugin or a dedicated dev tools plugin.
    1. If configuration is required, splitting this into a dedicated dev tools plugin is preferred.
 4. Dev tools are disabled by default, both at compile and run-time.
