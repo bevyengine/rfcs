@@ -380,7 +380,7 @@ fn parse_and_run_dev_commands(world: &mut World){
     world.resource_scope(|(world, dev_tools_registry: Mut<DevToolsRegistry>)|{
         for event in events {
             // This gives us access to the metadata needed to inspect the dev command and construct a new one.
-            let Some(dev_command_metadata) = dev_tools_registry.get_command_by_name(world, event.name) else {
+            let Some(dev_command_metadata) = dev_tools_registry.get_command_metadata_by_name(world, event.name) else {
                 warn!("No dev tool was found for {}). Did you forget to register it?", event.name);
                 continue;
             };
@@ -427,7 +427,7 @@ struct DevToolsRegistry {
     /// The stored collection of modal dev tools, tracked in a type-erased way using [`ComponentId`]
     /// 
     /// The key is the `name()` provided by the `ModalDevTool` trait.
-    modal_dev_tools: HashMap<String, ComponentId>,
+    modal_dev_tools: HashMap<String, ToolMetaData>,
     /// The metadata for all registered dev commands.
     /// 
     /// The key is the `name()` provided by the `DevCommand` trait.
@@ -451,9 +451,23 @@ impl DevToolsRegistry {
         resource.downcast_mut()
     }
 
+    /// Gets the `DevCommandMetadata` for a given dev tool by name.
+    /// 
+    /// The supplied name should match the `DevCommand::name()` method.
+    fn get_command_metadata(name: &str) -> Option<&DevCommandMetadata> {
+        self.dev_commands.get(name)
+    }
+
+    /// Gets the `DevToolMetadata` for a given dev tool by name.
+    /// 
+    /// The supplied name should match the `DevCommand::name()` method.
+    fn get_tool_metadata(name: &str) -> Option<&DevCommandMetadata> {
+        self.modal_dev_tools.get(name)
+    }
+
     /// Looks up the `ComponentId` associated with the given name, as supplied by the `ModalDevTool` trait.
     fn lookup_tool_component_id(&self, name: &str) -> Option<ComponentId> {
-       self.modal_dev_tools.get(name).copied()
+       *self.get_tool_metadata(name)?.component_id
     }
 
     /// Gets a reference to the specified modal dev tool by type name, as supplied by the `ModalDevTool` trait.
@@ -478,13 +492,6 @@ impl DevToolsRegistry {
         self.modal_dev_tools.iter_mut().map(|&id| (id, self.get(world, id)))
     }
 
-    /// Gets the `DevCommandMetadata` for a given dev tool by name.
-    /// 
-    /// The supplied name should match the `DevCommand::name()` method.
-    fn get_command(name: &str) -> Option<&DevCommandMetadata> {
-        self.dev_commands.get(name)
-    }
-
     /// Iterates over the list registered dev commands, returning their name and `DevCommandMetadata`.
     fn iter_commands(&self) -> impl Iterator<Item = (&str, `DevCommandMetadata)> {
         self.dev_commands.iter()
@@ -506,14 +513,32 @@ This tool takes a common pattern, parsing the configuration for a dev tool from 
 
 ```rust
 impl DevToolsRegistry {
-    /// Parses the given string into a modal dev tool corresponding to its name if possible.
+    /// Parses the given str `s` into a modal dev tool corresponding to its name if possible.
     ///
     /// For a typed equivalent, simply use the `FromStr` trait that this method relies on directly.
-    fn parse_and_insert_tool(s: &str) -> Result<(), DevToolParseError>{
-        todo!();
+    fn parse_and_insert_tool(&self, world: &mut World, s: &str) -> Result<(), DevToolParseError>{
+        // Parse out the name
+        let name = s.clone().split_whitespace.next()?;
+        
+        // Get the associated `ComponentId`, so we can use it to insert a resource of a dynamic type
+        let component_id = self.lookup_tool_component_id(name);
+        // Look-up the existing resource to get access to get access to the metadata we need
+        let tool_metadata: &dyn DevTool = self.get_tool_metadata(component_d)?;   
+        // Parse the string into a new copy of the tool using the stored function pointer
+        let new_tool = tool_metadata.from_str(s);
+        // Construct an `OwningPointer` so we can dynamically insert the resource we just made
+        // TODO: what is the second argument of this method supposed to be?
+        let owning_pointer = OwningPointer::make(new_tool, todo!());
+        
+        // SAFETY: the value referenced by value is valid for the given `ComponentId` of this world,
+        // as the component id is cached upon initialization of the resource / dev tool.
+        unsafe {
+            world.insert_resource_by_id(component_id, owning_pointer);
+        }
+
+        Ok(())
     }
 }
-
 ```
 
 ## Drawbacks
