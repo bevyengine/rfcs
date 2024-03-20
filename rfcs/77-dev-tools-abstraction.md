@@ -542,7 +542,7 @@ impl DevToolsRegistry {
         // Get the associated `ComponentId`, so we can use it to insert a resource of a dynamic type
         let component_id = self.lookup_tool_component_id(name);
         // Look-up the existing resource to get access to get access to the metadata we need
-        let tool_metadata: &dyn DevTool = self.get_tool_metadata(component_d)?;   
+        let tool_metadata: &dyn DevTool = self.get_tool_metadata(component_id)?;   
         // Parse the string into a new copy of the tool using the stored function pointer
         let new_tool = tool_metadata.from_str(s);
         // Construct an `OwningPointer` so we can dynamically insert the resource we just made
