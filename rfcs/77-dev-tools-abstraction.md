@@ -149,7 +149,7 @@ trait ModalDevTool: Resource + Reflect + FromReflect + FromStr<Err=DevToolParseE
 ```
 
 Modal dev tools are registered via `app.init_modal_dev_tool::<D>()` (to use default config based on the `FromWorld` implementation) or via `app.insert_modal_dev_tool(config: D)`.
-This adds them as a resource (just like ), but also registers their `ComponentId` with the central `DevToolsRegistry`, which can be consumed by toolboxes to get a list of the available dev tools.
+This adds them as a resource (just like the familiar `.init_resource` or `insert_resource`), but also registers their `ComponentId` with the central `DevToolsRegistry`, which can be consumed by toolboxes to get a list of the available dev tools.
 
 To build your own modal dev tool, simply create a configuration resource, implement the `ModalDevTool` trait, and then register it in the app when the correct feature flag is enabled.
 
