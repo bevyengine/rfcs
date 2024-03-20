@@ -654,5 +654,5 @@ Future possibilities:
 2. Add support for a trait-queries-on-resources operation, and stop storing modal dev tools in the `DevToolsRegistry`.
 3. A derive macro for `DevCommand`, that aligns with `clap`'s calling conventions.
 4. Add specialized types of dev tools, likely each with their own trait to establish conventions and resolve conflicts between them.
-    1. For example, we may want to coordinate between various UI elements or overlays to avoid positioning conflicts, dev tools that change the materials of objects, or camera controllers.
+    1. For example, we may want to coordinate between various UI elements or overlays to avoid positioning conflicts, dev tools that change the materials of objects, or camera controllers. See [Discussion #12589](https://github.com/bevyengine/bevy/discussions/12589) for some initial exploration.
     2. This could be queried via Opt-in metadata about the type of tool they are (e.g. an overlay, a camera controller, a 2D vs. 3D tool), allowing toolkits to seamlessly organize the options.
