@@ -327,55 +327,43 @@ fn toggle_dev_tools(world: &mut World){
     world.resource_scope(|(world, dev_tools_registry: Mut<DevToolsRegistry>)|{
         for event in events {
             // This gives us a mutable reference to the underlying resource as a `&mut dyn ModalDevTool`
-            let Some(dev_command_metadata) = dev_tools_registry.get_command_by_name(world, event.name) else {
+            let Some(dev_tool) = dev_tools_registry.get_tool_by_name(world, event.name) else {
                 warn!("No dev tool was found for {}). Did you forget to register it?", event.name);
                 continue;
             };
 
-            // Create a concrete instance of our dev command from the supplied string.
-            let Ok(command) = dev_command_metadata.from_str(&event.0) else {
-                warn!("Could not parse the command from the supplied string");
-                continue;
-            }
-
-            // Now we can run the command directly on the `World` using `Command::apply`!
-            command.apply(world);
+            // Since we know that this object always implements `ModalDevTool`,
+            // we can use any of the methods on it, or the traits that it requires (like `Reflect`)
+            dev_tool.toggle();
         }
     })
 }
+
+
 ```
 
 Next, we want to be able to configure modal dev tools at run time.
 
 ```rust
-
 #[derive(Event)]
-struct ConfigureDevTool(String);
+struct ConfigureDevTool{
+    tool_string: String,
+};
 
-fn toggle_dev_tools(world: &mut World){
+fn configure_dev_tools(world: &mut World){
     // Move the events out of the world, clearing them and avoiding a persistent borrow
     let events = world.resource_mut::<Events<ToggleDevTool>>().drain();
 
     // Use a resource scope to allow us to access both the dev tools registry and the rest of the world at the same time
     world.resource_scope(|(world, dev_tools_registry: Mut<DevToolsRegistry>)|{
         for event in events {
-            // This gives us a mutable reference to the underlying resource as a `&mut dyn ModalDevTool`
-            let Some(dev_command_metadata) = dev_tools_registry.get_command_by_name(world, event.name) else {
-                warn!("No dev tool was found for {}). Did you forget to register it?", event.name);
-                continue;
-            };
-
-            // Create a concrete instance of our dev command from the supplied string.
-            let Ok(command) = dev_command_metadata.from_str(&event.0) else {
-                warn!("Could not parse the command from the supplied string");
-                continue;
+            // Check the implementation details for information about how this works!
+            let result = dev_tools_registry.parse_and_insert_tool(event.tool_string);
+            if let Err(error) = result {
+                warn!(error);
             }
-
-            // Now we can run the command directly on the `World` using `Command::apply`!
-            command.apply(world);
         }
-    })
-}
+    })}
 ```
 
 Finally, we want to be able to pass in a user supplied string, parse it into a dev command and then evaluate it on the world.
@@ -391,18 +379,22 @@ fn parse_and_run_dev_commands(world: &mut World){
     // Use a resource scope to allow us to access both the dev tools registry and the rest of the world at the same time
     world.resource_scope(|(world, dev_tools_registry: Mut<DevToolsRegistry>)|{
         for event in events {
-            // This gives us a mutable reference to the underlying resource as a `&mut dyn ModalDevTool`
-            let Some(dev_tool) = dev_tools_registry.get_command_mut_by_name(world, event.name) else {
-                warn!("No dev command was found for {}). Did you forget to register it?", event.name);
+            // This gives us access to the metadata needed to inspect the dev command and construct a new one.
+            let Some(dev_command_metadata) = dev_tools_registry.get_command_by_name(world, event.name) else {
+                warn!("No dev tool was found for {}). Did you forget to register it?", event.name);
                 continue;
             };
 
-            // Since we know that this object always implements `ModalDevTool`,
-            // we can use any of the methods on it, or the traits that it requires (like `Reflect`)
-            dev_tool.toggle();
+            // Create a concrete instance of our dev command from the supplied string.
+            let Ok(command) = dev_command_metadata.from_str(&event.0) else {
+                warn!("Could not parse the command from the supplied string");
+                continue;
+            }
+
+            // Now we can run the command directly on the `World` using `Command::apply`!
+            command.apply(world);
         }
     })
-
 }
 ```
 
@@ -507,12 +499,21 @@ While we can use the [dynamic resource APIs](https://docs.rs/bevy/latest/bevy/ec
 While this may seem unintuitive, the reason for this is fairly simple: modal configuration is always present, while the configuration for each dev command is generated when it is sent.
 As a result, we can only access its metadata: the arguments it takes, its doc strings and so on.
 
+### Parsing and inserting modal dev tools
+
+One method on `DevToolsRegistry` is worth special attention: `parse_and_insert_tool`.
+This tool takes a common pattern, parsing the configuration for a dev tool from a provided string, and provides a user friendly, safe API over it.
+
 ```rust
-#[derive(Resource)]
-struct DevCommandsRegistry {
-    /// The set of modal dev tools, tracked in a type-erased way using [`ComponentId`]
-    modal_dev_tools: HashMap<String, ComponentId>,
+impl DevToolsRegistry {
+    /// Parses the given string into a modal dev tool corresponding to its name if possible.
+    ///
+    /// For a typed equivalent, simply use the `FromStr` trait that this method relies on directly.
+    fn parse_and_insert_tool(s: &str) -> Result<(), DevToolParseError>{
+        todo!();
+    }
 }
+
 ```
 
 ## Drawbacks
