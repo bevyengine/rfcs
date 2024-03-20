@@ -527,14 +527,13 @@ impl DevToolsRegistry {
         // Parse the string into a new copy of the tool using the stored function pointer
         let new_tool = tool_metadata.from_str(s);
         // Construct an `OwningPointer` so we can dynamically insert the resource we just made
-        // TODO: what is the second argument of this method supposed to be?
-        let owning_pointer = OwningPointer::make(new_tool, todo!());
-        
-        // SAFETY: the value referenced by value is valid for the given `ComponentId` of this world,
-        // as the component id is cached upon initialization of the resource / dev tool.
-        unsafe {
-            world.insert_resource_by_id(component_id, owning_pointer);
-        }
+        OwningPointer::make(new_tool, |owning_pointer|{
+            // SAFETY: the value referenced by value is valid for the given `ComponentId` of this world,
+            // as the component id is cached upon initialization of the resource / dev tool.
+            unsafe {
+                world.insert_resource_by_id(component_id, owning_pointer);
+            }
+        });
 
         Ok(())
     }
