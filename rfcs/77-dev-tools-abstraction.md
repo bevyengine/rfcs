@@ -416,6 +416,24 @@ Additional dev tool specific metadata (such as a classification scheme) can be a
 
 Optional methods on both `ModalDevTool` and `DevCommand` will allow us to override the supplied defaults if needed.
 
+We also need access to one other critical piece of information: a function pointer that allows us to construct a new value of this type from a string.
+
+As a result our `DevToolMetadata` looks like:
+
+```rust
+struct DevToolMetadata {
+   name: String,
+   type_info: TypeInfo,
+   from_str: StringConstructorFn,
+}
+```
+
+The tricky bit comes when we get to `StringConstructorFn`: we need to be able to store a function pointer that will take us from a string, and return an object that implements our core traits.
+
+TODO: how can this be done?
+
+The definition for `DevCommandMetadata` is effectively identical to start, but over time we should expect these to diverge: splitting them from the beginning will ease migrations going forward.
+
 ### What do the registries for our dev tools look like?
 
 Keeping track of the registered dev tools without storing them all in a dedicated collection is quite challenging!
@@ -544,7 +562,8 @@ impl DevToolsRegistry {
 
 1. Third-party and end user dev tools will be pushed to conform to this standard. Without the use of a toolbox, this is added work for no benefit.
 2. This abstraction may not fit all possible tools and toolboxes. The manual wiring approach is more flexible, and so if our abstraction is overly prescriptive, it may not work correctly.
-3. The parse-from-string methods are currently quite heavy on boilerplate. A `clap`-inspired derive macro would be lovely here.
+3. The `from_str` methods are currently quite heavy on boilerplate. A `clap`-inspired derive macro would be lovely here. Perhaps a crate already exists?
+4. How can we store type-erased `StringConstructorFn`s in our metadata?
 
 ## Rationale and alternatives
 
