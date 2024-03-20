@@ -53,7 +53,7 @@ For example:
 - a scene editor, pixel art tool, asset preprocessing solutions or audio workstation: these are used to create assets, and do not need to be accessible at runtime
 - gizmos: while these are commonly used for *making* dev tools, they don't inherently provide a way to inspect or manipulate the game world
 
-As you can see, these tools are currently and will continue to be created by the creators of indidvidual games, third-party crates in Bevy's ecosystem, and Bevy itself.
+As you can see, these tools are currently and will continue to be created by the creators of individual games, third-party crates in Bevy's ecosystem, and Bevy itself.
 Looking at the usage examples more closely, we can classify them into two patterns: **modal dev tools** and **dev commands**.
 
 - Modal dev tools (like an FPS meter): can be toggled off and on, and want persistent configuration.
