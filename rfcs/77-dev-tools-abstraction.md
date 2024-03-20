@@ -15,7 +15,7 @@ These are registered in the `DevToolsRegistry` via methods on `App`, allowing to
 However, since its inception, it has been plagued by debate over ["what is a dev tool?"](https://github.com/bevyengine/bevy/issues/12358)
 and every **tool** within both Bevy and its ecosystem follows its own ad hoc conventions about [how it might be enabled and configured](https://github.com/bevyengine/bevy/issues/12368).
 
-This is frustrating to navigate as an end user: every tool has its own way to configure it, with no rhyme, reason or way to set the same property to the same value across tools.
+This is frustrating to navigate as a Bevy user: every tool has its own way to configure it, with no rhyme, reason or way to set the same property to the same value across tools.
 It also makes the creation of **toolboxes**, interfaces designed to collect multiple dev tools in a single place (such as a Quake-style dev console)
 needlessly painful, requiring manual glue work by either the toolbox creator or application developer for every new tool that's added to it.
 
