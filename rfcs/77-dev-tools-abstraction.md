@@ -228,8 +228,8 @@ trait DevCommand: Command + Reflect + FromReflect + FromStr<Error=DevToolParseEr
             name: self.name(),
             type_id: Self::type_id(),
             type_info: Self::type_info(),
-            // A function pointer, based on the parse_from_str method
-            parse_from_str_fn: <Self as FromStr>::from_str
+            // A function pointer, based on the std::str::from_str method
+            from_str_fn: <Self as FromStr>::from_str
         }
     }
 }
@@ -333,7 +333,40 @@ fn toggle_dev_tools(world: &mut World){
             };
 
             // Create a concrete instance of our dev command from the supplied string.
-            let Ok(command) = dev_command_metadata.parse_from_str(&event.0) else {
+            let Ok(command) = dev_command_metadata.from_str(&event.0) else {
+                warn!("Could not parse the command from the supplied string");
+                continue;
+            }
+
+            // Now we can run the command directly on the `World` using `Command::apply`!
+            command.apply(world);
+        }
+    })
+}
+```
+
+Next, we want to be able to configure modal dev tools at run time.
+
+```rust
+
+#[derive(Event)]
+struct ConfigureDevTool(String);
+
+fn toggle_dev_tools(world: &mut World){
+    // Move the events out of the world, clearing them and avoiding a persistent borrow
+    let events = world.resource_mut::<Events<ToggleDevTool>>().drain();
+
+    // Use a resource scope to allow us to access both the dev tools registry and the rest of the world at the same time
+    world.resource_scope(|(world, dev_tools_registry: Mut<DevToolsRegistry>)|{
+        for event in events {
+            // This gives us a mutable reference to the underlying resource as a `&mut dyn ModalDevTool`
+            let Some(dev_command_metadata) = dev_tools_registry.get_command_by_name(world, event.name) else {
+                warn!("No dev tool was found for {}). Did you forget to register it?", event.name);
+                continue;
+            };
+
+            // Create a concrete instance of our dev command from the supplied string.
+            let Ok(command) = dev_command_metadata.from_str(&event.0) else {
                 warn!("Could not parse the command from the supplied string");
                 continue;
             }
@@ -373,7 +406,7 @@ fn parse_and_run_dev_commands(world: &mut World){
 }
 ```
 
-While a number of other features could sensibly be added to this API (configuring modal dev tools, a `--help` flag, saving and loading config to disk),
+While a number of other features could sensibly be added to this API (a `--help` flag, saving and loading config to disk, managing compatibility between dev tools),
 this MVP should be sufficient to prove out the viability of the core architecture.
 
 ## Implementation strategy
@@ -532,8 +565,7 @@ There are three arguments against this:
 3. Are `ModalDevTool` and `DevCommand` the best names?
 4. How, precisely, can we achieve the sort of API shown in [Building toolboxes] using reflection?
    1. A prototype would be great here.
-5. Should we replace our custom `parse_from_str` methods with a dependency on `clap`?
-6. Does the function pointer approach used by `DevCommandMetadata` compile and work successfully?
+5. Does the function pointer approach used by `DevCommandMetadata` compile and work successfully?
    1. Again, prototype please!
 
 ## Future possibilities
