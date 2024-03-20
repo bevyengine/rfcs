@@ -103,7 +103,7 @@ In order to facilitate the creation of toolboxes, Bevy provides the `ModalDevToo
 /// and they can be enabled, disabled and reconfigured at runtime.
 /// 
 /// The documentation on this struct is reflected, and can be read by toolboxes to provide help text to users.
-trait ModalDevTool: Resource + Reflect + FromReflect + FromStr<DevToolParseError> + Debug {
+trait ModalDevTool: Resource + Reflect + FromReflect + FromStr<Err=DevToolParseError> + Debug {
     /// The name of this tool, as might be supplied by a command line interface.
     fn name() -> &'static str {
         Self::type_name().to_snake_case()
@@ -216,7 +216,7 @@ To model this, we leverage Bevy's existing `Command` trait, which exists to perf
 /// to construct an instance of the type that implements this type, and then send it as a `Command` to execute it.
 /// 
 /// The documentation on this struct is reflected, and can be read by toolboxes to provide help text to users.
-trait DevCommand: Command + Reflect + FromReflect + FromStr<Error=DevToolParseError> + Debug + 'static {
+trait DevCommand: Command + Reflect + FromReflect + FromStr<Err=DevToolParseError> + Debug + 'static {
     /// The name of this tool, as might be supplied by a command line interface.
     fn name() -> &'static str {
         Self::type_name().to_snake_case()
