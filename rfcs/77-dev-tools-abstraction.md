@@ -627,6 +627,15 @@ However:
 2. Unlike with a CLI-style interface the correct abstractions aren't immediately obvious: we should prototype more toolkits and tools to explore the needs of the space further.
 3. Not all dev tools need layout information: we would need to use optional methods and/or subtraits to fill this need, adding further complexity.
 
+### Why can't we simply store boxed trait objects in our `DevToolsRegistry`?
+
+Fundamentally, there are two problems with this design:
+
+1. Many nice traits (like `Reflect`, `FromWorld` and `FromStr`) aren't object-safe, and we may want non-object safe methods on our traits. Forcing this restriction seriously compromises the functionality of this architecture.
+2. While reasonable defaults always exist for modal dev tools, the same is not generally true for dev commands: if we want to have a dev command to despawn an entity, there's no way to store a copy of this at rest. Adding an `Option<Entity>` field reduces type safety, while storing a placeholder entity is both a footgun and not a good general solution.
+
+Instead, we're forced to turn to the dark arts of reflection and type registration.
+
 ## Unresolved questions
 
 1. Are the provided methods (along with those on `Reflect`) sufficient to allow toolkits to populate and run a wide range of dev tools without requiring an additional trait and manual registration?
