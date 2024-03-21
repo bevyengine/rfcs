@@ -113,7 +113,7 @@ trait ModalDevTool: Resource + Reflect + FromReflect + FromStr<Err=DevToolParseE
     /// The metadata for this modal dev tool.
     fn metadata() -> DevToolMetaData {
         DevToolMetaData {
-            name: self.name(),
+            name: Self::name(),
             type_id: Self::type_id(),
             type_info: Self::type_info(),
             // A function pointer, based on the std::str::from_str method
