@@ -260,7 +260,7 @@ struct SetGold {
 }
 
 impl Command for SetGold {
-    fn apply(&self, world: &mut World){
+    fn apply(self, world: &mut World){
         let mut current_gold = world.resource_mut::<Gold>();
         current_gold.0 = self.amount;
     }
