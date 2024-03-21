@@ -160,7 +160,7 @@ To build your own modal dev tool, simply create a configuration resource, implem
 /// A flying camera controller that lets you disconnect your camera from the player to freely explore the environment.
 /// 
 /// When this mode is disabled
-#[derive(Resource, Reflect, FromReflect, Debug)]
+#[derive(Resource, Reflect, Debug)]
 struct DevFlyCamera {
     enabled: bool,
     /// How fast the camera travels forwards, backwards, left, right, up and down, in world units.
