@@ -109,6 +109,8 @@ trait ModalDevTool: Resource + Reflect + FromReflect + FromStr<Err=DevToolParseE
     fn name() -> &'static str {
         Self::type_name().to_snake_case()
     }
+    
+    fn short_description() -> Option<&'static str>;
 
     /// The metadata for this modal dev tool.
     fn metadata() -> DevToolMetaData {
@@ -117,7 +119,8 @@ trait ModalDevTool: Resource + Reflect + FromReflect + FromStr<Err=DevToolParseE
             type_id: Self::type_id(),
             type_info: Self::type_info(),
             // A function pointer, based on the std::str::from_str method
-            from_str_fn: <Self as FromStr>::from_str
+            from_str_fn: <Self as FromStr>::from_str,
+            short_description: Self::short_description()
         }
     }
 
