@@ -260,7 +260,7 @@ pub trait DevCommand: bevy::ecs::world::Command + Reflect + FromReflect + GetTyp
             //
             create_default_fn: || Box::new(Self::default()),
             // A function pointer that adds the DevCommand to the provided Commands 
-            // This is needed because we can'n add Box<dyn Command> to Commands withh commmands.add method
+            // This is needed because we can't add Box<dyn Command> to Commands withh commmands.add method
             // So we need to do it in typed way
             add_self_to_commands_fn: |commands, reflected_self| commands.add(<Self as FromReflect>::from_reflect(reflected_self).unwrap()),
             short_description: Self::short_description()
