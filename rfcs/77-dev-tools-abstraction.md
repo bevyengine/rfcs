@@ -460,7 +460,7 @@ struct DevToolsRegistry {
     /// The stored collection of modal dev tools, tracked in a type-erased way using [`ComponentId`]
     /// 
     /// The key is the `name()` provided by the `ModalDevTool` trait.
-    modal_dev_tools: HashMap<String, ToolMetaData>,
+    modal_dev_tools: HashMap<String, DevToolMetadata>,
     /// The metadata for all registered dev commands.
     /// 
     /// The key is the `name()` provided by the `DevCommand` trait.
@@ -494,7 +494,7 @@ impl DevToolsRegistry {
     /// Gets the `DevToolMetadata` for a given dev tool by name.
     /// 
     /// The supplied name should match the `DevCommand::name()` method.
-    fn get_tool_metadata(name: &str) -> Option<&DevCommandMetadata> {
+    fn get_tool_metadata(name: &str) -> Option<&DevToolMetadata> {
         self.modal_dev_tools.get(name)
     }
 
