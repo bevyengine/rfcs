@@ -442,8 +442,158 @@ fn parse_and_run_dev_commands(world: &mut World){
 }
 ```
 
+
 While a number of other features could sensibly be added to this API (a `--help` flag, saving and loading config to disk, managing compatibility between dev tools),
 this MVP should be sufficient to prove out the viability of the core architecture.
+
+
+
+Another valuable approach we can undertake involves constructing a comprehensive Command Line Interface (CLI) interface utilizing the capabilities of the Reflect trait. A Command Line Interface (CLI) serves as a text-based gateway through which users can interact with computer systems or software by issuing commands via a terminal or console. In a typical CLI command structure, elements are organized as follows:
+
+```bash
+command_name arg0 arg1 arg2  --named-arg4 value --named-arg5 value
+| command     | positional args | named args |
+```
+
+* `command_name` represents the name of the command being executed.
+* `arg0`, `arg1`, and `arg2` are positional arguments, which are required parameters specified in a particular order.
+* `--named-arg4 value` and `--named-arg5 value` are named arguments or options, preceded by `--` and followed by their respective values, separated by a space.
+
+This structure enables users to provide the necessary information and instructions to the game through typed commands.
+
+For example, setting 999 gold using the SetGold command in CLI style could look like this:
+```bash
+SetGold 999
+or
+SetGold --amount 999
+```
+
+Similarly, changing the turn\_speed in FlyDevCamera can be done with this command:
+```bash
+FlyDevCamera --turn_speed Some(0.5)
+```
+
+Thus, to implement the CLI interface, we need to do three things:
+1. be able to set the value of a command structure field by its name
+2. be able to set the value of a command structure field by its sequence number
+3. be able to convert strings into field values
+
+Reflect trait allows to retrieve by sequence number for all data types in rust (Struct, TupleStruct, List, etc). Example
+```rust
+let field = match command.reflect_mut() {
+    bevy::reflect::ReflectMut::Struct(r) => {
+        let Some(field) = r.field_at_mut(idx) else {
+            error!("Invalid index: {}", idx);
+            return Err(DevToolParseError::InvalidToolData);
+        };
+        field
+    },
+    ...
+```
+And also Reflect trait allows you to get fields by their name for Strut and Enum. Example
+```rust
+ let field = match command.reflect_mut() {
+    bevy::reflect::ReflectMut::Struct(r) => {
+        let Some(field) = r.field_mut(name) else {
+            error!("Invalid name: {}", name);
+            return Err(DevToolParseError::InvalidToolData);
+        };
+        field
+    },
+    ...
+```
+
+With the ability to set separate values for DevCommand and ModalDevTool we can build a simple CLI perserver with minimal code
+
+```rust
+fn parse_reflect_from_cli(&self, words: Vec<&str>, target: &mut Box<dyn Reflect>) -> Result<(), DevToolParseError> {
+    // The current named parameter being parsed
+    let mut named_param = None;
+    // Whether or not we are currently in named style
+    let mut is_named_style = false;
+    // Index of the next parameter to expect in positional style
+    let mut idx = 0;
+    
+    // Parse all words following the command name
+    for word in words.iter().skip(1) {
+        // Named style parameter
+        if word.starts_with("--") {
+            is_named_style = true;
+            named_param = Some(word.trim_start_matches("--").to_string());
+        } else {
+            // Positional style parameter
+    
+            // Get the field to apply the value to
+            if is_named_style {
+                // Retrieve the named parameter
+                let Some(named_param) = &named_param else {
+                    error!("Not found name for value: {}", word);
+                    return Err(DevToolParseError::InvalidToolData);
+                };
+    
+                // Find the field with the matching name
+                let Ok(field) = get_field_by_name(target.as_mut(), named_param) else {
+                    error!("Invalid name: {}", named_param);
+                    return Err(DevToolParseError::InvalidToolData);
+                };
+    
+                // Convert the word into the field's value with refistered applyer (FromStr implementations)
+                let mut ok = false;
+                for applyer in self.apply_from_string.iter() {
+                    if applyer(field, &word) {
+                        ok = true;
+                        break;
+                    }
+                }
+                if !ok {
+                    error!("Not found applyer for value: {}", word);
+                    return Err(DevToolParseError::InvalidToolData);
+                }
+            } else {
+                // Find the next field in positional style
+                let Ok(field) = get_field_by_idx(target.as_mut(), idx) else {
+                    error!("Invalid index: {}", idx);
+                    return Err(DevToolParseError::InvalidToolData);
+                };
+    
+                // Convert the word into the field's value with refistered applyer (FromStr implementations)
+                let mut ok = false;
+                for applyer in self.apply_from_string.iter() {
+                    if applyer(field, &word) {
+                        ok = true;
+                        break;
+                    }
+                }
+                if !ok {
+                    error!("Not found applyer for value: {}", word);
+                    return Err(DevToolParseError::InvalidToolData);
+                }
+    
+                // Increment the index of the next positional style parameter
+                idx += 1;
+            }
+        }
+    }
+    Ok(())
+}
+
+struct CLIDebom {
+    /// Functions to convert strings into field values and set field by converted value
+    /// Return true if successful, false if not
+    pub apply_from_string: Vec<fn(&mut dyn Reflect, &str) -> bool>,
+    ...
+}
+```
+
+And after creating a Box<dyn Reflect> command, we can send it using the function registered in metadata 
+
+```rust
+ (metadata.add_self_to_commands_fn)(&mut commands, reflected_command.as_ref());
+```
+Thus, with the proposed API, we can construct a CLI interface efficiently. This interface can be employed to create a developer console akin to those found in Half-Life or Quake. Importantly, rapid prototyping of developer commands becomes feasible as there's no need to manually configure the CLI interface for each command.
+
+MVP implementation of CLI parser can be found at [CLI-Parser](https://github.com/rewin123/bevy_dev_CLI_prototype/tree/main)
+
 
 ## Implementation strategy
 
