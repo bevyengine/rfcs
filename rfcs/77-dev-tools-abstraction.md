@@ -503,7 +503,7 @@ And also Reflect trait allows you to get fields by their name for Strut and Enum
     ...
 ```
 
-With the ability to set separate values for DevCommand and ModalDevTool we can build a simple CLI perserver with minimal code
+With the ability to set separate values for DevCommand and ModalDevTool we can build a simple CLI parser with minimal code
 
 ```rust
 fn parse_reflect_from_cli(&self, words: Vec<&str>, target: &mut Box<dyn Reflect>) -> Result<(), DevToolParseError> {
