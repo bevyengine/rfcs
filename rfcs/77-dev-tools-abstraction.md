@@ -537,7 +537,7 @@ fn parse_reflect_from_cli(&self, words: Vec<&str>, target: &mut Box<dyn Reflect>
                     return Err(DevToolParseError::InvalidToolData);
                 };
     
-                // Convert the word into the field's value with refistered applyer (FromStr implementations)
+                // Convert the word into the field's value with registered applyer (FromStr implementations)
                 let mut ok = false;
                 for applyer in self.apply_from_string.iter() {
                     if applyer(field, &word) {
@@ -556,7 +556,7 @@ fn parse_reflect_from_cli(&self, words: Vec<&str>, target: &mut Box<dyn Reflect>
                     return Err(DevToolParseError::InvalidToolData);
                 };
     
-                // Convert the word into the field's value with refistered applyer (FromStr implementations)
+                // Convert the word into the field's value with registered applyer (FromStr implementations)
                 let mut ok = false;
                 for applyer in self.apply_from_string.iter() {
                     if applyer(field, &word) {
