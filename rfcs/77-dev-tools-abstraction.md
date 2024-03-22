@@ -252,7 +252,7 @@ pub trait DevCommand: bevy::ecs::world::Command + Reflect + FromReflect + GetTyp
             //
             create_default_fn: || Box::new(Self::default()),
             // A function pointer that adds the DevCommand to the provided Commands 
-            // This is needed because we can't add Box<dyn Command> to Commands withh commmands.add method
+            // This is needed because we can't add Box<dyn Command> to Commands with the commands.add method
             // So we need to do it in typed way
             add_self_to_commands_fn: |commands, reflected_self| commands.add(<Self as FromReflect>::from_reflect(reflected_self).unwrap()),
             short_description: Self::short_description()
@@ -424,11 +424,8 @@ fn parse_and_run_dev_commands(world: &mut World){
 }
 ```
 
-
 While a number of other features could sensibly be added to this API (a `--help` flag, saving and loading config to disk, managing compatibility between dev tools),
 this MVP should be sufficient to prove out the viability of the core architecture.
-
-
 
 Another valuable approach we can undertake involves constructing a comprehensive Command Line Interface (CLI) interface utilizing the capabilities of the Reflect trait. A Command Line Interface (CLI) serves as a text-based gateway through which users can interact with computer systems or software by issuing commands via a terminal or console. In a typical CLI command structure, elements are organized as follows:
 
@@ -437,13 +434,14 @@ command_name arg0 arg1 arg2  --named-arg4 value --named-arg5 value
 | command  | positional args|         named args                  |
 ```
 
-* `command_name` represents the name of the command being executed.
-* `arg0`, `arg1`, and `arg2` are positional arguments, which are required parameters specified in a particular order.
-* `--named-arg4 value` and `--named-arg5 value` are named arguments or options, preceded by `--` and followed by their respective values, separated by a space.
+- `command_name` represents the name of the command being executed.
+- `arg0`, `arg1`, and `arg2` are positional arguments, which are required parameters specified in a particular order.
+- `--named-arg4 value` and `--named-arg5 value` are named arguments or options, preceded by `--` and followed by their respective values, separated by a space.
 
 This structure enables users to provide the necessary information and instructions to the game through typed commands.
 
 For example, setting 999 gold using the SetGold command in CLI style could look like this:
+
 ```bash
 SetGold 999
 or
@@ -451,16 +449,19 @@ SetGold --amount 999
 ```
 
 Similarly, changing the turn\_speed in FlyDevCamera can be done with this command:
+
 ```bash
 FlyDevCamera --turn_speed Some(0.5)
 ```
 
 Thus, to implement the CLI interface, we need to do three things:
+
 1. be able to set the value of a command structure field by its name
 2. be able to set the value of a command structure field by its sequence number
 3. be able to convert strings into field values
 
-Reflect trait allows to retrieve by sequence number for all data types in rust (Struct, TupleStruct, List, etc). Example
+Reflect trait allows to retrieve by sequence number for all data types in rust (Struct, TupleStruct, List, etc). For example:
+
 ```rust
 let field = match command.reflect_mut() {
     bevy::reflect::ReflectMut::Struct(r) => {
@@ -472,7 +473,9 @@ let field = match command.reflect_mut() {
     },
     ...
 ```
+
 And also Reflect trait allows you to get fields by their name for Strut and Enum. Example
+
 ```rust
  let field = match command.reflect_mut() {
     bevy::reflect::ReflectMut::Struct(r) => {
@@ -567,15 +570,15 @@ struct CLIDemo {
 }
 ```
 
-And after creating a Box<dyn Reflect> command, we can send it using the function registered in metadata 
+And after creating a `Box<dyn Reflect>` command, we can send it using the function registered in metadata:
 
 ```rust
  (metadata.add_self_to_commands_fn)(&mut commands, reflected_command.as_ref());
 ```
+
 Thus, with the proposed API, we can construct a CLI interface efficiently. This interface can be employed to create a developer console akin to those found in Half-Life or Quake. Importantly, rapid prototyping of developer commands becomes feasible as there's no need to manually configure the CLI interface for each command.
 
 MVP implementation of CLI parser can be found at [CLI-Parser](https://github.com/rewin123/bevy_dev_CLI_prototype/tree/main)
-
 
 ## Implementation strategy
 
