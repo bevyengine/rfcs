@@ -452,7 +452,7 @@ Another valuable approach we can undertake involves constructing a comprehensive
 
 ```bash
 command_name arg0 arg1 arg2  --named-arg4 value --named-arg5 value
-| command     | positional args | named args |
+| command  | positional args|         named args                  |
 ```
 
 * `command_name` represents the name of the command being executed.
