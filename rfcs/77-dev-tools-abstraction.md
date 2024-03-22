@@ -151,14 +151,6 @@ pub trait ModalDevTool: Resource + Reflect + FromReflect + GetTypeRegistration +
         }
     }
 }
-
-pub struct DevToolMetaData {
-    pub name: &'static str,
-    pub type_id: TypeId,
-    pub type_info: &'static TypeInfo,
-    pub from_str_fn: fn(&str) -> Result<Box<dyn Reflect>, DevToolParseError>,
-    pub short_description: Option<&'static str>
-}
 ```
 
 Modal dev tools are registered via `app.init_modal_dev_tool::<D>()` (to use default config based on the `FromWorld` implementation) or via `app.insert_modal_dev_tool(config: D)`.
@@ -266,16 +258,6 @@ pub trait DevCommand: bevy::ecs::world::Command + Reflect + FromReflect + GetTyp
             short_description: Self::short_description()
         }
     }
-}
-
-pub struct DevCommandMetadata {
-    pub name: &'static str,
-    pub type_id: TypeId,
-    pub type_info: &'static TypeInfo,
-    pub from_str_fn: fn(&str) -> Result<Box<dyn Reflect>, DevToolParseError>,
-    pub create_default_fn: fn() -> Box<dyn Reflect>,
-    pub add_self_to_commands_fn: fn(commands: &mut Commands, reflected_self: &dyn Reflect),
-    pub short_description: Option<&'static str>
 }
 ```
 
@@ -615,10 +597,12 @@ We also need access to one other critical piece of information: a function point
 As a result our `DevToolMetadata` looks like:
 
 ```rust
-struct DevToolMetadata {
-   name: String,
-   type_info: TypeInfo,
-   from_str: StringConstructorFn,
+struct DevToolMetaData {
+    name: &'static str,
+    type_id: TypeId,
+    type_info: &'static TypeInfo,
+    from_str_fn: fn(&str) -> Result<Box<dyn Reflect>, DevToolParseError>,
+    short_description: Option<&'static str>
 }
 ```
 
