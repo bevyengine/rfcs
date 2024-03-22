@@ -587,7 +587,7 @@ MVP implementation of CLI parser can be found at [CLI-Parser](https://github.com
 We can start simple:
 
 - the type name of the dev tool
-- any doc strings on the dev tool struct
+- any doc strings on the dev tool struct: see the [`Documentation` struct](https://github.com/bevyengine/bevy/blob/e33b93e31230c44d3b269d0c781544872fbd3909/crates/bevy_reflect/bevy_reflect_derive/src/documentation.rs#L43) from `bevy_reflect`
 - the value and types of any configuration that must be supplied
 
 By relying on simple structs to configure both our modal dev tools and commands, we can extract this information automatically, via reflection.
@@ -804,13 +804,7 @@ Instead, we're forced to turn to the dark arts of reflection and type registrati
 
 ## Unresolved questions
 
-1. Are the provided methods (along with those on `Reflect`) sufficient to allow toolkits to populate and run a wide range of dev tools without requiring an additional trait and manual registration?
-2. Is the use of `downcast_ref` / `downcast_mut` correct in `DevToolsRegistry::get`?
-3. Are `ModalDevTool` and `DevCommand` the best names?
-4. How, precisely, can we achieve the sort of API shown in [Building toolboxes] using reflection?
-   1. A prototype would be great here.
-5. Does the function pointer approach used by `DevCommandMetadata` compile and work successfully?
-   1. Again, prototype please!
+1. Can we relax the `FromStr` trait bound and simply construct our structs from CLI-style strings from the reflected type information?
 
 ## Future possibilities
 
