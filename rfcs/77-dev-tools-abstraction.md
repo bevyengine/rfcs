@@ -811,6 +811,8 @@ Related but out-of-scope questions:
   - in dedicated crates, saving bevy_dev_tools for higher level abstractions?
 - should dev tools be embedded in each application or should testing be done through an editor which controls these dev tools?
   - this is one of the [key questions](https://github.com/bevyengine/bevy_editor_prototypes/discussions/1) for the bevy_editor efforts
+- how should focus and input handling be controlled by the dev tools? For example, a fly camera would disable ordinary game controls.
+  - this is a [complex open question](https://github.com/bevyengine/bevy/issues/3570), and deserves its own independent design work.
 
 Future possibilities:
 
