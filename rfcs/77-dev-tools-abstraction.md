@@ -211,7 +211,7 @@ impl FromStr for DevFlyCamera {
 
         Ok(DevFlyCamera {
                 enabled: true,
-                movmeent_speed,
+                movement_speed,
                 turn_speed,
             }
         )
