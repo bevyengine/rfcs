@@ -609,12 +609,6 @@ struct DevToolMetaData {
 }
 ```
 
-The tricky bit comes when we get to `StringConstructorFn`: we need to be able to store a function pointer that will take us from a string, and return an object that implements our core traits.
-
-TODO: how can this be done?
-
-The definition for `DevCommandMetadata` is effectively identical to start, but over time we should expect these to diverge: splitting them from the beginning will ease migrations going forward.
-
 ### What do the registries for our dev tools look like?
 
 Keeping track of the registered dev tools without storing them all in a dedicated collection is quite challenging!
