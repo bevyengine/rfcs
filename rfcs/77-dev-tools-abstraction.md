@@ -577,7 +577,7 @@ fn parse_reflect_from_cli(&self, words: Vec<&str>, target: &mut Box<dyn Reflect>
     Ok(())
 }
 
-struct CLIDebom {
+struct CLIDemo {
     /// Functions to convert strings into field values and set field by converted value
     /// Return true if successful, false if not
     pub apply_from_string: Vec<fn(&mut dyn Reflect, &str) -> bool>,
