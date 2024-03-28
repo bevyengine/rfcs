@@ -664,9 +664,8 @@ Those commands are meant to provide a single interface for toolboxes to work wit
 
 ## Unresolved questions
 
-1. Can we relax the `FromStr` trait bound and simply construct our structs from CLI-style strings from the reflected type information?
-2. How can we access `DevCommand` from type_registry by name?
-3. How can we get `ModalDevTool` resource from `TypeId`?
+1. How can we access `DevCommand` from type_registry by name?
+2. How can we get `ModalDevTool` resource from `TypeId`?
 
 ## Future possibilities
 
