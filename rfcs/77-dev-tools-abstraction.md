@@ -249,7 +249,42 @@ impl Command for SetGold {
 impl DevCommand for SetGold {}
 ```
 
-todo: mention enable, disable, and toggle commands
+We also have a few common `DevCommands` for `ModalDevTools`, which are automatically registered with `.register_modal_dev_tool::<D>()`:
+
+```rust
+/// Reusable dev command to enable [`ModalDevTool`].
+struct Enable<D: ModalDevTool> {
+    modal_dev_tool: D
+}
+
+impl<D: ModalDevTool>() Command for Enable<D> {
+    fn apply(mut self, world: &mut World) {
+        self.modal_dev_tool.set_enabled(true);
+    }
+}
+
+/// Reusable dev command to disable [`ModalDevTool`].
+struct Disable<D: ModalDevTool> {
+    modal_dev_tool: D
+}
+
+impl<D: ModalDevTool>() Command for Disable<D> {
+    fn apply(mut self, world: &mut World) {
+        self.modal_dev_tool.set_enabled(false);
+    }
+}
+
+/// Reusable dev command to toggle [`ModalDevTool`].
+struct Toggle<D: ModalDevTool> {
+    modal_dev_tool: D
+}
+
+impl<D: ModalDevTool>() Command for Toggle<D> {
+    fn apply(mut self, world: &mut World) {
+        self.modal_dev_tool.set_enabled(!self.modal_dev_tool.is_enabled());
+    }
+}
+```
 
 ### Conventions for building dev tools
 
