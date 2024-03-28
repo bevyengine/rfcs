@@ -571,7 +571,7 @@ struct DevToolMetaData {
 ### What do the registries for our dev tools look like?
 
 Keeping track of the registered dev tools without storing them all in a dedicated collection is quite challenging!
-How can we keep track of it under the hood? We can use already existing `TypeRegistry` for that.
+How can we keep track of it under the hood? We can use the pre-existing `TypeRegistry` for that.
 
 There are a few key operations that we will need to perform:
 
@@ -658,7 +658,8 @@ Instead, we're forced to turn to the dark arts of reflection and type registrati
 
 ### Why not configure `ModalDevTools` with `DevCommands`?
 
-While configuring `ModalDevTools` with `DevCommands` makes sense for common setting, such as enabling, disabling, and toggling dev tools, it is not ideal for specific properties.
+While configuring `ModalDevTools` with `DevCommands` makes sense for universal configuration options such as enabling, disabling, and toggling dev tools, it is not ideal for configuring specific properties due to the amount of boilerplate required.
+Instead, toolboxes should use a reflection-based workflow to set fields on the various `ModalDevTool` resources directly.
 Those commands are meant to provide a single interface for toolboxes to work with, and should exist on every `ModalDevTool`.
 
 ## Unresolved questions
