@@ -104,7 +104,7 @@ In order to facilitate the creation of toolboxes, Bevy provides the `ModalDevToo
 /// and they can be enabled, disabled and reconfigured at runtime.
 /// 
 /// The documentation on this struct is reflected, and can be read by toolboxes to provide help text to users.
-pub trait ModalDevTool: Resource + Reflect + FromReflect + GetTypeRegistration + FromStr<Err=DevToolParseError> + Debug {
+pub trait ModalDevTool: Resource + Reflect + FromReflect + GetTypeRegistration + Debug {
     /// The name of this tool, as might be supplied by a command line interface.
     fn name() -> &'static str {
         Self::get_type_registration().type_info().type_path_table().short_path()
@@ -120,8 +120,6 @@ pub trait ModalDevTool: Resource + Reflect + FromReflect + GetTypeRegistration +
             name: Self::name(),
             type_id: Self::get_type_registration().type_id(),
             type_info: Self::get_type_registration().type_info(),
-            // A function pointer, based on the std::str::from_str method
-            from_str_fn: |s| <Self as FromStr>::from_str(s).map(|x| Box::new(x) as Box<dyn Reflect>),
             short_description: Self::short_description()
         }
     }
@@ -154,7 +152,7 @@ pub trait ModalDevTool: Resource + Reflect + FromReflect + GetTypeRegistration +
 ```
 
 Modal dev tools are registered via `app.init_modal_dev_tool::<D>()` (to use default config based on the `FromWorld` implementation) or via `app.insert_modal_dev_tool(config: D)`.
-This adds them as a resource (just like the familiar `.init_resource` or `insert_resource`), but also registers their `ComponentId` with the central `DevToolsRegistry`, which can be consumed by toolboxes to get a list of the available dev tools.
+This adds them as a resource (just like the familiar `.init_resource` or `insert_resource`), but also registers their type (via `.register_type::<D>()`) and adds a few `DevCommands` for enabling, disabling and toggling.
 
 To build your own modal dev tool, simply create a configuration resource, implement the `ModalDevTool` trait, and then register it in the app when the correct feature flag is enabled.
 
@@ -190,36 +188,9 @@ impl ModalDevTool for DevFlyCamera {
         self.enabled
     }
 }
-
-impl FromStr for DevFlyCamera {
-    fn from_str(s: &str) -> Result<Self, DevToolParseError>{
-        let parts = s.split_whitespace();
-        let name = parts.iter.next()?;
-        if name != self.name() {
-            return Err(DevToolParseError::InvalidName);
-        }
-
-        let movement_speed: f32 = match parts.iter.next() {
-            Some(string) = parse(string)?,
-            None => Self::default().movement_speed,
-        };
-
-        let turn_speed: f32 = match parts.iter.next() {
-            Some(string) = parse(string)?,
-            None => Self::default().turn_speed,
-        };
-
-        Ok(DevFlyCamera {
-                enabled: true,
-                movement_speed,
-                turn_speed,
-            }
-        )
-    }
-}
 ```
 
-To configure a dev tool at runtime, simply access the resource, and either mutate or overwrite the `ModalDevTools` struct.
+To configure a dev tool at runtime, simply access the resource, and either mutate or overwrite the `ModalDevTools` struct. For changing state of the `ModalDevTool` you can use `DevCommands`.
 
 ### Dev commands
 
@@ -233,7 +204,7 @@ To model this, we leverage Bevy's existing `Command` trait, which exists to perf
 /// to construct an instance of the type that implements this type, and then send it as a `Command` to execute it.
 /// 
 /// The documentation on this struct is reflected, and can be read by toolboxes to provide help text to users.
-pub trait DevCommand: bevy::ecs::world::Command + Reflect + FromReflect + GetTypeRegistration + Default + FromStr<Err=DevToolParseError> + Debug + 'static {
+pub trait DevCommand: bevy::ecs::world::Command + Reflect + FromReflect + GetTypeRegistration + Default + Debug + 'static {
     /// The name of this tool, as might be supplied by a command line interface.
     fn name() -> &'static str {
         Self::get_type_registration().type_info().type_path_table().short_path()
@@ -247,8 +218,6 @@ pub trait DevCommand: bevy::ecs::world::Command + Reflect + FromReflect + GetTyp
             name: Self::name(),
             type_id: Self::get_type_registration().type_id(),
             type_info: Self::get_type_registration().type_info(),
-            // A function pointer, based on the std::str::from_str method
-            from_str_fn: |s| <Self as FromStr>::from_str(s).map(|x| Box::new(x) as Box<dyn Reflect>),
             //
             create_default_fn: || Box::new(Self::default()),
             // A function pointer that adds the DevCommand to the provided Commands 
@@ -278,22 +247,9 @@ impl Command for SetGold {
 }
 
 impl DevCommand for SetGold {}
-
-impl FromStr for SetGold {
-    fn from_str(s: &str) -> Result<Self, DevToolParseError>{
-        let parts = s.split_whitespace();
-        let name = parts.iter.next()?;
-        if name != self.name() {
-            return Err(DevToolParseError::InvalidName);
-        }
-
-        let amount_string = parts.iter.next()?;
-        let amount = amount_string.parse()?;
-
-        Ok(SetGold {amount} )
-    }
-}
 ```
+
+todo: mention enable, disable, and toggle commands
 
 ### Conventions for building dev tools
 
@@ -320,11 +276,11 @@ Our first task is getting the list of dev tools.
 #[derive(Event)]
 struct ListDevTools;
 
-fn list_dev_tools(mut event_reader: EventReader<ListDevTools>, dev_tools_registry: Res<DevToolsRegistry>){
+fn list_dev_tools(mut event_reader: EventReader<ListDevTools>, type_registry: Res<AppTypeRegistry>){
     // Clear the events, and act if at least one is found
     if event_reader.drain().next().is_some() {
         println!("Available modal dev tools:");
-        for (_component_id, modal_dev_tool) in dev_tools_registry.iter_modal_dev_tools() {
+        for (_component_id, modal_dev_tool) in type_registry.iter_with_data::<ReflectModalDevTool>() {
             println!("{}", modal_dev_tool.type_name());
             println!("{}", modal_dev_tool.docs());
 
@@ -342,58 +298,29 @@ Next, we want to be able to toggle each modal tool by name.
 ```rust
 #[derive(Event)]
 struct ToggleDevTool{
-    name: String,
+    component_id: ComponentId,
 }
 
 fn toggle_dev_tools(world: &mut World){
     // Move the events out of the world, clearing them and avoiding a persistent borrow
     let events = world.resource_mut::<Events<ToggleDevTool>>().drain();
+    
+    for event in events {
+        // This gives us a mutable reference to the underlying resource as a `&mut dyn ModalDevTool`
+        let dev_tool = world.get_resource_mut_by_id(event.component_id).unwrap().downcast_mut::<dyn ModalDevTool>().unwrap();
 
-    // Use a resource scope to allow us to access both the dev tools registry and the rest of the world at the same time
-    world.resource_scope(|(world, dev_tools_registry: Mut<DevToolsRegistry>)|{
-        for event in events {
-            // This gives us a mutable reference to the underlying resource as a `&mut dyn ModalDevTool`
-            let Some(dev_tool) = dev_tools_registry.get_tool_by_name(world, event.name) else {
-                warn!("No dev tool was found for {}). Did you forget to register it?", event.name);
-                continue;
-            };
-
-            // Since we know that this object always implements `ModalDevTool`,
-            // we can use any of the methods on it, or the traits that it requires (like `Reflect`)
-            dev_tool.toggle();
-        }
-    })
+        // Since we know that this object always implements `ModalDevTool`,
+        // we can use any of the methods on it, or the traits that it requires (like `Reflect`)
+        dev_tool.toggle();
+    }
 }
 
 
 ```
 
-Next, we want to be able to configure modal dev tools at run time.
-
-```rust
-#[derive(Event)]
-struct ConfigureDevTool{
-    tool_string: String,
-};
-
-fn configure_dev_tools(world: &mut World){
-    // Move the events out of the world, clearing them and avoiding a persistent borrow
-    let events = world.resource_mut::<Events<ToggleDevTool>>().drain();
-
-    // Use a resource scope to allow us to access both the dev tools registry and the rest of the world at the same time
-    world.resource_scope(|(world, dev_tools_registry: Mut<DevToolsRegistry>)|{
-        for event in events {
-            // Check the implementation details for information about how this works!
-            let result = dev_tools_registry.parse_and_insert_tool(event.tool_string);
-            if let Err(error) = result {
-                warn!(error);
-            }
-        }
-    })}
-```
-
 Finally, we want to be able to pass in a user supplied string, parse it into a dev command and then evaluate it on the world.
 
+todo: how can this use type registry?
 ```rust
 #[derive(Event)]
 struct DevCommandInput(String);
@@ -595,8 +522,6 @@ Additional dev tool specific metadata (such as a classification scheme) can be a
 
 Optional methods on both `ModalDevTool` and `DevCommand` will allow us to override the supplied defaults if needed.
 
-We also need access to one other critical piece of information: a function pointer that allows us to construct a new value of this type from a string.
-
 As a result our `DevToolMetadata` looks like:
 
 ```rust
@@ -604,7 +529,6 @@ struct DevToolMetaData {
     name: &'static str,
     type_id: TypeId,
     type_info: &'static TypeInfo,
-    from_str_fn: fn(&str) -> Result<Box<dyn Reflect>, DevToolParseError>,
     short_description: Option<&'static str>
 }
 ```
@@ -612,84 +536,21 @@ struct DevToolMetaData {
 ### What do the registries for our dev tools look like?
 
 Keeping track of the registered dev tools without storing them all in a dedicated collection is quite challenging!
-How can we keep track of it under the hood?
-
-```rust
-#[derive(Resource)]
-struct DevToolsRegistry {
-    /// The stored collection of modal dev tools, tracked in a type-erased way using [`ComponentId`]
-    /// 
-    /// The key is the `name()` provided by the `ModalDevTool` trait.
-    modal_dev_tools: HashMap<String, DevToolMetadata>,
-    /// The metadata for all registered dev commands.
-    /// 
-    /// The key is the `name()` provided by the `DevCommand` trait.
-    dev_commands: HashMap<String, DevCommandMetaData> 
-}
-```
+How can we keep track of it under the hood? We can use already existing `TypeRegistry` for that.
 
 There are a few key operations that we will need to perform:
 
 ```rust
-impl DevToolsRegistry {
-    /// Gets a reference to the specified modal dev tool by `ComponentId`.
-    fn get_tool_by_id(world: &World, component_id: ComponentId) -> Option<&dyn ModalDevTool> {
-        let resource = world.get_resource_by_id(component_id)?;
-        resource.downcast_ref()
-    }
+// You can get [`ModalDevTool`] like any other resource.
+world.get_resource::<D>();
 
-    /// Gets a mutable reference to the specified modal dev tool by `ComponentId`.
-    fn get_tool_mut_by_id(mut world: &mut World, component_id: ComponentId) -> Option<&mut dyn ModalDevTool> {
-        let resource = world.get_resource_mut_by_id(component_id)?;
-        resource.downcast_mut()
-    }
+// todo: show how to get `Resource` from `TypeId`.
 
-    /// Gets the `DevCommandMetadata` for a given dev tool by name.
-    /// 
-    /// The supplied name should match the `DevCommand::name()` method.
-    fn get_command_metadata(name: &str) -> Option<&DevCommandMetadata> {
-        self.dev_commands.get(name)
-    }
+// Iterates over tools from `TypeRegistry`. Note: This is not yet implemented.
+type_registry.iter_with_data::<ReflectModalDevTool>();
 
-    /// Gets the `DevToolMetadata` for a given dev tool by name.
-    /// 
-    /// The supplied name should match the `DevCommand::name()` method.
-    fn get_tool_metadata(name: &str) -> Option<&DevToolMetadata> {
-        self.modal_dev_tools.get(name)
-    }
-
-    /// Looks up the `ComponentId` associated with the given name, as supplied by the `ModalDevTool` trait.
-    fn lookup_tool_component_id(&self, name: &str) -> Option<ComponentId> {
-       *self.get_tool_metadata(name)?.component_id
-    }
-
-    /// Gets a reference to the specified modal dev tool by type name, as supplied by the `ModalDevTool` trait.
-    fn get_tool_by_name(&self, world: &World, name: &str) -> Option<&dyn ModalDevTool> {
-        let component_id = self.lookup_tool_component_id(name)?;
-        DevToolsRegistry::get_by_id(world, component_id)
-    }
-
-    /// Gets a mutable reference to the specified modal dev tool by name.
-    fn get_tool_mut_by_name(&self, mut world: &mut World, component_id: ComponentId) -> Option<&mut dyn ModalDevTool> {
-        let component_id = self.lookup_tool_component_id(name)?;
-        DevToolsRegistry::get_mut_by_id(world, component_id)
-    }
-    
-    /// Iterates over the list of registered modal dev tools.
-    fn iter_tools(&self, world: &World) -> impl Iterator<Item = (ComponentId, &dyn ModalDevTool)> { 
-        self.modal_dev_tools.iter().map(|&id| (id, self.get(world, id)))
-    }
-
-    /// Mutably iterates over the list of registered modal dev tools.
-    fn iter_tools_mut(&self, mut world: &mut World) -> impl Iterator<Item = (ComponentId, &mut dyn ModalDevTool)> { 
-        self.modal_dev_tools.iter_mut().map(|&id| (id, self.get(world, id)))
-    }
-
-    /// Iterates over the list registered dev commands, returning their name and `DevCommandMetadata`.
-    fn iter_commands(&self) -> impl Iterator<Item = (&str, `DevCommandMetadata)> {
-        self.dev_commands.iter()
-    }
-}
+// Iterates over dev commands from `TypeRegistry`. Note: This is not yet implemented.
+type_registry.iter_with_data::<ReflectDevCommand>();
 ```
 
 Once the user has a `dyn ModalDevTool`, they can perform whatever operations they'd like: enabling and disabling it, reading metadata and so on.
@@ -699,46 +560,10 @@ While we can use the [dynamic resource APIs](https://docs.rs/bevy/latest/bevy/ec
 While this may seem unintuitive, the reason for this is fairly simple: modal configuration is always present, while the configuration for each dev command is generated when it is sent.
 As a result, we can only access its metadata: the arguments it takes, its doc strings and so on.
 
-### Parsing and inserting modal dev tools
-
-One method on `DevToolsRegistry` is worth special attention: `parse_and_insert_tool`.
-This tool takes a common pattern, parsing the configuration for a dev tool from a provided string, and provides a user friendly, safe API over it.
-
-```rust
-impl DevToolsRegistry {
-    /// Parses the given str `s` into a modal dev tool corresponding to its name if possible.
-    ///
-    /// For a typed equivalent, simply use the `FromStr` trait that this method relies on directly.
-    fn parse_and_insert_tool(&self, world: &mut World, s: &str) -> Result<(), DevToolParseError>{
-        // Parse out the name
-        let name = s.clone().split_whitespace.next()?;
-        
-        // Get the associated `ComponentId`, so we can use it to insert a resource of a dynamic type
-        let component_id = self.lookup_tool_component_id(name);
-        // Look-up the existing resource to get access to get access to the metadata we need
-        let tool_metadata: &dyn DevTool = self.get_tool_metadata(component_id)?;   
-        // Parse the string into a new copy of the tool using the stored function pointer
-        let new_tool = tool_metadata.from_str(s);
-        // Construct an `OwningPointer` so we can dynamically insert the resource we just made
-        OwningPointer::make(new_tool, |owning_pointer|{
-            // SAFETY: the value referenced by value is valid for the given `ComponentId` of this world,
-            // as the component id is cached upon initialization of the resource / dev tool.
-            unsafe {
-                world.insert_resource_by_id(component_id, owning_pointer);
-            }
-        });
-
-        Ok(())
-    }
-}
-```
-
 ## Drawbacks
 
 1. Third-party and end user dev tools will be pushed to conform to this standard. Without the use of a toolbox, this is added work for no benefit.
 2. This abstraction may not fit all possible tools and toolboxes. The manual wiring approach is more flexible, and so if our abstraction is overly prescriptive, it may not work correctly.
-3. The `from_str` methods are currently quite heavy on boilerplate. A `clap`-inspired derive macro would be lovely here. Perhaps a crate already exists?
-4. How can we store type-erased `StringConstructorFn`s in our metadata?
 
 ## Rationale and alternatives
 
@@ -799,6 +624,8 @@ Instead, we're forced to turn to the dark arts of reflection and type registrati
 ## Unresolved questions
 
 1. Can we relax the `FromStr` trait bound and simply construct our structs from CLI-style strings from the reflected type information?
+2. How can we access `DevCommand` from type_registry by name?
+3. How can we get `ModalDevTool` resource from `TypeId`?
 
 ## Future possibilities
 
