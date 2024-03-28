@@ -656,6 +656,11 @@ Fundamentally, there are two problems with this design:
 
 Instead, we're forced to turn to the dark arts of reflection and type registration.
 
+### Why not configure `ModalDevTools` with `DevCommands`?
+
+While configuring `ModalDevTools` with `DevCommands` makes sense for common setting, such as enabling, disabling, and toggling dev tools, it is not ideal for specific properties.
+Those commands are meant to provide a single interface for toolboxes to work with, and should exist on every `ModalDevTool`.
+
 ## Unresolved questions
 
 1. Can we relax the `FromStr` trait bound and simply construct our structs from CLI-style strings from the reflected type information?
