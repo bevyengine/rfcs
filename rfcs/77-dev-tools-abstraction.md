@@ -595,6 +595,12 @@ While we can use the [dynamic resource APIs](https://docs.rs/bevy/latest/bevy/ec
 While this may seem unintuitive, the reason for this is fairly simple: modal configuration is always present, while the configuration for each dev command is generated when it is sent.
 As a result, we can only access its metadata: the arguments it takes, its doc strings and so on.
 
+### Iterating through `TypeRegistry` with data
+
+We are using *currently* non-existing method `.iter_with_data::<ReflectModalDevTool>()` on `TypeRegistry`.
+This method will iterate through all types that implement a specific trait. If this method will not be implemented, we can achieve something similar with filtering `.iter()` method.
+See: [Cart's comment](https://github.com/bevyengine/rfcs/pull/77#discussion_r1536286977)
+
 ## Drawbacks
 
 1. Third-party and end user dev tools will be pushed to conform to this standard. Without the use of a toolbox, this is added work for no benefit.
