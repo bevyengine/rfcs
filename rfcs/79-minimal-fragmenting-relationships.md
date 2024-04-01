@@ -93,7 +93,7 @@ The `FixedBitSet` implementation used by `Access` inside of systems, system para
 
 Similarly the `SparseSet` implementation used in both table and sparse component storage also operate under the assumption that component ids will remain low and would allocate an even larger amount of memory storing indexes for all the intervening ids when storing relationship pairs on an entity.
 
-The most practical way to solve this is using paged versions of the appropriate data structures, for bitsets this can take the form of existing hierarchical or compressed bitsets like `roaring` or `tinyset`.
+The most practical way to solve this is using paged versions of the appropriate data structures, for bitsets this can take the form of existing hierarchical or compressed bitsets like `roaring`.
 ### Minimal Implementation
 Implementing the above in order of dependance could look like:
 - Resolve [#12144](https://github.com/bevyengine/bevy/issues/12144) so entities can be persisted in the render world.
