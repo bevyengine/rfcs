@@ -57,7 +57,7 @@ for entity, targets in query.iter(&world) {
 	}
 }
 
-lt query = world.query<Entity, With<Targets<Eats>>>();
+let query = world.query<Entity, With<Targets<Eats>>>();
 for entity in query.iter(&world) {
 	// entity == alice
 }
