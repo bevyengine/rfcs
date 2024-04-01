@@ -16,6 +16,7 @@ Relationship pairs can be inserted and removed like any other component. There a
 1. The source entity that the pair is being added to
 2. The relationship component
 3. The target entity
+
 In the minimal implementation all relationships will take the form of `(ZST Component, entity)` pairs so the API surface will look quite familiar. All naming is subject to bikeshedding:
 ```rust
 #[derive(Component)]
@@ -30,7 +31,7 @@ command.entity(source_entity_a)
 	.remove_pair::<Relationship>(target_entity_b);
 ```
 
-Since each pair is a unique component you can also add multiple entities with the same relationship type, as well as use APIs to access and query for them:
+Since each pair is a unique component you can also add multiple target entities with the same relationship type, as well as use APIs to access and query for them:
 ```rust
 #[derive(Component)]
 struct Eats {}
@@ -86,9 +87,9 @@ Luckily observers [#10839](https://github.com/bevyengine/bevy/pull/10839) can he
 
 In order to implement such a mechanism we need some way for the observer to have access to the query state in order to update it. This can be done by moving the query state into a component on the associated entity (WIP branch here: [queries-as-entities](https://github.com/james-j-obrien/bevy/tree/queries-as-entities)) and will require further refactors to the cache to optimize for removal. However this is largely blocked by the deletion of entities in the render world tracked here: [#12144](https://github.com/bevyengine/bevy/issues/12144).
 
-Similarly system's cache their `ArchetypeComponentId` accesses for the purposes of multithreading, we also need to update theses caches to remove deleted ids presenting many of the same problems. 
+Similarly systems cache their `ArchetypeComponentId` accesses for the purposes of multithreading, we also need to update theses caches to remove deleted ids presenting many of the same problems. 
 ##### Access Bitsets and Component SparseSets
-The `FixedBitSet` implementation used by `Access` inside of systems, system params, queries etc. relies on dense component ids to avoid using a large amount of memory. If we were to start inserting ids with arbitrarily large entity targets as well as component ids shifted into the upper bits each `FixedBitSet` would allocate huge amounts of memory to have flags for all the intervening ids. In order to minimize the affects of this we could consider all `(R, *)` pairs as one id in accesses, reducing the amount we need to track at the expense of some theoretical ability to parallelise.
+The `FixedBitSet` implementation used by `Access` inside of systems, system params, queries etc. relies on dense component ids to avoid using a large amount of memory. If we were to start inserting ids with arbitrarily large entity targets as well as component ids shifted into the upper bits each `FixedBitSet` would allocate non-trivial amounts of memory to have flags for all the intervening ids. In order to minimize the affects of this we could consider all `(R, *)` pairs as one id in accesses, reducing the amount we need to track at the expense of some theoretical ability to parallelise.
 
 Similarly the `SparseSet` implementation used in both table and sparse component storage also operate under the assumption that component ids will remain low and would allocate an even larger amount of memory storing indexes for all the intervening ids when storing relationship pairs on an entity.
 
@@ -100,7 +101,7 @@ Implementing the above in order of dependance could look like:
 - Refactor queries to become entities with caches updated via observers
 - Implement archetype deletion and the associated clean-up for systems and queries 
 - Replace `FixedBitSet` and `SparseSet` implementations with ones that support sparse ids
-After all the issues above are addressed the actual implementation of the feature can begin. This requires changes in 3 main places:
+After all the issues above are addressed the actual implementation of the feature can begin. This requires changes in 3 main areas:
 - Implementation of `WorldData` and `WorldFilter` implementations for accessing relationship targets
 - Transition to new `Identifier` implemented in [#9797](https://github.com/bevyengine/bevy/pull/9797) instead of `ComponentId` in all places where pairs could be expected: tables, archetypes etc. 
 - New methods for `EntityCommands`, `EntityMut`/`Ref`/`WorldMut` and `QueryBuilder`
@@ -113,7 +114,6 @@ After all the issues above are addressed the actual implementation of the featur
 - Partial draft implementation: [#9123](https://github.com/bevyengine/bevy/pull/9123)
 ## Unresolved questions
 - How to address [#12144](https://github.com/bevyengine/bevy/issues/12144)
-
 ## Future possibilities
 - More advanced traversal methods: up, BFS down, etc.
 - More expressive query types: multi-target, grouping, sorted etc.
