@@ -38,12 +38,12 @@ struct Eats {}
 
 let alice_mut = world.entity_mut(alice);
 
-alice.insert_pair::<Eats>(apple)
+alice_mut.insert_pair::<Eats>(apple)
 	.insert_pair::<Eats>(banana);
 
-alice.has_pair<Eats>(apple); // == true
+alice_mut.has_pair<Eats>(apple); // == true
 
-for target in alice.targets<Eats>() {
+for target in alice_mut.targets<Eats>() {
 	// target == apple
 	// target == banana
 }
