@@ -119,7 +119,7 @@ After all the issues above are addressed the actual implementation of the featur
 - Data on relationship pairs is a trivial extension:
   ```rust
   world.entity_mut(source).insert_pair(Relationship {}, target);
-```
+  ```
 - More advanced traversal methods: up, BFS down, etc.
 - More expressive query types: multi-target, grouping, sorted etc.
 - With component as entities we unlock full `(entity, entity)` relationships
