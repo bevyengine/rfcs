@@ -2,9 +2,9 @@
 
 ## Summary
 
-The central idea behind fragmenting relationships is the ability to express a connection between two `Entity`s by adding a pair of `(ComponentId, Entity)` as if it were a component. For example if one had several entities representing different kinds of swords one could add the pair `(Equipped, sword_entity)` to the player to signify which is currently equipped.
+The central idea behind fragmenting relationships is the ability to express a connection between two `Entity`s by adding a pair of `(ComponentId, Entity)` as if it were a component. For example if one had several entities representing different kinds of swords one could add the pair `(Equipped, sword_entity)` to the player to signify which is currently equipped. 
 
-Of course you could also just have created an `Equipped` component with an `Entity` field member to represent the same relationship. The advantage to fragmenting relationships is the pair is a unique component. This means we could also add `(Equipped, shield_entity)` to the same player and offer query APIs that express `(Equipped, *)`to find all equipped pairs.
+Of course you could also just have created an `Equipped` component with an `Entity` field member to represent the same relationship. The advantage to "fragmenting" relationships is each unique pair is treated as if it were a unique component id, forming their own archetypes. This means we could also add `(Equipped, shield_entity)` to the same player and offer performant query APIs that express `(Equipped, *)`to find all equipped pairs.
 
 Another analogy when considering the ECS as an in memory database is that relationships act as foreign keys. This unlocks a potential future where we can express more complex queries matching across multiple entities and relationship pairs. There are a myriad of additional features that can be built on top of the initial implementation described below. The main focus in this RFC will be the blocking issues that must be addressed before the initial implementation is achievable.
 ## Motivation
@@ -107,7 +107,7 @@ After all the issues above are addressed the actual implementation of the featur
 - Transition to new `Identifier` implemented in [#9797](https://github.com/bevyengine/bevy/pull/9797) instead of `ComponentId` in all places where pairs could be expected: tables, archetypes etc. 
 - New methods for `EntityCommands`, `EntityMut`/`Ref`/`WorldMut` and `QueryBuilder`
 ## Drawbacks
-- Increased archetype fragmentation
+- Increased archetype fragmentation when in use
 - Increase in internal and API complexity
 ## Prior art
 - Prior [RFC](https://github.com/BoxyUwU/rfcs/blob/min-relations/rfcs/min-relations.md)
@@ -120,6 +120,7 @@ After all the issues above are addressed the actual implementation of the featur
   ```rust
   world.entity_mut(source).insert_pair(Relationship {}, target);
   ```
+- Clean-up policies to allow specifying recursive despawning, this is important to allow porting `bevy_hierarchy` to use relationships
 - More advanced traversal methods: up, BFS down, etc.
 - More expressive query types: multi-target, grouping, sorted etc.
 - With component as entities we unlock full `(entity, entity)` relationships
