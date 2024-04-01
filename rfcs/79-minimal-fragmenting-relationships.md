@@ -6,9 +6,7 @@ The central idea behind fragmenting relationships is the ability to express a co
 
 Of course you could also just have created an `Equipped` component with an `Entity` field member to represent the same relationship. The advantage to fragmenting relationships is the pair is a unique component. This means we could also add `(Equipped, shield_entity)` to the same player and offer query APIs that express `(Equipped, *)`to find all equipped pairs.
 
-Another analogy when considering the ECS as an in memory database is that relationships act as foreign keys. This unlocks a potential future where we can express more complex queries matching across multiple entities and relationship pairs. There are a myriad of additional features that can be built on top of the initial implementation described below. 
-
-The main focus in this RFC will be the blocking issues that must be addressed before the initial implementation is achievable.
+Another analogy when considering the ECS as an in memory database is that relationships act as foreign keys. This unlocks a potential future where we can express more complex queries matching across multiple entities and relationship pairs. There are a myriad of additional features that can be built on top of the initial implementation described below. The main focus in this RFC will be the blocking issues that must be addressed before the initial implementation is achievable.
 ## Motivation
 
 Fragmenting relationships has been a long desired bevy feature. The ability to express and traverse hierarchies and graphs within the ECS unlocks a huge amount of potential. Features such as breadth-first query traversal, immediate hierarchy clean-up, component inheritance, multi-target queries etc. all rely on or are simplified by the existence of fragmenting relationships. 
@@ -22,7 +20,7 @@ Relationship pairs can be inserted and removed like any other component. There a
 In the minimal implementation all relationships will take the form of `(ZST Component, entity)` pairs so the API surface will look quite familiar. All naming is subject to bikeshedding:
 ```rust
 #[derive(Component)]
-struct Relationship {}
+struct Relationship;
 
 world.entity_mut(source_entity_a)
 	.insert_pair::<Relationship>(target_entity_b)
@@ -36,7 +34,7 @@ command.entity(source_entity_a)
 Since each pair is a unique component you can also add multiple target entities with the same relationship type, as well as use APIs to access and query for them:
 ```rust
 #[derive(Component)]
-struct Eats {}
+struct Eats;
 
 let alice_mut = world.entity_mut(alice);
 
@@ -118,6 +116,10 @@ After all the issues above are addressed the actual implementation of the featur
 ## Unresolved questions
 - How to address [#12144](https://github.com/bevyengine/bevy/issues/12144)
 ## Future possibilities
+- Data on relationship pairs is a trivial extension:
+  ```rust
+  world.entity_mut(source).insert_pair(Relationship {}, target);
+```
 - More advanced traversal methods: up, BFS down, etc.
 - More expressive query types: multi-target, grouping, sorted etc.
 - With component as entities we unlock full `(entity, entity)` relationships
