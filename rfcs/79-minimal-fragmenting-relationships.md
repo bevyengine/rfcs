@@ -39,7 +39,7 @@ struct Eats {}
 let alice_mut = world.entity_mut(alice);
 
 alice.insert_pair::<Eats>(apple)
-	 .insert_pair::<Eats>(banana);
+	.insert_pair::<Eats>(banana);
 
 alice.has_pair<Eats>(apple); // == true
 
@@ -101,6 +101,7 @@ Implementing the above in order of dependance could look like:
 - Refactor queries to become entities with caches updated via observers
 - Implement archetype deletion and the associated clean-up for systems and queries 
 - Replace `FixedBitSet` and `SparseSet` implementations with ones that support sparse ids
+
 After all the issues above are addressed the actual implementation of the feature can begin. This requires changes in 3 main areas:
 - Implementation of `WorldData` and `WorldFilter` implementations for accessing relationship targets
 - Transition to new `Identifier` implemented in [#9797](https://github.com/bevyengine/bevy/pull/9797) instead of `ComponentId` in all places where pairs could be expected: tables, archetypes etc. 
