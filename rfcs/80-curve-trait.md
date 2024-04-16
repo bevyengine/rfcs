@@ -9,6 +9,13 @@ animation keyframes), among others.
 
 The purpose is to provide a common baseline of useful functionality that unites these disparate
 implementations, making curves of many kinds pleasant to work with for authors of plugins and games.
+Common uses of curves in games include:
+* Describing animations as transformations over time
+* Describing movement of game entities
+* Describing camera moves
+* Describing easing and attenuation with time and/or distance
+* Describing geometry (e.g. of roads, surfaces of extrusion, etc.)
+* Describing paths of particles and effects
 
 ## Motivation
 
