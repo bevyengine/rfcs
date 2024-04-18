@@ -359,7 +359,25 @@ for specific problem domains or to expand the variety of curve constructions ava
 It is worth remembering that implementing `Curve<T>` yourself, too, is extraordinarily straightforward, since the
 only required methods are `domain` and `sample`, so you can hook into this API functionality yourself with ease.
 
+### Borrowing
+
+One other minor point is that you may not always want functions like `map` and `reparametrize` to take ownership of
+the input curve. For example, the following code takes ownership of `my_curve`, so it cannot be reused, even though
+`resample` requires only a reference:
+```rust
+let mapped_sample_curve = my_curve.map(|x| x * 2.0).resample(100).unwrap();
+```
+In order to circumvent this, the `by_ref` method exists, supported by a blanket implementation which allows any
+type which dereferences to a `Curve` to be a `Curve` itself. For example, the following are essentially equivalent
+and do not take ownership of `my_curve`:
+```rust
+let mapped_sample_curve = my_curve.by_ref().map(|x| x * 2.0).resample(100).unwrap();
+let mapped_sample_curve = (&my_curve).map(|x| x * 2.0).resample(100).unwrap();
+```
+
 ## Implementation strategy
+
+### API Implementation
 
 The API is really segregated into two parts, the functional and the concrete. The functional part, whose outputs are
 only guaranteed to be `impl Curve<T>` of some kind, uses wrapper structs for its outputs, which take ownership of 
@@ -472,7 +490,30 @@ type if it is convenient to do so. The same goes for `graph`; however, because o
 (it is function precomposition), the same cannot be said of `reparametrize`, which maintains its default
 functional implementation. The latter gap is filled partially by `UnevenSampleCurve::map_sample_times`.
 
-Everything else should be fairly clear based on the user-facing API descriptions. 
+Everything else should be fairly clear based on the user-facing API descriptions.
+
+### Object safety
+
+The `Curve<T>` trait should be object-safe. While the functional `Curve` API methods are automatically
+excluded from dynamic dispatch because they move `self` into another struct (and hence require `Self: Sized`),
+others should be explicitly given the `Self: Sized` constraint in order to ensure object safety.
+
+This prevents methods like `map` from being used by `dyn Curve<T>` (which was hopeless regardless); however,
+by providing a blanket implementation over `Deref`, pointers to trait objects can still be used as `Curve<T>`.
+For instance, `Box<dyn Curve<T>>`, `Arc<dyn Curve<T>>`, etc. all implement `Curve<T>` through this blanket
+implementation, which means that they can use the default implementations of `map`, `reparametrize`, etc. built
+on top of the object-safe core containing `domain` and `sample`.
+
+This is the reason for including a `?Sized` constraint on the underlying curve in the blanket implementation,
+which has a signature that looks like this:
+```rust
+impl<T, C, D> Curve<T> for D
+where
+    T: Interpolable,
+    C: Curve<T> + ?Sized,
+    D: Deref<Target = C>,
+{ //... }
+```
 
 ## Drawbacks
 
