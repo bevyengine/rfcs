@@ -16,6 +16,7 @@ Common uses of curves in games include:
 * Describing easing and attenuation with time and/or distance
 * Describing geometry (e.g. of roads, surfaces of extrusion, etc.)
 * Describing paths of particles and effects
+* Defining experience and drop rate curves
 
 ## Motivation
 
@@ -86,7 +87,7 @@ them, one might perform Hermite interpolation to create a cubic curve between th
 values can then be sampled at any point on the curve. Another common example would be "spherical linear
 interpolation" (`slerp`) of quaternions, used in animation and other rigid motions. 
 
-To aid you in using this trait, `Interpolable` has blanket implementations for tuples whose members are
+To make using `Interpolable` easier, it has a blanket implementation for tuples whose members are
 `Interpolable` (which simultaneously interpolate each constituent); in the same way, the `Interpolable` trait 
 can be derived for structs whose members are `Interpolable` with `#[derive(Interpolable)]`:
 ```rust
@@ -107,8 +108,8 @@ struct MyCurveData {
 
 ### Intervals
 
-The other auxiliary component at play in the definition of `Curve<T>` is `Interval`. This is a type which
-represents a nonempty closed interval which may be infinite in either direction. Its provided methods are
+The `Interval` associated type is the other part of the definition of each `Curve`. This is a type which
+represents a nonempty closed interval over the `f32` numbers whose endpoints may be at infinity. Its provided methods are
 mostly self-explanatory:
 ```rust
 /// Create a new [`Interval`] with the specified `start` and `end`. The interval can be infinite
