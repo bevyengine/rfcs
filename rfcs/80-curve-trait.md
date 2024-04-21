@@ -38,7 +38,35 @@ be forced to repeat our work for each class of curves that we want to work with.
 
 ### Introduction
 
-The trait `Curve<T>` provides a generalized API surface for curves. Its requirements are quite simple:
+The trait `Curve<T>` provides a generalized API surface for curves. In principle, a `Curve<T>` is a family
+of values of type `T` parametrized over some interval which is typically thought of as something like time
+or distance.
+
+For example, we might use the `Curve` APIs to construct a `Curve<Transform>` in order to describe the motion 
+of an Entity with time:
+```rust
+// This is a `Curve<Quat>` that describes a rotation with time:
+let rotation_over_time = function_curve(interval(0.0, std::f32::consts::TAU).unwrap(), |t| Quat::from_rotation_z(t));
+// Here is a `Curve<Vec3>` that describes a translation with time:
+let translation_over_time = function_curve(interval(0.0, 1.0).unwrap(), |t| Vec3::splat(t));
+// Let's reparametrize the rotation so that it goes from 0 to 1 instead:
+let new_rotation = rotation_over_time.reparametrize_linear(interval(0.0, 1.0).unwrap()).unwrap();
+// Combine the two into a `Curve<(Vec3, Quat)>` by zipping them together:
+let translation_and_rotation = translation_over_time.zip(new_rotation).unwrap();
+// Join the two families of data to get a `Curve<Transform>`:
+let transform_curve = translation_and_rotation.map(|(t, r)| Transform::from_translation(t).with_rotation(r));
+```
+
+This could be used to actually set an entity's `Transform` in a system or otherwise:
+```rust
+*my_entity_transform = transform_curve.sample(0.6);
+```
+
+However, `Curve` is quite general, and it can be used for much more, including describing and manipulating
+easings, animations, geometry, camera moves, and more!
+
+The trait itself looks like this:
+
 ```rust
 pub trait Curve<T>
 where
@@ -48,8 +76,8 @@ where
     fn sample(&self, t: f32) -> T;
 }
 ```
-At a basic level, it encompasses values of type `T` parametrized over some particular `Interval`, allowing 
-that data to be sampled by providing the associated time parameter. 
+At a basic level, it encompasses values of type `T` parametrized over some particular `Interval` (its `domain`,
+allowing that data to be sampled by providing the associated time parameter. 
 
 ### Interpolation
 
@@ -350,7 +378,7 @@ Note that, while the examples used only functions `f32 -> f32`, `function_curve`
 parameter domain (valued in something `Interpolable`) into a `Curve<T>`. For example, here is a rotation over time,
 expressed as a `Curve<Quat>` using this API:
 ```rust
-let rotation_curve = function_curve(interval(0.0, f32::consts::TAU).unwrap(), |t| Quat::from_rotation_z(t));
+let rotation_curve = function_curve(interval(0.0, std::f32::consts::TAU).unwrap(), |t| Quat::from_rotation_z(t));
 ```
 Furthermore, all of `bevy_math`'s curves (e.g. those created by splines) implement `Curve<T>` for suitable values of
 `T`, including information like derivatives in addition to positional data. Additionally, authors of other Bevy
