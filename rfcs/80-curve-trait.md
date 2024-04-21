@@ -520,8 +520,10 @@ where
 
 The main risk in implementing this is that we cement a poor or incomplete curve API within the Bevy
 ecosystem, so that authors of internal and external modules need to sidestep it or do reimplementation
-themselves. To avoid this, we should ensure that this system is adequately all-encompassing if we
-choose to adopt it.
+themselves.
+
+Furthermore, a poor implementation would lead to additional maintenance burden and compile times with
+little benefit.
 
 ## Rationale and alternatives
 
