@@ -75,7 +75,7 @@ query.single(&world); // == alice
 
 ## Implementation strategy
 
-There are a number of technical blockers before even a minimal version of relationships could be implemented in bevy. I've broken them down below:
+There are a number of technical blockers before even a minimal version of relationships could be implemented in bevy. These have been broken them down below:
 #### Archetype Cleanup
 In order to fit each pair into a single id we lose the entity generation (see this [article](https://ajmmertens.medium.com/doing-a-lot-with-a-little-ecs-identifiers-25a72bd2647) for more details). As a consequence when an entity is despawned we need to ensure that all the archetypes that included that entity as a target are also destroyed so that a future entity re-using that id is not misinterpreted as being the old target. This is non-trivial.
 
@@ -85,22 +85,22 @@ Query's caches of matching tables and archetypes are updated each time the query
 
 Luckily observers [#10839](https://github.com/bevyengine/bevy/pull/10839) can help solve this problem. By sending ECS events each time an archetype is created and creating an observer for each query we can target the updates to query caches so that we no longer need to iterate every new archetype. Similarly we can fire archetype deletion events to cause queries to remove the archetype from their cache.
 
-In order to implement such a mechanism we need some way for the observer to have access to the query state in order to update it. This can be done by moving the query state into a component on the associated entity (WIP branch here: [queries-as-entities](https://github.com/james-j-obrien/bevy/tree/queries-as-entities)) and will require further refactors to the cache to optimize for removal. However this is largely blocked by the deletion of entities in the render world tracked here: [#12144](https://github.com/bevyengine/bevy/issues/12144).
+In order to implement such a mechanism we need some way for the observer to have access to the query state in order to update it. This can be done by moving the query state into a component on the associated entity (WIP branch here: [queries-as-entities](https://github.com/james-j-obrien/bevy/tree/queries-as-entities)) and will require further refactors to the cache. For example currently the collection of tables and archetypes is a vector but that doesn't provide an efficent method for removal without scanning the entiriety of the vector so this data structure will have to replaced with one that performs reasonably for both iteration and insertion/removal. However moving ECS structures into entities is largely blocked by the deletion of entities in the render world tracked here: [#12144](https://github.com/bevyengine/bevy/issues/12144).
 
 Similarly systems cache their `ArchetypeComponentId` accesses for the purposes of multithreading, we also need to update theses caches to remove deleted ids presenting many of the same problems. 
 ##### Access Bitsets and Component SparseSets
 The `FixedBitSet` implementation used by `Access` inside of systems, system params, queries etc. relies on dense component ids to avoid using a large amount of memory. If we were to start inserting ids with arbitrarily large entity targets as well as component ids shifted into the upper bits each `FixedBitSet` would allocate non-trivial amounts of memory to have flags for all the intervening ids. In order to minimize the affects of this we could consider all `(R, *)` pairs as one id in accesses, reducing the amount we need to track at the expense of some theoretical ability to parallelise.
 
-Similarly the `SparseSet` implementation used in both table and sparse component storage also operate under the assumption that component ids will remain low and would allocate an even larger amount of memory storing indexes for all the intervening ids when storing relationship pairs on an entity.
+Similarly the `SparseSet` implementation used in both table and sparse component storage also operate under the assumption that component ids will remain low and would allocate an even larger amount of memory storing indexes for all the intervening ids when storing relationship pairs on an entity. In order to circumvent this we can implement a "component index", this index would track for each component the tables and archetypes it belongs to as well as the column in that table the component inhabits. This removes the need for the sparse lookup as well as providing opportunities for other optimisations related to creation of observers and queries.
 
-The most practical way to solve this is using paged versions of the appropriate data structures, for bitsets this can take the form of existing hierarchical or compressed bitsets like `roaring`.
 ### Minimal Implementation
 Implementing the above in order of dependance could look like:
 - Resolve [#12144](https://github.com/bevyengine/bevy/issues/12144) so entities can be persisted in the render world.
 - Merge observers [#10839](https://github.com/bevyengine/bevy/pull/10839)
 - Refactor queries to become entities with caches updated via observers
-- Implement archetype deletion and the associated clean-up for systems and queries 
+- Implement a component index to speed-up creation of queries/observers and alleviate the need for `SparseSet` in tables
 - Replace `FixedBitSet` and `SparseSet` implementations with ones that support sparse ids
+- Implement archetype deletion and the associated clean-up for systems and queries 
 
 After all the issues above are addressed the actual implementation of the feature can begin. This requires changes in 3 main areas:
 - Implementation of `WorldData` and `WorldFilter` implementations for accessing relationship targets
