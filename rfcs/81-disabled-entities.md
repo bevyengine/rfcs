@@ -16,6 +16,9 @@ Use-cases that would heavily rely on `Disabled`:
 - Networking interpolation. Data received from the network is frequently interpolated to avoid jitter caused by variation in latency. When data for a new entity is received that should not be shown yet, it can be spawned but kept in a `Disabled` state.
 - Background loading. Scenes could be loaded in a `Disabled` state and finish up entirely in-place, once the whole scene is ready can the old scene be despawned and the new one enabled.
 - Switching scenes. Currently switching scenes involves spawning and despawning lots of entities. This can be very heavy when frequently switching scenes, instead all inactive scenes could be kept in a `Disabled` state.
+- Partial simulation. Sometimes it can be desirable to not simulate the whole world at once. There are two interesting uses here:
+  - Disabling entities that don't need to be simulated before the simulation, then re-enabling them before any visual logic
+  - Disabling all entities, except for one chunk, going trough each chunk one-by-one, before re-enabling them all before visual logic
 
 Use-cases that could be simplified using `Disabled`:
 
