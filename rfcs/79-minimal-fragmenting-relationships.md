@@ -97,11 +97,11 @@ The `FixedBitSet` implementation used by `Access` inside of systems, system para
 Similarly the `SparseSet` implementation used in both table and sparse component storage also operate under the assumption that component ids will remain low and would allocate an even larger amount of memory storing indexes for all the intervening ids when storing relationship pairs on an entity. In order to circumvent this we can implement a "component index", this index would track for each component the tables and archetypes it belongs to as well as the column in that table the component inhabits. This removes the need for the sparse lookup as well as providing opportunities for other optimisations related to creation of observers and queries.
 
 ### Minimal Implementation
-Implementing the above in order of dependance could look like:
+The component index could be implemented at any time, however the other pieces require some ordering to satisfy dependencies or prevent half implemented features.
+Implementing the remainder in an appropriate order of dependance would work as follows:
 - Merge observers [#10839](https://github.com/bevyengine/bevy/pull/10839)
 - Resolve [#12144](https://github.com/bevyengine/bevy/issues/12144) so entities can be persisted in the render world.
 - Refactor queries to become entities with caches updated via observers
-- Implement a component index to speed-up creation of queries/observers and alleviate the need for `SparseSet` in tables
 - Implement archetype deletion and the associated clean-up for systems and queries, this is the only change that pays a complexity cost for no user benefit until relationships are realised
 
 After all the issues above are addressed the actual implementation of the feature can begin. This requires changes in 3 main areas:
