@@ -557,7 +557,7 @@ Another limitation of the API presented here is that it uses `f32` exclusively a
 which presents another area where the API could be deemed incomplete in the future. The reason that `f32`
 was deemed adequate are as follows:
 - Existing constructions in `bevy_math`, `bevy_animation`, and `bevy_color` all use `f32`.
-- Basically nothing on Bevy in the CPU side uses `f64` internally.
+- Basically nothing in Bevy on the CPU side uses `f64` internally.
 - Curve applications tend to be artistic in nature rather than demanding high precision, so that `f32` is
   generally good enough.
 - If strictly necessary, making the change to use generics is straightforward, but unifying around `f32`
