@@ -204,9 +204,9 @@ where
     S: Interpolable,
 { //... }
 ```
-As you can see, `map` takes our curve and, consuming it, produces a new curve whose sample values are the images
-under `f` of those from the function that we started with. For example, if we started with a curve in 
-three-dimensional space and wanted to project it onto the XY-plane, we could do that with `map`:
+As you can see, `map` takes our curve and, consuming it, produces a new curve whose sample values are the sample
+values of the starting curve mapped through `f`. For example, if we started with a curve in three-dimensional space
+and wanted to project it onto the XY-plane, we could do that with `map`:
 ```rust
 // A 3d curve, implementing `Curve<Vec3>`
 let my_3d_curve = function_curve(2.0, |t| Vec3::new(t * t, 2.0 * t, t - 1.0));
@@ -396,9 +396,9 @@ the input curve. For example, the following code takes ownership of `my_curve`, 
 ```rust
 let mapped_sample_curve = my_curve.map(|x| x * 2.0).resample(100).unwrap();
 ```
-In order to circumvent this, the `by_ref` method exists, supported by a blanket implementation which allows any
-type which dereferences to a `Curve` to be a `Curve` itself. For example, the following are essentially equivalent
-and do not take ownership of `my_curve`:
+The `by_ref` method exists to circumvent this problem, allowing curve data to be used through borrowing; this is 
+supported by a blanket implementation which allows any type which dereferences to a `Curve` to be a `Curve` itself. 
+For example, the following are equivalent and do not take ownership of `my_curve`:
 ```rust
 let mapped_sample_curve = my_curve.by_ref().map(|x| x * 2.0).resample(100).unwrap();
 let mapped_sample_curve = (&my_curve).map(|x| x * 2.0).resample(100).unwrap();
@@ -553,6 +553,16 @@ themselves.
 Furthermore, a poor implementation would lead to additional maintenance burden and compile times with
 little benefit.
 
+Another limitation of the API presented here is that it uses `f32` exclusively as its parameter type,
+which presents another area where the API could be deemed incomplete in the future. The reason that `f32`
+was deemed adequate are as follows:
+- Existing constructions in `bevy_math`, `bevy_animation`, and `bevy_color` all use `f32`.
+- Basically nothing on Bevy in the CPU side uses `f64` internally.
+- Curve applications tend to be artistic in nature rather than demanding high precision, so that `f32` is
+  generally good enough.
+- If strictly necessary, making the change to use generics is straightforward, but unifying around `f32`
+  is simpler and encourages low-effort interoperation (i.e. reusing data across domains is more likely). 
+
 ## Rationale and alternatives
 
 An API like `Curve<T>` is natural for a problem domain in which underlying data is extremely varied;
@@ -581,12 +591,7 @@ burden becomes so much greater.
 
 ## Unresolved questions
 
-Do we need more than this at the level of `bevy_math` to meet the needs of `bevy_animation` and perhaps `bevy_audio`?
-
-Are there other major stakeholders that I haven't thought of?
-
-I would also like additional thoughts related to the matter of serialization/deserialization that I raised
-in the preceding section.
+I believe that all major questions for this particular project scope have been resolved satisfactorily.
 
 ## Future possibilities
 
@@ -609,3 +614,6 @@ more sophistocated forms of resampling, and so on. Some of these will, no doubt,
 specialization of the interface to more particular values of `T` that are more closely associated to 
 particular problem domains.
 
+Another important future direction to keep in mind is the serialization and deserialization of curve data,
+coupled with the use of items like `dyn Curve<T>` and similar. This will likely require extensions of the
+`Curve` API (or specializations thereof) to work well (e.g. a specialized subtrait). 
