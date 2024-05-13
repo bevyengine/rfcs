@@ -29,7 +29,7 @@ disparate areas and, ideally, allow for authors to reuse the work of others rath
 wheel every time they want to write libraries that involve generating or working with curves. 
 
 Furthermore, something like this is also a prerequisite to bringing more complex geometric operations
-(some of them with broad implications) into `bevy_math` itself. For instance, this lays the natural bedwork
+(some of them with broad implications) into `bevy_math` itself. For instance, this lays the natural foundation
 for more specialized libraries in curve geometry, such as those needed by curve extrusion (e.g. for mesh
 generation of roads and other surfaces). Without an internal curve abstraction in Bevy itself, we would
 be forced to repeat our work for each class of curves that we want to work with.
