@@ -76,7 +76,7 @@ As relationship pairs are effectively regular components this doesn't require an
 
 ## Implementation strategy
 
-There are a number of technical blockers before even a minimal version of relationships could be implemented in bevy. They're individually broken down below:
+There are a number of technical blockers before even a minimal version of relationships could be implemented in Bevy. They're individually broken down below:
 #### Archetype Cleanup
 In order to fit each pair into a single `Identifier` we lose the entity generation (see this [article](https://ajmmertens.medium.com/doing-a-lot-with-a-little-ecs-identifiers-25a72bd2647) for more details). As a consequence when an entity is despawned we need to ensure that all the archetypes that included that entity as a target are also destroyed so that a future entity re-using that id is not misinterpreted as being the old target. This is non-trivial.
 
@@ -116,7 +116,7 @@ After all the issues above are addressed the actual implementation of the featur
 - [flecs](https://github.com/SanderMertens/flecs/blob/master/docs/Relationships.md)
 - Partial draft implementation: [#9123](https://github.com/bevyengine/bevy/pull/9123)
 ## Unresolved questions
-- How to address [#12144](https://github.com/bevyengine/bevy/issues/12144)
+- How to address [the render world blocking ECS developments](https://github.com/bevyengine/bevy/issues/12144)
 ## Future possibilities
 - Data on relationship pairs is a trivial extension:
   ```rust
