@@ -65,9 +65,7 @@ pub struct Transform2d {
 }
 ```
 
-The existing `Transform` component should be be kept as is to maintain backwards compatibility. 
-
-(Note: If we don't care about said backwards compatibility I would choose to rename `Transform` to `Transform3d`)
+The existing `Transform` component should annotated as `[deprecated]` and a copy created named `Transform3d`. 
 
 #### DrawOrder
 
@@ -88,9 +86,7 @@ A new spatial bundle should be created as per the existing `SpatialBundle`, but 
 
 Two new bundles should be created `Sprite2dBundle` and `SpriteSheet2dBundle` matching the existing `SpriteBundle` and `SpriteSheetBundle` except replacing `Transform` with `Transform2d`.
 
-The existing `SpriteBundle` and `SpriteSheetBundle` should be kept as is to maintain backwards compatibility.
-
-(Note: If we don't care about said backwards compatibility I would choose to rename the existing bundles to `Sprite3dBundle` and `SpriteSheet3dBundle`)
+The existing `SpriteBundle` and `SpriteSheetBundle` should be annotated as `[Deprecated]` and copies created named `Sprite3dBundle` and `SpriteSheet3dBundle`.
 
 ### Systems
 
