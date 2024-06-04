@@ -34,7 +34,7 @@ Transform2D represents a 2D entities position, rotation, and scale in world spac
 ```rust
 pub struct Transform2d {
   position: Vec2,
-  rotation: f32 //RFC Note: We could use Rotation2d here
+  rotation: Rotation2d
   scale: Vec2
 }
 ```
