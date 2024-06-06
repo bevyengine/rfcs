@@ -28,6 +28,9 @@ By providing a common baseline in `Curve<T>`, we can ensure a significant degree
 disparate areas and, ideally, allow for authors to reuse the work of others rather than reinventing the
 wheel every time they want to write libraries that involve generating or working with curves. 
 
+Ideally, many APIs that consume curves will be able to use something like `impl Curve<T>` (or even `dyn Curve<T>`
+where it makes sense) instead of relying on specific representations.
+
 Furthermore, something like this is also a prerequisite to bringing more complex geometric operations
 (some of them with broad implications) into `bevy_math` itself. For instance, this lays the natural foundation
 for more specialized libraries in curve geometry, such as those needed by curve extrusion (e.g. for mesh
@@ -69,8 +72,6 @@ The trait itself looks like this:
 
 ```rust
 pub trait Curve<T>
-where
-    T: Interpolable,
 {
     fn domain(&self) -> Interval;
     fn sample(&self, t: f32) -> T;
@@ -79,64 +80,9 @@ where
 At a basic level, it encompasses values of type `T` parametrized over some particular `Interval` (its `domain`,
 allowing that data to be sampled by providing the associated time parameter. 
 
-### Interpolation
-
-For `T` to be used with `Curve<T>`, it must implement the `Interpolable` trait, so we will briefly examine that
-next:
-
-```rust
-pub trait Interpolable: Clone {
-    fn interpolate(&self, other: &Self, t: f32) -> Self;
-}
-```
-
-As you can see, in addition to the `Clone` requirement, `Interpolable` requires a single method, `interpolate`,
-which takes two items by reference and produces a third by interpolating between them. The idea is that
-when `t` is 0, `self` is recovered, whereas when `t` is 1, you receive `other`. Intermediate values are to be
-obtained by an interpolation process that is provided by the implementation. 
-
-(Intuitively, `Clone` is required by `Interpolable` because at the endpoints 0 and 1, clones of the starting and
-ending points should be returned. Frequently, `Interpolable` data will actually be `Copy`.)
-
-For example, Bevy's vector types (including `f32`, `Vec2`, `Vec3`, etc.) implement `Interpolable` using linear 
-interpolation (the `lerp` function here):
-```rust
-impl<T> Interpolable for T
-where
-    T: VectorSpace,
-{
-    fn interpolate(&self, other: &Self, t: f32) -> Self {
-        self.lerp(*other, t)
-    }
-}
-```
-Other forms of interpolation are possible; for example, given two points and tangent vectors at each of
-them, one might perform Hermite interpolation to create a cubic curve between them, whose points and tangent
-values can then be sampled at any point on the curve. Another common example would be "spherical linear
-interpolation" (`slerp`) of quaternions, used in animation and other rigid motions. 
-
-To make using `Interpolable` easier, it has a blanket implementation for tuples whose members are
-`Interpolable` (which simultaneously interpolate each constituent); in the same way, the `Interpolable` trait 
-can be derived for structs whose members are `Interpolable` with `#[derive(Interpolable)]`:
-```rust
-impl<S, T> Interpolable for (S, T)
-where
-    S: Interpolable,
-    T: Interpolable,
-{ //... }
-//... And so on for (S, T, U), etc.
-```
-```rust
-#[derive(Interpolable)]
-struct MyCurveData {
-    position: Vec3,
-    velocity: Vec3,
-}
-```
-
 ### Intervals
 
-The `Interval` associated type is the other part of the definition of each `Curve`. This is a type which
+The `Interval` type plays a part of the definition of each `Curve`. This is a type which
 represents a nonempty closed interval over the `f32` numbers whose endpoints may be at infinity. Its provided methods are
 mostly self-explanatory:
 ```rust
@@ -169,6 +115,13 @@ pub fn clamp(self, value: f32) -> f32 { //... }
 /// Get the linear map which maps this curve onto the `other` one. Returns an error if either
 /// interval is infinite.
 pub fn linear_map_to(self, other: Self) -> Result<impl Fn(f32) -> f32, InfiniteIntervalError> { //... }
+
+/// Get an iterator over equally-spaced points from this interval in increasing order.
+/// Returns an error if `points` is less than 2 or if the interval is unbounded.
+pub fn spaced_points(
+    self,
+    points: usize,
+) -> Result<impl Iterator<Item = f32>, SpacedPointsError> {
 ```
 
 The `Interval` type also implements `TryFrom<RangeInclusive>`, which may be desirable if you want to use
@@ -201,7 +154,6 @@ We will explore its main components one-by-one. The first of those is `map`:
 fn map<S>(self, f: impl Fn(T) -> S) -> impl Curve<S>
 where
     Self: Sized,
-    S: Interpolable,
 { //... }
 ```
 As you can see, `map` takes our curve and, consuming it, produces a new curve whose sample values are the sample
@@ -209,7 +161,7 @@ values of the starting curve mapped through `f`. For example, if we started with
 and wanted to project it onto the XY-plane, we could do that with `map`:
 ```rust
 // A 3d curve, implementing `Curve<Vec3>`
-let my_3d_curve = function_curve(2.0, |t| Vec3::new(t * t, 2.0 * t, t - 1.0));
+let my_3d_curve = function_curve(interval(0.0, 2.0).unwrap(), |t| Vec3::new(t * t, 2.0 * t, t - 1.0));
 // Its 2d projection, implementing `Curve<Vec2>`
 let my_2d_curve = my_3d_curve.map(|v| Vec2::new(vec.x, vec.y));
 ```
@@ -218,7 +170,7 @@ evaluated when the resulting curve is actually sampled.
 
 ---
 
-Next up is `reparametrize`, one of the most important API methods:
+Next up is `reparametrize`, another of the most important API methods:
 ```rust
 /// Create a new [`Curve`] whose parameter space is related to the parameter space of this curve
 /// by `f`. For each time `t`, the sample from the new curve at time `t` is the sample from
@@ -238,9 +190,9 @@ let my_curve = function_curve(interval(0.0, 1.0).unwrap(), |x| x + 1.0);
 let domain = my_curve.domain();
 let scaled_curve = my_curve.reparametrize(interval(0.0, 2.0).unwrap(), |t| t / 2.0);
 ```
-(A convenience method `reparametrize_linear` exists for this specific thing.)
+(A convenience method `reparametrize_linear` exists for this specific kind of thing.)
 
-However, `reparametrize` is vastly more powerful than just this. For example, here we use `reparametrize` to
+However, `reparametrize` can do much more than this alone. For example, here we use `reparametrize` to
 create a new curve that is a segment of the original one:
 ```rust
 let my_curve = function_curve(interval(0.0, 1.0).unwrap(), |x| x * 2.0);
@@ -299,43 +251,91 @@ Another useful API method is `zip`, which behaves much like its `Iterator` count
 fn zip<S, C>(self, other: C) -> Result<impl Curve<(T, S)>, InvalidIntervalError> { //... }
 ```
 
----
+### Sampling, resampling, and interpolation
 
-The next two API methods concern themselves with more imperative (i.e. data-focused) matters. Often one needs to 
-take a curve and actually render it concrete by sampling it at some resolution — for the purposes of storage, 
-serialization, application of numerical methods, and so on. That's where `resample` comes in:
+The next part of the API concerns itself with more imperative (i.e. data-focused) matters. 
+
+Often, one will want to define a curve using some kind of interpolation over discrete data or, conversely,
+extract lists of samples that approximate a curve, or convert a curve to one which has been discretized.
+
+For the first of these, there is the type `SampleCurve<T, I>`, whose constructor looks like this:
 ```rust
-/// Resample this [`Curve`] to produce a new one that is defined by interpolation over equally
-/// spaced values. A total of `samples` samples are used, although at least two samples are
-/// required in order to produce well-formed output. If fewer than two samples are provided,
-/// or if this curve has an unbounded domain, then a [`ResamplingError`] is returned.
-fn resample(&self, samples: usize) -> Result<SampleCurve<T>, ResamplingError> { //... }
+/// Create a new `SampleCurve`, using the specified `interpolation` to interpolate between
+/// the given `samples`. An error is returned if there are not at least 2 samples or if the
+/// given `domain` is unbounded.
+///
+/// The interpolation takes two values by reference together with a scalar parameter and
+/// produces an owned value. The expectation is that `interpolation(&x, &y, 0.0)` and
+/// `interpolation(&x, &y, 1.0)` are equivalent to `x` and `y` respectively.
+pub fn new(
+    domain: Interval,
+    samples: impl Into<Vec<T>>,
+    interpolation: I,
+) -> Result<Self, SampleCurveError>
+where
+    I: Fn(&T, &T, f32) -> T,
+{ //... }
 ```
-The main thing to notice about this is that, unlike the previous functional methods which merely spit out some kind
-of `impl Curve<T>`, `resample` has a concrete return type of `SampleCurve<T>`, which is an actual struct that holds
-actual data that you can access. 
+Here, the `samples` become a `Vec<T>` whose elements represent equally-spaced sample values over the given
+`domain`. Adjacent samples are interpolated using the given `interpolation`. The result is a type that
+implements `Curve<T>`, on which the preceding operations can be performed.
 
-Notably, `SampleCurve<T>` still implements `Curve<T>`, but its curve implementation is set in stone: it uses
-equally spaced sample points together with the interpolation provided by `T` to provide something which is loosely
-equivalent to your original curve, perhaps with a loss of fine detail. The sampling resolution is controlled by
-the `samples` parameter, so higher values will ensure something that closely matches your curve.
-
-For example, with a `Curve<T>` whose `T` performs linear interpolation, a `samples` value of 2 will yield a 
-`SampleCurve<T>` that represents a line passing between the two endpoints, and as `samples` grows larger,
-the original curve is approximated by greater and greater quantities of line segments equally spaced in its parameter
-domain. 
-
-Commonly, `resample` is used to obtain something more concrete after applying the `map` and `reparametrize` methods:
+Conversely, if one wants discrete samples from a curve, there is the function `samples`:
 ```rust
-let my_curve = function_curve(interval(0.0, 3.0).unwrap(), |x| x * 2.0 + 1.0);
-let modified_curve = my_curve.reparametrize(interval(0.0, 1.0).unwrap(), |t| 3.0 * t).unwrap();
-for (t, v) in modified_curve.graph().resample(100).sample_iter() {
-    println!("Value of {v} at time {t}");
+/// Extract an iterator over evenly-spaced samples from this curve. If `samples` is less than 2
+/// or if this curve has unbounded domain, then an error is returned instead.
+fn samples(&self, samples: usize) -> Result<impl Iterator<Item = T>, ResamplingError> { //... }
+```
+
+Timed samples can be achieved by an application of `graph`:
+```rust
+for (t, v) in my_curve.by_ref().graph().samples(100).unwrap() {
+    println!("Value {v} at time {t}.");
 }
 ```
 
-A variant of `resample` called `resample_uneven` allows for choosing the sample points directly instead of having them
-evenly spaced:
+Finally, the preceding two operations can be combined in one fell swoop with the method `resample`, resulting
+in a curve that approximates the original curve using discrete samples:
+
+```rust
+/// Resample this [`Curve`] to produce a new one that is defined by interpolation over equally
+/// spaced values, using the provided `interpolation` to interpolate between adjacent samples.
+/// A total of `samples` samples are used, although at least two samples are required to produce
+/// well-formed output. If fewer than two samples are provided, or if this curve has an unbounded
+/// domain, then a [`ResamplingError`] is returned.
+fn resample<I>(
+    &self,
+    samples: usize,
+    interpolation: I,
+) -> Result<SampleCurve<T, I>, ResamplingError>
+where
+    Self: Sized,
+    I: Fn(&T, &T, f32) -> T,
+{ //... }
+```
+
+This story has a parallel in `UnevenSampleCurve`, which behaves more like keyframes in that the samples need not be evenly spaced:
+```rust
+/// Create a new [`UnevenSampleCurve`] using the provided `interpolation` to interpolate
+/// between adjacent `timed_samples`. The given samples are filtered to finite times and
+/// sorted internally; if there are not at least 2 valid timed samples, an error will be
+/// returned.
+///
+/// The interpolation takes two values by reference together with a scalar parameter and
+/// produces an owned value. The expectation is that `interpolation(&x, &y, 0.0)` and
+/// `interpolation(&x, &y, 1.0)` are equivalent to `x` and `y` respectively.
+pub fn new(
+    timed_samples: impl Into<Vec<(f32, T)>>,
+    interpolation: I,
+) -> Result<Self, UnevenSampleCurveError> { //... }
+```
+
+This kind of construction can be useful for strategically saving space when performing serialization and storage (although, keep in mind
+that the interpolating function may need to be separately handled in user-space). The `UnevenSampleCurve` type also supports 
+*forward* mapping of its sample times via the method `map_sample_times`, which accepts a function like the inverse of the one that 
+would be used in `Curve::reparametrize`.
+
+The associated resampling method is `resample_uneven`:
 ```rust
 /// Resample this [`Curve`] to produce a new one that is defined by interpolation over samples
 /// taken at the given set of times. The given `sample_times` are expected to contain at least
@@ -352,31 +352,42 @@ fn resample_uneven(
     sample_times: impl IntoIterator<Item = f32>,
 ) -> Result<UnevenSampleCurve<T>, ResamplingError> { //... }
 ```
-This is useful for strategically saving space when performing serialization and storage; uneven samples are something
-like animation keyframes. The `UnevenSampleCurve` type also supports *forward* mapping of its sample times via
-the method `map_sample_times`, which accepts a function like the inverse of the one that would be used in
-`Curve::reparametrize`. 
 
-### Making curves
+Note that there is no equivalent to `samples` for uneven spacing; however, these can be obtained easily using `Iterator::map`:
+```rust
+for (t, v) in (0..100).map(|x| x * x).map(|t| (t, my_curve.sample(t))) {
+    println!("Value {v} at time {t}.");
+}
+```
+The reason for this shortfall is that user expectations surrounding filtering, sorting, clamping, and so on are hard to predict. For example, 
+`sample` here could be replaced with `sample_clamped`, or the second `map` with `filter_map` and `sample` with `sample_checked`, among many other 
+variations. With time, perhaps a good default will become apparent and be added to the API.
 
-The curve-creation functions `constant_curve` and `function_curve` that we have been using in examples are, in fact,
+Finally, for some common math types whose interpolation is especially obvious and well-behaved (and enshrined in a trait), there are
+convenience methods `resample_auto` and `resample_uneven_auto` that use this type-inferred interpolation automatically. The expectation is not
+that interpolation in user-space will commonly use this trait and the associated methods, since the bar for having a valid trait implementation
+is rather high; rather, in domains where weaker interpolation notions are prevalent (e.g. animation), the expectation is that consumers will
+primarily go through `SampleCurve` or `UnevenSampleCurve` or define their own curve constructions entirely.
+
+### Other ways of making curves
+
+The curve-creation functions `constant_curve` and `function_curve` that we have been using in examples are in fact
 real functions that are part of the library. They look like this:
 ```rust
 /// Create a [`Curve`] that constantly takes the given `value` over the given `domain`.
-pub fn constant_curve<T: Interpolable>(domain: Interval, value: T) -> impl Curve<T> { //... }
+pub fn constant_curve<T>(domain: Interval, value: T) -> impl Curve<T> { //... }
 ```
 ```rust
 /// Convert the given function `f` into a [`Curve`] with the given `domain`, sampled by
 /// evaluating the function.
 pub fn function_curve<T, F>(domain: Interval, f: F) -> impl Curve<T>
 where 
-    T: Interpolable,
     F: Fn(f32) -> T,
 { //... }
 ```
-Note that, while the examples used only functions `f32 -> f32`, `function_curve` can convert any function of the 
-parameter domain (valued in something `Interpolable`) into a `Curve<T>`. For example, here is a rotation over time,
-expressed as a `Curve<Quat>` using this API:
+Note that, while the examples used mostly functions `f32 -> f32`, `function_curve` can convert any function of the 
+parameter domain into a `Curve<T>`. For example, here is a rotation over time, expressed as a `Curve<Quat>` using this
+API:
 ```rust
 let rotation_curve = function_curve(interval(0.0, std::f32::consts::TAU).unwrap(), |t| Quat::from_rotation_z(t));
 ```
@@ -394,14 +405,14 @@ One other minor point is that you may not always want functions like `map` and `
 the input curve. For example, the following code takes ownership of `my_curve`, so it cannot be reused, even though
 `resample` requires only a reference:
 ```rust
-let mapped_sample_curve = my_curve.map(|x| x * 2.0).resample(100).unwrap();
+let mapped_sample_curve = my_curve.map(|x| x * 2.0).resample_auto(100).unwrap();
 ```
 The `by_ref` method exists to circumvent this problem, allowing curve data to be used through borrowing; this is 
 supported by a blanket implementation which allows any type which dereferences to a `Curve` to be a `Curve` itself. 
 For example, the following are equivalent and do not take ownership of `my_curve`:
 ```rust
-let mapped_sample_curve = my_curve.by_ref().map(|x| x * 2.0).resample(100).unwrap();
-let mapped_sample_curve = (&my_curve).map(|x| x * 2.0).resample(100).unwrap();
+let mapped_sample_curve = my_curve.by_ref().map(|x| x * 2.0).resample_auto(100).unwrap();
+let mapped_sample_curve = (&my_curve).map(|x| x * 2.0).resample_auto(100).unwrap();
 ```
 
 ## Implementation strategy
@@ -417,8 +428,6 @@ by `MapCurve<S, T, C, F>`, which looks like this:
 /// given function.
 pub struct MapCurve<S, T, C, F>
 where
-    S: Interpolable,
-    T: Interpolable,
     C: Curve<S>,
     F: Fn(S) -> T,
 {
@@ -429,8 +438,6 @@ where
 
 impl<S, T, C, F> Curve<T> for MapCurve<S, T, C, F>
 where
-    S: Interpolable,
-    T: Interpolable,
     C: Curve<S>,
     F: Fn(S) -> T,
 {
@@ -452,42 +459,19 @@ in addition to the reparametrization function. The function `graph` is powered b
 must also own its source data; however, it doesn't require any function information, so it is essentially a plain
 wrapper struct on the level of data (providing only a different implementation of `Curve::sample`).
 
-A minor point is that `MapCurve` and `ReparamCurve` support special implementations of `map` and `reparametrize`,
-which allow data reuse instead of repeatedly wrapping data when repeated calls to these functional APIs are made.
-For example, the `map` implementation of `MapCurve` looks like this:
-```rust
-fn map<R>(self, g: impl Fn(T) -> R) -> impl Curve<R>
-where
-    Self: Sized,
-    R: Interpolable,
-{
-    let gf = move |x| g((self.f)(x));
-    MapCurve {
-        preimage: self.preimage,
-        f: gf,
-        _phantom: PhantomData,
-    }
-}
-```
-
-Furthermore, when `reparametrize` and `map` are intermixed, they produce another data structure, `MapReparamCurve`,
-which is capable of absorbing all future calls to `map` and `reparametrize` in a way essentially identical to that 
-demonstrated by the preceding code.
-
 ---
 
-On the other hand, the "concrete" part of the API consists of `SampleCurve<T>`, `UnevenSampleCurve<T>`, and the 
+On the other hand, the "concrete" part of the API consists of `SampleCurve<T, I>`, `UnevenSampleCurve<T, I>`, and the 
 methods that yield them. These are implemented essentially as one would imagine, holding vectors of data and interpolating
 it in `Curve::sample`. E.g.:
 
 ```rust
 /// A [`Curve`] that is defined by neighbor interpolation over a set of samples.
-pub struct SampleCurve<T>
-where
-    T: Interpolable,
+pub struct SampleCurve<T, I>
 {
     domain: Interval,
     samples: Vec<T>,
+    interpolation: I
 }
 // ...
 
@@ -502,24 +486,64 @@ where
         let lower_index = (t_shifted / step).floor() as usize;
         let upper_index = (t_shifted / step).ceil() as usize;
         let f = (t_shifted / step).fract();
-        self.samples[lower_index].interpolate(&self.samples[upper_index], f)
+        (self.interpolation)(&self.samples[lower_index], &self.samples[upper_index], f) 
     }
 ```
 
-The main thing here is that `SampleCurve<T>` is actually returned *by type* from the `resample` API,
+The main thing here is that `SampleCurve<T, I>` is actually returned *by type* from the `resample` API,
 and it is clearly suitable for serialization and storage in addition to numerical applications. This
 allows consumers to work flexibly with the functional API and then cast down to concrete values when
-they need them. (And of course, `UnevenSampleCurve<T>` is implemented similarly, instead using a binary
+they need them. (And of course, `UnevenSampleCurve<T, I>` is implemented similarly, instead using a binary
 search in its sequence of time-values to find its interpolation interval.)
 
-Because these types actually store concrete sample data, they have special implementations of `map`
-which are not lazy, instead returning values of type `SampleCurve<S>`/`UnevenSampleCurve<S>`. These
+Because these types actually store concrete sample data, they have special `map`-like methods
+which are not lazy, instead returning values of type `SampleCurve<S, I>`/`UnevenSampleCurve<S, I>`. These
 can be accessed from a type-level API as `map_concrete`, so that the user can avoid erasing the
 type if it is convenient to do so. The same goes for `graph`; however, because of its contravariance
 (it is function precomposition), the same cannot be said of `reparametrize`, which maintains its default
 functional implementation. The latter gap is filled partially by `UnevenSampleCurve::map_sample_times`.
 
 Everything else should be fairly clear based on the user-facing API descriptions.
+
+### Mathematical and especially nice interpolation
+
+It is natural to ask what kind of interpolation is especially well-behaved from the perspective of resampling
+operations. One answer is that we should expect that the interpolation have *subdivision-stability*: if a curve
+between `p` and `q` is defined by interpolation, then resampling the curve at intermediate points and using their
+interpolation should result in the same curve as the one we started with. This leads, for example, to the following
+law (modulo some omitted `unwrap`s):
+
+* `curve.resample_auto(n).resample_auto(k * n)` is equivalent to `curve.resample_auto(n)` (where `k > 0`).
+
+Something similar should hold for uneven sample points:
+
+* If `iter_few` and `iter_many` are `f32`-valued iterators and all of `iter_few`'s values are contained in those of `iter_many`, then:
+  `curve.resample_uneven_auto(iter_few).resample_uneven_auto(iter_many)` is equivalent to `curve.resample_uneven_auto(iter_few)`.
+
+That is to say: subsampling has no effect on sample-interpolated curves with values in such types. This motivates a trait; on the 
+level of syntax, the trait for such things is completely innocuous, carrying only the shape of an interpolation function:
+```rust
+pub trait StrongInterpolate {
+    fn interpolate_strong(&self, &Self, t: f32) -> Self;
+}
+```
+
+However, there are strong expectations that come with implementing this:
+1. `interpolate_strong(&x, &y, 0.0)` and `interpolate_strong(&x, &y, 1.0)` are equivalent to `x` and `y` respectively.
+2. This mode of interpolation should be "obvious" based on the semantics of the type.
+3. This interpolation is subdivision-stable: if `original_curve` is the curve formed by interpolation between two
+   arbitrary points, and `(t0, p)`, `(t1, q)` are two timed samples from this curve, then the curve formed by
+   interpolation between `p` and `q` must be the unique linear reparametrization of the curve-segment between `t0` and `t1`
+   in `original_curve`.
+
+Equivalently, the second condition may be stated as follows: if `iter` is an iterator yielding `f32` values between `0.0`
+and `1.0` (and including `0.0` and `1.0`), then `original_curve.resample_uneven(iter)` is equivalent to `original_curve`.
+
+Note that here, "equivalent" does not mean "taking the same values in the same order" — it means that they actually
+produce equivalent samples at any given parameter value.
+
+This is the trait that is used for `resample_auto` and `resample_uneven_auto`, and it is to be implemented for `VectorSpace`
+types using `lerp`, as well as for rotation and direction types using `slerp`. 
 
 ### Object safety
 
@@ -531,14 +555,13 @@ This prevents methods like `map` from being used by `dyn Curve<T>` (which was ho
 by providing a blanket implementation over `Deref`, pointers to trait objects can still be used as `Curve<T>`.
 For instance, `Box<dyn Curve<T>>`, `Arc<dyn Curve<T>>`, etc. all implement `Curve<T>` through this blanket
 implementation, which means that they can use the default implementations of `map`, `reparametrize`, etc. built
-on top of the object-safe core containing `domain` and `sample`.
+on top of the dispatchable core containing `domain` and `sample`.
 
 This is the reason for including a `?Sized` constraint on the underlying curve in the blanket implementation,
 which has a signature that looks like this:
 ```rust
 impl<T, C, D> Curve<T> for D
 where
-    T: Interpolable,
     C: Curve<T> + ?Sized,
     D: Deref<Target = C>,
 { //... }
@@ -561,7 +584,7 @@ was deemed adequate are as follows:
 - Curve applications tend to be artistic in nature rather than demanding high precision, so that `f32` is
   generally good enough.
 - If strictly necessary, making the change to use generics is straightforward, but unifying around `f32`
-  is simpler and encourages low-effort interoperation (i.e. reusing data across domains is more likely). 
+  is simpler and lowers the barrier to interoperation. 
 
 ## Rationale and alternatives
 
