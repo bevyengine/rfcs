@@ -239,18 +239,6 @@ let new_curve = my_curve.graph().map(|(t, x)| x * (-t).exp2());
 Most general operations that one could think up for curves can be achieved by clever combinations of `map` and
 `reparametrize`, perhaps with a little `graph` sprinkled in.
 
----
-
-Another useful API method is `zip`, which behaves much like its `Iterator` counterpart:
-```rust
-/// Create a new [`Curve`] by joining this curve together with another. The sample at time `t`
-/// in the new curve is `(x, y)`, where `x` is the sample of `self` at time `t` and `y` is the
-/// sample of `other` at time `t`. The domain of the new curve is the intersection of the
-/// domains of its constituents. If the domain intersection would be empty, an
-/// [`InvalidIntervalError`] is returned.
-fn zip<S, C>(self, other: C) -> Result<impl Curve<(T, S)>, InvalidIntervalError> { //... }
-```
-
 ### Sampling, resampling, and interpolation
 
 The next part of the API concerns itself with more imperative (i.e. data-focused) matters. 
@@ -368,6 +356,29 @@ convenience methods `resample_auto` and `resample_uneven_auto` that use this typ
 that interpolation in user-space will commonly use this trait and the associated methods, since the bar for having a valid trait implementation
 is rather high; rather, in domains where weaker interpolation notions are prevalent (e.g. animation), the expectation is that consumers will
 primarily go through `SampleCurve` or `UnevenSampleCurve` or define their own curve constructions entirely.
+
+### Combining curves
+
+There are a couple of common ways of combining curves that are supported by the Curve API. The first of these is `compose`, which appends two curves together end-to-end:
+```rust
+/// Create a new [`Curve`] by composing this curve end-to-end with another, producing another curve
+/// with outputs of the same type. The domain of the other curve is translated so that its start
+/// coincides with where this curve ends. A [`CompositionError`] is returned if this curve's domain
+/// doesn't have a finite right endpoint or if `other`'s domain doesn't have a finite left endpoint.
+fn compose<C>(self, other: C) -> Result<impl Curve<T>, CompositionError> { //... }
+```
+
+This is useful for doing things like joining paths; note, however, that it cannot generally provide any guarantees that the resulting curve doesn't abruptly transition from the first curve to the second.
+
+The second useful API method in this category is `zip`, which behaves much like its `Iterator` counterpart:
+```rust
+/// Create a new [`Curve`] by joining this curve together with another. The sample at time `t`
+/// in the new curve is `(x, y)`, where `x` is the sample of `self` at time `t` and `y` is the
+/// sample of `other` at time `t`. The domain of the new curve is the intersection of the
+/// domains of its constituents. If the domain intersection would be empty, an
+/// [`InvalidIntervalError`] is returned.
+fn zip<S, C>(self, other: C) -> Result<impl Curve<(T, S)>, InvalidIntervalError> { //... }
+```
 
 ### Other ways of making curves
 
