@@ -645,6 +645,10 @@ pub enum InterpolationDatum<T> {
 }
 ```
 
+For simple cases (e.g. creating something which behaves like `SampleCurve`), there is a helper function `sample_with` 
+which takes an explicit interpolation and does the obvious thing, cloning the value of any case except `Between`, where
+the interpolation is used.
+
 Here is an example that demonstrates how to use `EvenCore` to create a `Curve` that contains its interpolation mode
 in an enum:
 ```rust
