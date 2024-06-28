@@ -482,7 +482,7 @@ pub struct SampleCurve<T, I>
 {
     domain: Interval,
     samples: Vec<T>,
-    interpolation: I
+    interpolation: I,
 }
 // ...
 
@@ -553,8 +553,144 @@ and `1.0` (and including `0.0` and `1.0`), then `original_curve.resample_uneven(
 Note that here, "equivalent" does not mean "taking the same values in the same order" — it means that they actually
 produce equivalent samples at any given parameter value.
 
-This is the trait that is used for `resample_auto` and `resample_uneven_auto`, and it is to be implemented for `VectorSpace`
-types using `lerp`, as well as for rotation and direction types using `slerp`. 
+This is the trait that is used for `resample_auto` and `resample_uneven_auto`, and it is to be implemented for `NormedVectorSpace`
+types using `lerp`, as well as for rotation and direction types using `slerp`.
+
+### Shared interpolation interfaces
+
+Under the hood, the aforementioned `SampleCurve`/`SampleAutoCurve`/`UnevenSampleCurve`/`UnevenSampleAutoCurve` constructions
+use shared API backends that abstract away the meat of the data access patterns. For example, evenly-spaced samples use a data
+structure that looks like this:
+
+```rust
+pub struct EvenCore<T> {
+    /// The domain over which the samples are taken, which corresponds to the domain of the curve
+    /// formed by interpolating them.
+    ///
+    /// # Invariants
+    /// This must always be a bounded interval; i.e. its endpoints must be finite.
+    pub domain: Interval,
+
+    /// The samples that are interpolated to extract values.
+    ///
+    /// # Invariants
+    /// This must always have a length of at least 2.
+    pub samples: Vec<T>,
+}
+```
+
+Unevenly-spaced samples have something similar:
+
+```rust
+pub struct UnevenCore<T> {
+    /// The times for the samples of this curve.
+    ///
+    /// # Invariants
+    /// This must always have a length of at least 2, be sorted, and have no
+    /// duplicated or non-finite times.
+    pub times: Vec<f32>,
+
+    /// The samples corresponding to the times for this curve.
+    ///
+    /// # Invariants
+    /// This must always have the same length as `times`.
+    pub samples: Vec<T>,
+}
+```
+
+Notably, these have public fields (despite requiring invariants) because they are intended to be extensible by 
+authors of libraries and so on; on the other hand, each has a `new` function which enforces the invariants,
+returning an error if they are not met.
+
+The benefit of using these is that the interpolation access patterns are done for you; the methods
+`sample_interp` and `sample_interp_timed` do the meat of the interpolation, allowing custom interpolation to
+be easily defined. Here is what those look like:
+
+```rust
+/// Given a time `t`, obtain a [`InterpolationDatum`] which governs how interpolation might recover
+/// a sample at time `t`. For example, when a [`Between`] value is returned, its contents can
+/// be used to interpolate between the two contained values with the given parameter. The other
+/// variants give additional context about where the value is relative to the family of samples.
+///
+/// [`Between`]: `InterpolationDatum::Between`
+pub fn sample_interp(&self, t: f32) -> InterpolationDatum<&T> { //... }
+```
+
+```rust
+/// Like [`sample_interp`], but the returned values include the sample times. This can be
+/// useful when sampling is not scale-invariant.
+///
+/// [`sample_interp`]: EvenCore::sample_interp
+pub fn sample_interp_timed(&self, t: f32) -> InterpolationDatum<(f32, &T)> { //... }
+```
+
+Most of the time, `sample_interp` is sufficient, but `sample_interp_timed` may be required when interpolation
+is not scale-invariant.
+
+`InterpolationDatum` is just an enum that looks like this:
+```rust
+pub enum InterpolationDatum<T> {
+    /// This value lies exactly on a value in the family.
+    Exact(T),
+
+    /// This value is off the left tail of the family; the inner value is the family's leftmost.
+    LeftTail(T),
+
+    /// This value is off the right tail of the family; the inner value is the family's rightmost.
+    RightTail(T),
+
+    /// This value lies on the interior, in between two points, with a third parameter expressing
+    /// the interpolation factor between the two.
+    Between(T, T, f32),
+}
+```
+
+Here is an example that demonstrates how to use `EvenCore` to create a `Curve` that contains its interpolation mode
+in an enum:
+```rust
+use bevy_math::curve::*;
+use bevy_math::curve::builders::*;
+
+enum InterpolationMode {
+    Linear,
+    Step,
+}
+
+trait LinearInterpolate {
+    fn lerp(&self, other: &Self, t: f32) -> Self;
+}
+
+fn step<T: Clone>(first: &T, second: &T, t: f32) -> T {
+    if t >= 1.0 {
+        second.clone()
+    } else {
+        first.clone()
+    }
+}
+
+struct MyCurve<T> {
+    core: SampleCore<T>,
+    interpolation_mode: InterpolationMode,
+}
+
+impl<T> Curve<T> for MyCurve<T>
+where
+    T: LinearInterpolate + Clone,
+{
+    fn domain(&self) -> Interval {
+        self.core.domain()
+    }
+    
+    fn sample(&self, t: f32) -> T {
+        match self.interpolation_mode {
+            InterpolationMode::Linear => self.core.sample_with(t, <T as LinearInterpolate>::lerp),
+            InterpolationMode::Step => self.core.sample_with(t, step),
+        }
+    }
+}
+```
+
+I think this does a pretty good job of demonstrating how the "core" concept can be useful to implementors.
 
 ### Object safety
 
