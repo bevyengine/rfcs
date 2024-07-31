@@ -46,7 +46,7 @@ of values of type `T` parametrized over some interval which is typically thought
 or distance.
 
 For example, we might use the `Curve` APIs to construct a `Curve<Transform>` in order to describe the motion 
-of an Entity with time:
+of an entity over time:
 ```rust
 // This is a `Curve<Quat>` that describes a rotation with time:
 let rotation_over_time = function_curve(interval(0.0, std::f32::consts::TAU).unwrap(), |t| Quat::from_rotation_z(t));
