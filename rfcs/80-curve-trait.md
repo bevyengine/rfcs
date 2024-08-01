@@ -359,13 +359,13 @@ primarily go through `SampleCurve` or `UnevenSampleCurve` or define their own cu
 
 ### Combining curves
 
-There are a couple of common ways of combining curves that are supported by the Curve API. The first of these is `compose`, which appends two curves together end-to-end:
+There are a couple of common ways of combining curves that are supported by the Curve API. The first of these is `chain`, which joins two curves together end-to-end:
 ```rust
-/// Create a new [`Curve`] by composing this curve end-to-end with another, producing another curve
+/// Create a new [`Curve`] by joining this curve end-to-end with another, producing another curve
 /// with outputs of the same type. The domain of the other curve is translated so that its start
 /// coincides with where this curve ends. A [`CompositionError`] is returned if this curve's domain
 /// doesn't have a finite right endpoint or if `other`'s domain doesn't have a finite left endpoint.
-fn compose<C>(self, other: C) -> Result<impl Curve<T>, CompositionError> { //... }
+fn chain<C>(self, other: C) -> Result<impl Curve<T>, CompositionError> { //... }
 ```
 
 This is useful for doing things like joining paths; note, however, that it cannot generally provide any guarantees that the resulting curve doesn't abruptly transition from the first curve to the second.
