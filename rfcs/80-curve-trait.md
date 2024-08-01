@@ -112,16 +112,13 @@ pub fn intersect(self, other: Interval) -> Result<Interval, InvalidIntervalError
 /// Clamp the given `value` to lie within this interval.
 pub fn clamp(self, value: f32) -> f32 { //... }
 
-/// Get the linear map which maps this curve onto the `other` one. Returns an error if either
-/// interval is infinite.
-pub fn linear_map_to(self, other: Self) -> Result<impl Fn(f32) -> f32, InfiniteIntervalError> { //... }
-
 /// Get an iterator over equally-spaced points from this interval in increasing order.
-/// Returns an error if `points` is less than 2 or if the interval is unbounded.
+/// If `points` is 1, the start of this interval is returned. If `points` is 0, an empty
+/// iterator is returned.
 pub fn spaced_points(
     self,
     points: usize,
-) -> Result<impl Iterator<Item = f32>, SpacedPointsError> {
+) -> impl Iterator<Item = f32> {
 ```
 
 The `Interval` type also implements `TryFrom<RangeInclusive>`, which may be desirable if you want to use
