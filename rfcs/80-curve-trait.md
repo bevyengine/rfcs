@@ -288,13 +288,14 @@ in a curve that approximates the original curve using discrete samples:
 
 ```rust
 /// Resample this [`Curve`] to produce a new one that is defined by interpolation over equally
-/// spaced values, using the provided `interpolation` to interpolate between adjacent samples.
-/// A total of `samples` samples are used, although at least two samples are required to produce
-/// well-formed output. If fewer than two samples are provided, or if this curve has an unbounded
+/// spaced sample values, using the provided `interpolation` to interpolate between adjacent samples.
+/// The curve is interpolated on `segments` segments between samples. For example, if `segments` is 1,
+/// only the start and end points of the curve are used as samples; if `segments` is 2, a sample at
+/// the midpoint is taken as well, and so on. If `segments` is zero, or if this curve has an unbounded
 /// domain, then a [`ResamplingError`] is returned.
 fn resample<I>(
     &self,
-    samples: usize,
+    segments: usize,
     interpolation: I,
 ) -> Result<SampleCurve<T, I>, ResamplingError>
 where
