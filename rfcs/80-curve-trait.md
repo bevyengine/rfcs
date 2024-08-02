@@ -122,8 +122,9 @@ pub fn spaced_points(
 ```
 
 The `Interval` type also implements `TryFrom<RangeInclusive>`, which may be desirable if you want to use
-the `start..=end` syntax. One of the primary benefits of `Interval` (in addition to these methods) is
-that it is `Copy`, so it is easy to take intervals and throw them around. 
+the `start..=end` syntax. Note, however, that `Interval` is not an iterator. One of the primary benefits of 
+`Interval` (in addition to these methods) is that it is `Copy` (unlike the range types), so it is easy to 
+take intervals and throw them around. 
 
 ### Sampling
 
