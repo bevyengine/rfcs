@@ -105,6 +105,9 @@ pub fn is_finite(self) -> bool { //... }
 /// Returns `true` if `item` is contained in this interval.
 pub fn contains(self, item: f32) -> bool { //... }
 
+/// Returns `true` if the other interval is contained in this interval (non-strictly).
+pub fn contains_interval(self, other: Interval) -> bool { //... }
+
 /// Create an [`Interval`] by intersecting this interval with another. Returns an error if the
 /// intersection would be empty (hence an invalid interval).
 pub fn intersect(self, other: Interval) -> Result<Interval, InvalidIntervalError> { //... }
