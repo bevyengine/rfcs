@@ -165,4 +165,4 @@ impl IntoScheduleConfigs for transform_system {
 
 - Do we want to do it also for assets?
 - Should the `component_Xxxx` features be available on the `bevy` crate, or only on individual crates?
-- Is it possible to automatically
+- Is it possible to automatically find the correct component-as-feature for a system through `SystemParam`
