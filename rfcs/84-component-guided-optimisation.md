@@ -149,6 +149,76 @@ impl IntoScheduleConfigs for transform_system {
 }
 ```
 
+### Part 5: System Conditions Based On SystemParam
+
+A new `const` boolean on the `SystemParam` trait would allow disabling adding a system to a schedule at compile time, with a default value at `true`.
+
+```rust
+pub unsafe trait SystemParam: Sized {
+    const ENABLED: bool = true;
+
+    // ...
+}
+```
+
+if `ENABLED` is `false`, ignore the system using this system param when calling `add_systems`.
+
+Same for the `QueryData` trait:
+
+```rust
+pub unsafe trait QueryData: WorldQuery {
+    const ENABLED: bool = true;
+
+    // ...
+}
+```
+
+If `ENABLED` is `false`, any query as a system parameter of a system using this query has its `ENABLED` as `false`. They are combined according to how they are used in a query.
+
+```rust
+#[derive(Component)]
+struct MyComponent;
+```
+
+becomes:
+
+```rust
+struct MyComponent;
+
+#[cfg(any(not(feature = "component_guided_optimization"), feature = "component_MyComponent"))]
+impl Component for MyComponent {
+    //...
+}
+
+
+#[cfg(not(any(not(feature = "component_guided_optimization"), feature = "component_MyComponent")))]
+impl QueryData for MyComponent {
+    const ENABLED: bool = false;
+
+    //...
+}
+```
+
+Not all `SystemParam` in a system are equal: one could drive system execution by looping over the entities in a query, while another could only be used as a check to trigger additional behaviour. We need to be able to mark which `SystemParam` should control system compilation.
+
+```rust
+#[ConditionalSystem]
+pub fn transform_system(
+    #[conditional(controller)]
+    mut query: Query<(Entity, &mut Transform)>,
+    check: Query<&Visibility>,
+) {
+    for (entity, mut transform) in &mut query {
+        // do something
+        if check.get(entity).is_some() {
+            // do something additional
+        }
+    }
+}
+```
+
+This would check the `query` system parameter for system addition to the schedule, while ignoring `check`.
+
 ## Drawbacks
 
 - Multiplication of features
@@ -165,4 +235,3 @@ impl IntoScheduleConfigs for transform_system {
 
 - Do we want to do it also for assets?
 - Should the `component_Xxxx` features be available on the `bevy` crate, or only on individual crates?
-- Is it possible to automatically find the correct component-as-feature for a system through `SystemParam`
